@@ -1,5 +1,7 @@
 # Cross-Layer Composition — Conditional Lemmas and Open Assumptions
 
+> **HISTORICAL / NOT ACTIVE V0:** This is a historical conditional outline, not a completed theorem. The paired proof architecture is retired from active V0. See [Constructionable V0](constructionable-v0.md).
+
 **Status:** Conditional proof outline. Earlier versions called this a completed theorem; that claim is withdrawn because the required commitment, extractors, zero-knowledge backend and parameter security have not been instantiated.
 
 ## 1. Public statement and intended relations
@@ -66,3 +68,8 @@ The only valid conclusion at this stage is the conditional same-commitment inter
 ## CHP3 consistency review reference (2026-10-11)
 
 This document remains a conditional lemma/proof outline, not a completed composition theorem. The bridge binding implication applies only after a concrete bridge commitment with the required binding property and compatible proof extractors are instantiated. The current linear expression is not itself a proven commitment. The Layer 2 carry recurrence, QROM entropy premise, full ZK property, and byte-accurate proof size are still open. See [CHP3 mathematical review](../audit/chp3-mathematical-review.md).
+
+
+## CHP3 construction pivot (superseding status)
+
+The two-layer bridge architecture described above is retired as the active V0 implementation path. The conditional same-commitment lemma remains conditional on its assumptions, but it is no longer the construction target. V0 targets one post-quantum signature-of-knowledge relation containing membership, coin opening, threshold-signature verification and deterministic nullifier derivation. There is no bridge value B in the active public statement. See [Constructionable V0](constructionable-v0.md) and [CHP3 construction pivot](../audit/chp3-construction-pivot.md). No end-to-end security theorem is claimed.

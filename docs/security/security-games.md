@@ -1,35 +1,34 @@
-# Security Games and Formal Definitions — Draft Research Targets
+# Security Games and Formal Definitions — Active V0 Research Targets
 
-**Status:** Definitions only. Reduction proofs and a complete composition theorem are not established.
+**Status:** Definitions and reduction targets only. No complete reduction or end-to-end theorem is established.
 
-Earlier games for spend-specific key rerandomization describe the abandoned Design A/SCRL line. The current baseline is static keys plus hidden coin selection and a commitment-bound nullifier; rerandomization is not a required property unless later analysis shows it is necessary.
+The V0 candidate is one anonymous proof for hidden coin membership, threshold authorization, and a commitment-bound deterministic nullifier. SCRL/key rerandomization and the paired LoTRS+STARK bridge are historical paths, not active requirements.
 
 ## Common adversary model
 
-Specify the security parameter, public parameters, ledger state, honest minting and spend oracles, public transcripts, corruptible key holders, and quantum random-oracle access. State whether the adversary can choose malformed coins, adaptively corrupt participants, replay transactions, or register keys/commitments. A game without these interfaces is not a complete security definition.
+Specify security parameter, public parameters, ledger state, minting/spend oracles, full public transcripts, corruptible custody participants, and classical/quantum oracle access. State whether an adversary can register malformed coins/keys, adaptively corrupt participants, request honest spends/signatures, replay transactions, race concurrent spends, or observe aborts/side channels. A game is incomplete without interfaces and permitted leakage.
 
 ## Required games
 
-### Authorization soundness
-
-The adversary wins by obtaining an accepted spend for a valid coin without satisfying the wallet's specified t-of-n authorization policy. The reduction must reference the concrete threshold-signature/MPC protocol, not only Module-LWE or Module-SIS by name.
+### Authorization and spend soundness
+The adversary wins by causing an accepted spend without satisfying the wallet's \(t\)-of-\(n\) policy for the selected hidden coin. The reduction must use the concrete threshold-signature scheme and the selected proof system's actual soundness or knowledge-soundness definition.
 
 ### Hidden-member anonymity
-
-The challenger chooses one of two eligible commitments under a left-or-right game. The adversary wins by identifying which one was used from the entire transcript. The game must include public transaction fields, bridge commitment, nullifier, proof transcripts, ledger state, corrupted participants, and explicitly permitted leakage.
+The challenger chooses one of two eligible commitments in a left/right game. The adversary identifies the spent member from the entire transaction/proof transcript, including nullifier, transaction digest, ledger state, timing, amount and corrupted participants. The public set is allowed leakage; revealing the selected index or a stable link is not.
 
 ### Nullifier correctness and double-spend resistance
-
-An honest coin must have a deterministic nullifier fixed by committed coin data. An adversary wins if it produces two accepted spends of the same committed coin with distinct nullifiers, or an accepted spend whose nullifier is not the value specified by the proof relation. Ledger duplicate checking is part of the game.
+A valid coin has a deterministic nullifier fixed by committed data. The adversary wins by having a spend accepted with an inconsistent nullifier or by spending the same coin twice with distinct accepted nullifiers. The ledger's atomic duplicate-nullifier rule is part of the experiment.
 
 ### Collision safety
-
-Distinct valid coins producing the same nullifier is a separate event. Its argument uses the concrete nullifier function and mint/asset-uniqueness rules; it does not replace the authorization or spend-soundness game.
+Distinct valid coins producing the same nullifier is a separate event. Analyze it under the chosen hash model, encoding and minting-uniqueness rules; do not confuse it with replay rejection.
 
 ### Full composition
+A completed theorem must account for commitment binding/hiding, threshold unforgeability, hidden-member anonymity, knowledge soundness of the single proof, application-level zero knowledge, QROM/hash assumptions, state validity and public leakage. Security of individual ingredients does not automatically prove composition.
 
-A complete theorem must account for commitment binding/hiding, threshold unforgeability, hidden-member anonymity, knowledge soundness of both proofs, protocol zero knowledge, QROM/hash assumptions, state validity, and all public leakage. Individual component security does not automatically establish composition security.
+## Proof-status vocabulary
 
-## Proof-status discipline
+Use: definition, candidate assumption, conditional lemma, proof completed and checked, or measured implementation result. Do not call a reduction proven until every hybrid, extractor premise, adversary restriction, quantitative advantage term and source theorem is explicit and checked.
 
-Use one of the labels “definition”, “candidate assumption”, “conditional lemma”, “proof completed and checked”, or “measured implementation result”. Do not label a proposed reduction “proven” until every hybrid, extractor premise, adversary restriction and advantage term is explicit and supported by a cited theorem or a complete proof.
+## Current status
+
+The nullifier and coin commitment are functional hash helpers, not proof verifiers. Ringtail adapter and single anonymous proof are not integrated. All security games remain OPEN; no production or novelty claim is approved.

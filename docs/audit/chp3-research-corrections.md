@@ -1,5 +1,7 @@
 # CHP3 Research Corrections and Source Ledger
 
+> Versioned source snapshots and claim boundaries are tracked in [upstream-source-manifest.md](../related-work/upstream-source-manifest.md). The manifest records the upstream revisions inspected on 2026-10-11.
+
 This document records corrections made after checking the live 0PSP repository against primary public specifications and upstream implementations. It is a source ledger and engineering checklist, not a cryptographic certificate.
 
 ## Primary sources checked
@@ -50,17 +52,20 @@ Counting the Keccak \(\chi\)-layer operations is not a complete AIR constraint c
 
 The Layer 1 + Layer 2 sizes (including 118.62/119.75 KiB estimates) are unverified projections. They are not benchmark results and do not include a reproduced compiled 0PSP implementation. A rough Core-SVP estimate is not a proof of hardness. Use upstream lattice estimators and document the exact model/input/output.
 
-## Required evidence before the next GO decision
+## Required evidence before the next GO decision — active single-relation V0
 
-- Concrete coin and bridge commitment schemes with fully stated hiding/binding games and reductions.
-- Actual LoTRS modulus profiles represented by separate types, not by the ML-DSA parameter object.
-- A Layer 1 protocol that proves threshold authorization and coin ownership for the same hidden selection index.
-- A complete Layer 2 AIR/trace/backend implementation, including all field-switch, range, hash, and transcript constraints.
-- A valid knowledge-soundness/zero-knowledge composition argument with explicit assumptions and advantage terms.
-- Reproducible lattice estimator and FRI/Fiat–Shamir parameter outputs for the exact implementation.
-- CI results and byte-accurate proof benchmarks.
+The following gates supersede the earlier Layer 1 / Layer 2 / bridge checklist. That paired architecture remains historical research only.
 
-Until then, the honest project status is “candidate construction under falsification”, not “cryptographic audit passed”.
+- **Coin commitment:** define the hash-commitment games, canonical encodings, QROM model and hiding/binding reductions for the precise SHAKE-based candidate; replace the candidate if its required proof relation/cost is not justified.
+- **Threshold authorization:** pin the Ringtail revision, license, parameter manifest and test vectors; specify the dealer trust assumption or add and analyze DKG; ensure the wallet's (t)-of-(n) policy is the exact policy verified.
+- **Single relation:** instantiate a concrete proof system proving hidden membership, commitment opening, threshold-signature validity under the same key, nullifier correctness and state/value predicates using the same hidden witness.
+- **Zero knowledge and soundness:** use the actual selected backend's theorem and configuration; prove knowledge/soundness, application-level ZK, and quantum security under explicit assumptions. The experimental generic SoK/LRS scaffold's informal ZK extension is not sufficient.
+- **Nullifier games:** formalize spend soundness, double-spend resistance, collision safety and unlinkability over the complete transcript and permitted leakage; do not infer conditional min-entropy from computational hiding.
+- **Parameters and cost:** run reproducible attack estimators for the exact components and measure complete serialized proof bytes, proving/verifying latency, memory and communication across specified anonymity-set sizes.
+- **Prior art and review:** compare Ringtail, LoTRS, the generic PQ SoK/LRS scaffold, Obscura-PQ, Orchard and the 2024 identity-based dual-ring scheme at matched functionality; obtain independent cryptanalysis before any security or novelty claim.
+- **Software quality:** keep CI green and label all existing scripts as functional/numeric diagnostics, not cryptographic proofs.
+
+Until these gates pass, the correct status is “candidate construction under falsification”, not “cryptographic audit passed”.
 
 
 ### I. NTT correctness regression found by CI
@@ -69,4 +74,4 @@ The first CHP3 CI run passed package installation, nullifier smoke tests, and nu
 
 The follow-up patch changes the inverse layer to use the forward twiddle indices for each reversed layer, uses \((x-y)w^{-1}\), and applies \(n^{-1}\) once after the transform. A small independent arithmetic reproduction passed round-trip and naive negacyclic multiplication checks. This is not a substitute for the remote CI rerun, and it does not make the ring code production cryptography.
 
-The corrected transform still uses the current research/ML-DSA-like parameter object. It must not be treated as LoTRS arithmetic. Remote test status should be checked on the follow-up commit before reporting the regression resolved.
+The corrected transform still uses the current research/ML-DSA-like parameter object. It must not be treated as LoTRS arithmetic. The GitHub Actions run for commit 4952de491b1de69fa00c7243a7788bf63957473b completed successfully: package install, nullifier smoke checks, numeric diagnostics, arithmetic audit, and unit/property tests all passed. This closes the CI regression for that revision only; subsequent code changes require a fresh run.

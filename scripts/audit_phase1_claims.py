@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Arithmetic consistency checks for 0PSP Phase 1 claims.
+"""Historical arithmetic checks for the retired CHP3 split-layer proposal.
 
-This script does not validate a cryptographic construction, a commitment,
-a lattice reduction, a QROM theorem, a STARK AIR, or zero knowledge.
-It only recomputes the numerical identities documented in
-docs/audit/chp3-mathematical-review.md.
+This script does not validate constructionable V0, a cryptographic construction,
+a commitment, a lattice reduction, a QROM theorem, a STARK AIR, or zero knowledge.
+It only recomputes numerical identities retained in the historical CHP3 review.
 """
 from __future__ import annotations
 
@@ -64,7 +63,7 @@ def main() -> int:
     assert -124 < qrom256 < -123
     assert -156 < qrom288 < -155
 
-    print("0PSP CHP3 arithmetic consistency checks")
+    print("0PSP HISTORICAL CHP3 split-layer arithmetic checks (not V0 validation)")
     print("PASS: LoTRS q/q-hat and BabyBear identities")
     print(f"36-bit six-vector raw packing: {six_vectors_36} bytes = {six_vectors_36/1024:.4f} KiB")
     print(f"43-bit six-vector raw packing: {six_vectors_43} bytes = {six_vectors_43/1024:.4f} KiB")
@@ -75,6 +74,7 @@ def main() -> int:
     print(f"Conditional QROM arithmetic, h=256, q_H=2^64: 2^{qrom256:.3f}")
     print(f"Conditional QROM arithmetic, h=288, q_H=2^64: 2^{qrom288:.3f}")
     print("NOTE: QROM values are conditional arithmetic, not a protocol theorem.")
+    print("NOTE: LoTRS/BabyBear/cross-layer figures refer to a retired design and are not V0 estimates.")
     print("NOTE: No cryptographic security or end-to-end proof is validated.")
     return 0
 

@@ -1,5 +1,7 @@
 # 0PSP Phase 1 Consistency Audit — CHP3
 
+> **Historical scope note (CHP3):** This audit primarily analyzes the retired LoTRS + bridge-commitment + separate STARK proposal. Its arithmetic findings remain useful for avoiding reuse of invalid claims, but its Layer 1/Layer 2 gates are not the active V0 path. Active V0 is a single-relation proof target; see [Constructionable V0](../theory/constructionable-v0.md). Current security gates are listed in [CHP3 research corrections](chp3-research-corrections.md).
+
 **Status: OPEN.** This audit supersedes earlier “final”, “closed”, or “all blockers resolved” descriptions in revisions 1–3. The repository contains useful design work and functional helpers, but not a fully instantiated secure primitive.
 
 ## Executive result

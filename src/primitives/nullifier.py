@@ -1,218 +1,207 @@
+"""0PSP functional nullifier interface and native research boundary.
+
+The byte-level candidate is SHAKE256(domain || version || length-prefixed
+coin_id || length-prefixed 288-bit per-coin secret), returning 48 bytes.
+The pure-Python implementation is a functional reference, not a CT path.
+Neither path by itself proves a spend, a commitment opening, QROM security, or
+absence of side channels in the overall system.
 """
-0PSP — Post-Quantum Private Spend Primitive
-src/primitives/nullifier.py
-
-Deterministic nullifier construction for double-spend prevention.
-
-The nullifier nul = PRF_{sk}(coin_id) serves two purposes:
-  1. Reveals if the same coin is spent twice (collision = double-spend)
-  2. Hides the spender's identity (PRF output is pseudorandom)
-
-CONSTRUCTION:
-  We use a simplified PRF based on the BPR (Banerjee-Peikert-Rosen) scheme,
-  which is secure under Learning With Rounding (LWR).
-
-  LWR-PRF: f_s(x) = ⌊ A·s·x / p ⌋ mod p
-  where A is a public matrix, s is the secret, x is the input.
-
-  For research purposes, we use SHAKE-256(sk_bytes || coin_id) as a
-  placeholder PRF. A production implementation must use a provably secure
-  lattice-based PRF.
-
-References:
-  - Banerjee, Peikert, Rosen (2012): "Pseudorandom Functions and Lattices"
-  - Boneh et al. (2013): "Key Homomorphic PRFs and Their Applications"
-  - FIPS 202 (SHA-3 / SHAKE-256)
-"""
-
 from __future__ import annotations
 
+import ctypes
 import hashlib
-import struct
+import hmac
 from dataclasses import dataclass
+from pathlib import Path
+import threading
+from typing import Final
 
-from ..core.params import Params
-from ..core.ring import ModuleVec
+COIN_ID_BYTES: Final = 32
+NULLIFIER_SECRET_BYTES: Final = 36
+NULLIFIER_BYTES: Final = 48
+DOMAIN_NULLIFIER: Final = b"0PSP-NULLIFIER-v1-SHAKE256"
+PROTOCOL_VERSION: Final = b"\x01"
+NULLIFIER_INPUT_BYTES: Final = (
+    len(DOMAIN_NULLIFIER) + len(PROTOCOL_VERSION) + 2 + COIN_ID_BYTES + 2 + NULLIFIER_SECRET_BYTES
+)
 
 
-# ---------------------------------------------------------------------------
-# Nullifier types
-# ---------------------------------------------------------------------------
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CoinId:
-    """
-    Unique identifier for a coin / UTXO.
+    """Canonical 32-byte coin identifier, scoped at mint to one ledger and asset.
 
-    In a real spend protocol, this would be derived from the commitment
-    opening (note randomness + value + asset type). For research purposes,
-    it's a raw bytes identifier.
+    The nullifier function does not take a separate network/asset namespace;
+    minting must enforce this scope before the ID becomes a coin commitment.
     """
     data: bytes
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.data, bytes) or len(self.data) != COIN_ID_BYTES:
+            raise ValueError(f"coin_id must be exactly {COIN_ID_BYTES} bytes")
+
     def __repr__(self) -> str:
-        return f"CoinId({self.data.hex()[:16]}…)"
+        return "CoinId(<redacted>)"
 
 
-@dataclass(frozen=True)
-class Nullifier:
-    """
-    A 32-byte nullifier value.
-
-    Publishing a nullifier on a ledger marks a coin as spent without
-    revealing which coin or who spent it.
-
-    Properties:
-      - Deterministic: same (sk, coin_id) → same nullifier
-      - Collision-resistant: different coin_ids → different nullifiers
-      - Spend-hiding: nullifier is computationally indistinguishable
-        from a random value without knowledge of sk
-    """
-    value: bytes  # 32 bytes
+@dataclass(frozen=True, slots=True)
+class NullifierSecret:
+    """Per-coin 288-bit secret, separate from commitment salt and wallet keys."""
+    data: bytes
 
     def __post_init__(self) -> None:
-        assert len(self.value) == 32, "Nullifier must be 32 bytes"
+        if not isinstance(self.data, bytes) or len(self.data) != NULLIFIER_SECRET_BYTES:
+            raise ValueError(f"r_nf must be exactly {NULLIFIER_SECRET_BYTES} bytes")
+
+    def __repr__(self) -> str:
+        return "NullifierSecret(<redacted>)"
+
+
+@dataclass(frozen=True, slots=True)
+class Nullifier:
+    """Canonical 48-byte public nullifier."""
+    value: bytes
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.value, bytes) or len(self.value) != NULLIFIER_BYTES:
+            raise ValueError(f"nullifier must be exactly {NULLIFIER_BYTES} bytes")
 
     def __repr__(self) -> str:
         return f"Nullifier({self.value.hex()[:16]}…)"
 
 
-# ---------------------------------------------------------------------------
-# Nullifier computation
-# ---------------------------------------------------------------------------
-
-def _secret_to_bytes(secret: ModuleVec) -> bytes:
-    """
-    Canonical serialization of a module vector for PRF input.
-
-    Each coefficient is serialized as a 3-byte little-endian integer
-    (sufficient for q < 2^24).
-    """
-    parts = []
-    for ring_elem in secret.elems:
-        for coeff in ring_elem.coeffs:
-            # Store as 3 bytes (sufficient for q ≈ 2^23)
-            parts.append(struct.pack("<I", int(coeff) % (1 << 24))[:3])
-    return b"".join(parts)
+def _hash_input(coin_id: CoinId, r_nf: NullifierSecret) -> bytes:
+    """Build the frozen fixed-width preimage used by the reference implementation."""
+    if not isinstance(coin_id, CoinId):
+        raise TypeError("coin_id must be a CoinId")
+    if not isinstance(r_nf, NullifierSecret):
+        raise TypeError("r_nf must be a NullifierSecret")
+    return (
+        DOMAIN_NULLIFIER
+        + PROTOCOL_VERSION
+        + len(coin_id.data).to_bytes(2, "little")
+        + coin_id.data
+        + len(r_nf.data).to_bytes(2, "little")
+        + r_nf.data
+    )
 
 
-def compute_nullifier(secret: ModuleVec, coin_id: CoinId) -> Nullifier:
-    """
-    Compute the deterministic nullifier for a coin.
-
-    nul = SHAKE-256(domain || secret_bytes || coin_id.data)[:32]
-
-    This is a PLACEHOLDER PRF. In a production 0PSP implementation, this
-    must be replaced with a lattice-based PRF (e.g., BPR-PRF under LWR)
-    to enable formal security reductions.
-
-    For the research phase, SHAKE-256 provides:
-    - Determinism: same inputs → same output
-    - Collision resistance: 128-bit second-preimage resistance
-    - Pseudorandomness: assumed under random oracle model
-
-    Parameters
-    ----------
-    secret : ModuleVec
-        The secret share (or reconstructed secret) used for nullification.
-        In a threshold setting, all shares must yield the same nullifier.
-    coin_id : CoinId
-        The unique coin identifier.
-
-    Returns
-    -------
-    Nullifier
-        A 32-byte deterministic nullifier.
-
-    Notes
-    -----
-    For threshold compatibility: the nullifier must be computable by a
-    single share holder (not requiring secret reconstruction). This means
-    either:
-    (a) The PRF is key-homomorphic: nul = PRF_{s₁}(x) ⊕ PRF_{s₂}(x) ⊕ ...
-    (b) The nullifier is derived from a public attribute of the coin
-        (like a commitment opening) rather than the secret key directly.
-
-    Option (a) is the BKW key-homomorphic PRF approach (Boneh et al. 2013).
-    Option (b) is closer to Zcash's design.
-    Both are open research targets for 0PSP's Phase 2.
-    """
-    domain_sep = b"0PSP-NULLIFIER-v0:"
-    sk_bytes = _secret_to_bytes(secret)
-
+def compute_nullifier(coin_id: CoinId, r_nf: NullifierSecret) -> Nullifier:
+    """Compute deterministic candidate nullifier; this does not validate a coin."""
     h = hashlib.shake_256()
-    h.update(domain_sep)
-    h.update(sk_bytes)
-    h.update(coin_id.data)
-    return Nullifier(value=h.digest(32))
+    h.update(_hash_input(coin_id, r_nf))
+    return Nullifier(h.digest(NULLIFIER_BYTES))
 
 
-def verify_nullifier_consistency(nullifier: Nullifier, secret: ModuleVec,
-                                  coin_id: CoinId) -> bool:
+def _load_native_library(library_path: str | Path):
+    try:
+        return ctypes.CDLL(str(Path(library_path)))
+    except OSError as exc:
+        raise RuntimeError(f"cannot load native nullifier library: {library_path}") from exc
+
+
+def generate_nullifier_secret_native(*, library_path: str | Path) -> bytearray:
+    """Generate 36 per-coin secret bytes with OpenSSL RAND_bytes.
+
+    No fallback RNG is used. The mutable buffer is returned to the caller so
+    the native hashing path can borrow it without first copying it into a
+    Python immutable-bytes object. The caller owns the secret lifecycle and
+    must not reuse the result for another coin. CPython and the OS can still
+    create copies outside this wrapper's control.
     """
-    Check that a nullifier was computed correctly.
+    library = _load_native_library(library_path)
+    function = library.psp_nullifier_v1_generate_secret
+    byte_p = ctypes.POINTER(ctypes.c_ubyte)
+    function.argtypes = [byte_p, ctypes.c_size_t]
+    function.restype = ctypes.c_int
+    secret = bytearray(NULLIFIER_SECRET_BYTES)
+    out_buf = (ctypes.c_ubyte * NULLIFIER_SECRET_BYTES).from_buffer(secret)
+    status = function(out_buf, NULLIFIER_SECRET_BYTES)
+    if status != 0:
+        secret[:] = bytes(NULLIFIER_SECRET_BYTES)
+        raise RuntimeError(f"native nullifier secret generation failed with status {status}")
+    return secret
 
-    Used during verification: the ledger checks that the published
-    nullifier matches a fresh computation (or a ZK proof thereof).
 
-    In the full 0PSP scheme, this would be proven in zero-knowledge:
-    "I know a secret sk such that Nullify(sk, coin_id) = nul"
-    without revealing sk.
+def compute_nullifier_native(
+    coin_id: CoinId,
+    r_nf: bytearray,
+    *,
+    library_path: str | Path,
+) -> Nullifier:
+    """Call the native OpenSSL SHAKE256 implementation with a borrowed secret buffer.
+
+    Requires a caller-owned mutable 36-byte buffer. It deliberately does not
+    silently fall back to Python if loading or native execution fails. This
+    ctypes API is a test/integration boundary, not itself a whole-process CT
+    guarantee; production callers should manage secrets in a reviewed native
+    or Rust layer without implicit copies.
     """
-    expected = compute_nullifier(secret, coin_id)
-    return expected.value == nullifier.value
+    if not isinstance(coin_id, CoinId):
+        raise TypeError("coin_id must be a CoinId")
+    if not isinstance(r_nf, bytearray) or len(r_nf) != NULLIFIER_SECRET_BYTES:
+        raise ValueError(f"native r_nf must be a bytearray of exactly {NULLIFIER_SECRET_BYTES} bytes")
+
+    library = _load_native_library(library_path)
+    function = library.psp_nullifier_v1
+    byte_p = ctypes.POINTER(ctypes.c_ubyte)
+    function.argtypes = [
+        byte_p, ctypes.c_size_t, byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+    ]
+    function.restype = ctypes.c_int
+
+    coin_buf = (ctypes.c_ubyte * COIN_ID_BYTES).from_buffer_copy(coin_id.data)
+    secret_buf = (ctypes.c_ubyte * NULLIFIER_SECRET_BYTES).from_buffer(r_nf)
+    output_buf = (ctypes.c_ubyte * NULLIFIER_BYTES)()
+    status = function(
+        coin_buf, COIN_ID_BYTES, secret_buf, NULLIFIER_SECRET_BYTES,
+        output_buf, NULLIFIER_BYTES,
+    )
+    if status != 0:
+        raise RuntimeError(f"native nullifier derivation failed with status {status}")
+    return Nullifier(bytes(output_buf))
 
 
-def detect_double_spend(nullifier1: Nullifier, nullifier2: Nullifier) -> bool:
-    """
-    Detect whether two spend transactions share a nullifier (= double spend).
+def verify_nullifier_consistency(
+    nullifier: Nullifier, coin_id: CoinId, r_nf: NullifierSecret
+) -> bool:
+    """Functional consistency check; not a ZK verifier."""
+    if not isinstance(nullifier, Nullifier):
+        raise TypeError("nullifier must be a Nullifier")
+    return hmac.compare_digest(compute_nullifier(coin_id, r_nf).value, nullifier.value)
 
-    A ledger maintains a set of seen nullifiers. Before accepting a new
-    spend, it checks: is nul already in the spent set?
-
-    Returns True if nullifiers are equal (double-spend detected).
-    """
-    return nullifier1.value == nullifier2.value
-
-
-# ---------------------------------------------------------------------------
-# Nullifier set (simple research implementation)
-# ---------------------------------------------------------------------------
 
 class NullifierSet:
-    """
-    Maintains a set of published nullifiers.
-
-    In a production blockchain, this would be a Merkle tree or a
-    zero-knowledge membership proof structure. For research purposes,
-    this is a simple hash set.
-    """
-
+    """Thread-safe in-memory replay model; not a durable consensus ledger."""
     def __init__(self) -> None:
         self._spent: set[bytes] = set()
+        self._lock = threading.Lock()
 
-    def add(self, nul: Nullifier) -> None:
-        """Mark a nullifier as spent."""
-        self._spent.add(nul.value)
+    def add(self, nullifier: Nullifier) -> None:
+        if not isinstance(nullifier, Nullifier):
+            raise TypeError("nullifier must be a Nullifier")
+        with self._lock:
+            self._spent.add(nullifier.value)
 
-    def is_spent(self, nul: Nullifier) -> bool:
-        """Check if a coin has already been spent."""
-        return nul.value in self._spent
+    def is_spent(self, nullifier: Nullifier) -> bool:
+        if not isinstance(nullifier, Nullifier):
+            raise TypeError("nullifier must be a Nullifier")
+        with self._lock:
+            return nullifier.value in self._spent
 
-    def try_spend(self, nul: Nullifier) -> bool:
-        """
-        Attempt to spend a coin.
-
-        Returns True if this is the first spend (success).
-        Returns False if the nullifier was already seen (double-spend).
-        """
-        if self.is_spent(nul):
-            return False
-        self.add(nul)
-        return True
+    def try_spend(self, nullifier: Nullifier) -> bool:
+        """Atomically accept first use and reject repeats within this process."""
+        if not isinstance(nullifier, Nullifier):
+            raise TypeError("nullifier must be a Nullifier")
+        with self._lock:
+            if nullifier.value in self._spent:
+                return False
+            self._spent.add(nullifier.value)
+            return True
 
     def __len__(self) -> int:
-        return len(self._spent)
+        with self._lock:
+            return len(self._spent)
 
     def __repr__(self) -> str:
-        return f"NullifierSet(spent={len(self._spent)})"
+        return f"NullifierSet(spent={len(self)})"

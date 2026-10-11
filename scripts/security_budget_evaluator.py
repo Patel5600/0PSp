@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""0PSP Phase 1 numeric consistency diagnostics.
+"""Historical numeric consistency diagnostics for the retired CHP3 design.
 
-This script checks arithmetic and accounting assumptions only. It is NOT a
-lattice estimator, proof checker, QROM theorem prover, AIR verifier, or
-cryptographic security evaluator. Exit code 0 means these limited arithmetic
-checks are internally consistent; it does not mean 0PSP is secure.
+This script checks older bridge/Layer-2 arithmetic and accounting assumptions
+only. It does NOT evaluate constructionable V0, estimate lattice security,
+check proofs, prove QROM bounds, verify an AIR, or evaluate cryptographic
+security. Exit code 0 does not mean 0PSP is secure or that sizes are measured.
 """
 
 from __future__ import annotations

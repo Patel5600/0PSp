@@ -121,24 +121,15 @@ if HAS_HYPOTHESIS:
     )
     @settings(max_examples=30)
     def test_nullifier_determinism(seed1: int, seed2: int) -> None:
-        """
-        Same secret + same coin_id → same nullifier, always.
-        Different coin_ids → different nullifiers, with overwhelming probability.
-        """
-        from src.primitives.nullifier import CoinId, compute_nullifier
-        rng = make_rng(seed1.to_bytes(8, "little"))
-        secret = sample_secret(PARAMS, rng)
-
-        coin_id_bytes = seed2.to_bytes(8, "little")
-        coin = CoinId(coin_id_bytes)
-
-        n1 = compute_nullifier(secret, coin)
-        n2 = compute_nullifier(secret, coin)
-        assert n1 == n2, "Nullifier must be deterministic"
-
-        # Different coin
-        coin_other = CoinId((seed2 + 1).to_bytes(8, "little"))
-        n3 = compute_nullifier(secret, coin_other)
-        # With overwhelming probability, n1 != n3 (collision would be a break)
-        # We don't assert this strictly to avoid rare PRNG collisions in testing
-        # A separate collision-resistance experiment should verify this statistically
+        """Functional property: same coin witness gives same 48-byte nullifier."""
+        from src.primitives.nullifier import (
+            CoinId, NullifierSecret, compute_nullifier, NULLIFIER_BYTES, NULLIFIER_SECRET_BYTES
+        )
+        coin_id = CoinId(seed2.to_bytes(32, "little"))
+        secret = NullifierSecret(seed1.to_bytes(NULLIFIER_SECRET_BYTES, "little"))
+        n1 = compute_nullifier(coin_id, secret)
+        assert compute_nullifier(coin_id, secret) == n1
+        assert len(n1.value) == NULLIFIER_BYTES
+        # Sample inequality only; this is not a collision-resistance proof.
+        other_coin = CoinId((seed2 + 1).to_bytes(32, "little"))
+        assert compute_nullifier(other_coin, secret) != n1

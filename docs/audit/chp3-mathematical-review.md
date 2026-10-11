@@ -1,5 +1,7 @@
 # CHP3 Mathematical Consistency Review
 
+> **Historical scope note (CHP3):** This review records arithmetic and protocol objections to earlier Layer 1/Layer 2/bridge projections. Those results are not a validation of the active single-relation V0 candidate. The current construction target, open security gates, and test scope are documented in [Constructionable V0](../theory/constructionable-v0.md) and [CHP3 research corrections](chp3-research-corrections.md).
+
 **Review date:** 2026-10-11  
 **Scope:** arithmetic and protocol claims in the latest Phase 1 proposal, checked against the repository's current specifications and primary upstream documentation.  
 **Status:** consistency findings recorded; cryptographic construction remains open. This is not an independent cryptographic audit.

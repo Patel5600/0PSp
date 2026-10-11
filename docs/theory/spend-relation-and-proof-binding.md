@@ -1,49 +1,54 @@
-# 0PSP Spend Relation — Current Candidate Statement
+# 0PSP Spend Relation — Active Single-Proof Target
 
-**Status:** Formal relation target; no composed proof has been implemented or proven secure.
+**Status: Formal target relation. No end-to-end proof or complete reduction exists.**
 
 ## Public statement
 
 \[
-x_{\mathrm{pub}}=(R_C,\nu,B,M,\mathsf{state})
+x_{\mathrm{pub}}=(R_C,\nu,M,\mathsf{state},\mathsf{params\_id})
 \]
 
-- \(R_C=\{C_1,\ldots,C_N\}\): public set of eligible coin commitments.
-- \(\nu\in\{0,1\}^{384}\): public nullifier.
-- \(B\): fresh per-spend bridge commitment to the nullifier input.
-- \(M\): transaction digest binding chain ID, transaction version, inputs/outputs, fees, \(\nu\), and \(B\).
-- \(\mathsf{state}\): current accepted state/root, eligible-set context, and spent-nullifier state.
+\(R_C=\{C_1,\ldots,C_N\}\) is the public eligible commitment set; \(\nu\in\{0,1\}^{384}\) is the public nullifier; \(M\) binds version, chain ID, inputs, outputs, fees and \(\nu\); state identifies the ledger snapshot; params_id pins cryptographic parameters and encodings.
 
-Neither \(j\) nor the selected \(C_j\) is a separate public argument. Each \(C_i\) is already visible as a member of \(R_C\); privacy means hiding **which member is selected**, not hiding the entire public set.
+The set is public, but the selected index \(j\) and selected opening are not public arguments. Privacy means hiding which member was selected in the complete transcript, subject to permitted leakage.
 
 ## Hidden witness
 
 \[
-w=(j,C_j,pk_j,v,coin\_id,r_{\mathrm{nf}},\rho,\tau_B,\mathsf{auth})
+w=(j,C_j,pk_j,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C,\sigma_{\mathrm{th}})
 \]
 
-The same hidden \(j\), \(pk_j\), commitment opening, coin identity and nullifier secret must connect every predicate.
+\(r_{\mathrm{nf}}\) is a dedicated 36-byte per-coin secret. \(\rho_C\) is independent commitment randomness. The threshold signature remains a hidden witness.
 
 ## Required predicates
 
-1. **Selection:** \(j\in[N]\) and \(C_j=R_C[j]\), without revealing \(j\).
-2. **Coin opening:** \(C_j=\operatorname{Com}_{\mathrm{coin}}(pk_j,v,coin\_id,r_{\mathrm{nf}};\rho)\).
-3. **Bridge opening:** \(B=\operatorname{Com}_{\mathrm{bridge}}(\operatorname{Encode}(\mathsf{version},coin\_id,r_{\mathrm{nf}});\tau_B)\).
-4. **Nullifier:** \(\nu=\operatorname{SHAKE256}_{384}(\mathsf{domain}_{\mathrm{null}}\parallel\mathsf{version}\parallel\operatorname{Encode}(coin\_id)\parallel r_{\mathrm{nf}})\).
-5. **Authorization:** \(\mathsf{AuthVerify}(pk_j,M,\mathsf{auth})=1\), where AuthVerify is an actually specified \(t\)-of-\(n\) protocol and \(pk_j\) is the same key bound into \(C_j\).
-6. **State:** the coin is a valid, unspent asset under the selected ledger state; the transaction conserves value and satisfies protocol rules.
+1. **Membership:** \(j\in[N]\) and \(C_j=R_C[j]\).
+2. **Coin commitment:** \(C_j=\operatorname{SHAKE256}_{384}(D_C\parallel\operatorname{Encode}(\mathsf{version},\mathsf{params\_id},pk_j,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C))\).
+3. **Threshold authorization:** the concrete threshold signature verifies under the same \(pk_j\) bound into \(C_j\) on transaction digest \(M\).
+4. **Nullifier:** \(\nu=\operatorname{SHAKE256}_{384}(D_N\parallel\mathsf{version}\parallel\operatorname{LenEncode}(\mathsf{coin\_id})\parallel\mathsf{coin\_id}\parallel\operatorname{LenEncode}(r_{\mathrm{nf}})\parallel r_{\mathrm{nf}})\).
+5. **State and transaction:** the selected coin is valid and unspent; state is current; outputs/fees satisfy policy and value-conservation rules; the ledger records \(\nu\) atomically.
 
-The domain tag and encoding version are fixed public constants; every variable-length encoding must have an unambiguous length encoding. The nullifier secret is distinct from the coin commitment randomness and must be fixed by the committed coin data.
+The encoding and public-key serialization must be canonical and versioned. The public transcript must not expose \(j\), the selected opening or the threshold signature if doing so identifies the selected member.
 
-## Composition requirement
+## Security targets (not established results)
 
-The two proofs cannot merely be individually valid: they must reference the exact same \(B\), protocol version and public transaction digest. A concrete commitment with proved hiding/binding and a complete proof relation in both layers is necessary. The current formula \(A_1m_x+A_2\tau_B\bmod q\) is not an instantiated secure commitment.
+- **Spend soundness:** acceptance without a valid witness implies a failure of the concrete proof system, commitment, or threshold-authentication property.
+- **Double-spend resistance:** commitment binding and proof soundness fix the nullifier input; deterministic derivation fixes \(\nu\) per coin, and the ledger rejects repeats.
+- **Collision safety:** two distinct valid coins yielding the same nullifier is a separate collision event.
+- **Unlinkability:** must be proved in a left/right game over the full transcript, including amounts, timing, state, signature/proof messages, corruption and permitted leakage.
+- **Quantum security:** reductions must match the actual hash model, threshold scheme, proof system and parameters; naming MLWE/MSIS or a QROM lemma is insufficient.
 
-## Security properties to prove
+## Architecture decision
 
-- **Spend soundness:** theft or invalid authorization implies a proof soundness/extractability failure, commitment failure, or threshold-authentication forgery under the concrete scheme assumptions.
-- **Double-spend resistance:** two accepted spends of one committed coin use the same committed nullifier input and therefore the same deterministic \(\nu\); the ledger atomically rejects the repeat.
-- **Collision safety:** distinct coins colliding under the nullifier function is a separate hash-security event.
-- **Unlinkability:** the selected member cannot be distinguished in the stated game, accounting for commitment hiding, both proofs' full zero knowledge, public transaction leakage, and the precise QROM/hash assumption.
+The old two-proof relation with public bridge commitment \(B\) is historical. V0 targets one proof over this relation; the bridge value and separate Layer 2 proof are not in the active path. This is a constructionability decision, not an impossibility theorem for hybrid proofs.
 
-No reduction is claimed complete until the concrete schemes and adversary model are fixed.
+## Evidence status
+
+Current code supplies functional hash/opening helpers and an in-memory replay model. It does not implement the relation or an anonymous proof. All previous 60–120 KiB combined proof figures are unverified projections, not measurements.
+
+## Sources
+
+- Ringtail: https://eprint.iacr.org/2024/1113
+- Experimental PQ SoK/LRS scaffold: https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature
+- NIST FIPS 202: https://csrc.nist.gov/pubs/fips/202/final
+- LoTRS comparator: https://eprint.iacr.org/2026/974 and https://zenodo.org/records/22807126

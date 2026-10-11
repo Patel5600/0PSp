@@ -87,10 +87,12 @@ Requirements:
 - Use a domain-separated, length-unambiguous canonical encoding for all inputs.
 - Require fixed or protocol-public lengths on secret-processing paths.
 - Avoid early-exit equality comparisons over secrets or secret-derived tags.
-- Document whether the selected SHAKE256 implementation has an applicable constant-time claim on the supported targets; verify the actual dependency and build rather than extrapolating from the algorithm name.
+- Document the selected SHAKE256 implementation, OpenSSL provider/backend and supported build targets; do not infer implementation security from the algorithm name.
 - Separate functional determinism from collision resistance, unlinkability, and timing security.
 
-**Current status:** the existing Python helper tests functional behaviour only; it is not the production nullifier implementation and has no constant-time claim.
+**Current implementation checkpoint:** `native/nullifier_v1.c` calls OpenSSL EVP SHAKE256 using fixed public lengths for the 32-byte coin ID, 36-byte nullifier secret and 48-byte output. It also obtains 36-byte secret material from OpenSSL `RAND_bytes`. The wrapper has no source-level branch or memory index controlled by the secret bytes; its checks and error branches use public pointer/length metadata or API status. On error, its fixed-size output buffer is cleared.
+
+This is a component-level source observation, not a constant-time claim. The Python reference and `ctypes` path are not the production timing-security boundary. CI emits optimized wrapper disassembly, but OpenSSL internals, generated code, hardware behavior, FFI, secret lifetimes and the full prover path have not been independently reviewed. A small custom timing probe exists for preliminary debugging only; it is not a reviewed statistical release test and is not run as a security gate.
 
 ### 5.3 Layer 2 prover and AIR
 
@@ -159,11 +161,11 @@ Reference: dudect explicitly describes its method as timing-leakage detection, n
 
 | Gate | Required evidence | Current state |
 |---|---|---|
-| Concrete cryptographic construction | Complete specification and applicable proof obligations | OPEN |
+| Concrete cryptographic construction | Complete specification and applicable proof obligations | V0 is a staged target; proof backend and reductions OPEN |
 | Secret/public classification | Reviewed asset and data-flow inventory | NOT STARTED |
-| Constant-time source review | All sensitive routines reviewed | NOT IMPLEMENTED |
-| Binary review | Release disassembly per supported target | NOT STARTED |
-| Statistical timing evaluation | Reproducible per-target leakage tests | NOT STARTED |
+| Constant-time source review | All sensitive routines reviewed | PARTIAL: native wrapper only; full path OPEN |
+| Binary review | Release disassembly per supported target | CI artifact produced for the wrapper; review OPEN |
+| Statistical timing evaluation | Reproducible per-target leakage tests | NOT STARTED; custom probe is non-gating only |
 | Memory/failure handling | Secret lifetime, error and crash analysis | NOT STARTED |
 | End-to-end zero knowledge and soundness | Fully constrained AIR/backend and security arguments | OPEN |
 | Independent audit | Findings tracked and blockers resolved | NOT STARTED |

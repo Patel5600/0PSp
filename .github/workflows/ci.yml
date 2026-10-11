@@ -12,18 +12,35 @@ permissions:
 jobs:
   python-tests:
     runs-on: ubuntu-latest
+    env:
+      PSP_NULLIFIER_LIBRARY: ${{ github.workspace }}/native/build/libpsp_nullifier.so
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
 
       - name: Install research package and development dependencies
         run: python -m pip install -e ".[dev]"
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential libssl-dev binutils
+
+      - name: Build and test native nullifier
+        run: make -C native test
+
+      - name: Capture optimized wrapper disassembly
+        run: make -C native audit
+
+      - name: Upload wrapper disassembly for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: nullifier-v1-wrapper-disassembly
+          path: native/build/nullifier_v1.disasm.txt
 
       - name: Run functional nullifier smoke tests
         run: python scripts/verify_nullifier_relation.py

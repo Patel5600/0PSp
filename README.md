@@ -1,74 +1,73 @@
 # 0PSP — Post-Quantum Private Spend Primitive
 
-> Mathematics first. Blockchain only if the cryptography survives.
+> Mathematics first. A working prototype before a novelty claim. No production assets.
 
-**Research status:** Phase 1 feasibility and falsification. Not production cryptography.  
-**Security status:** No complete 0PSP construction or end-to-end security theorem has been established. Do not use this code to hold or transfer assets.
+**CHP3 decision:** retire the uninstantiated LoTRS + separate STARK + bridge-commitment stack. V0 targets one zero-knowledge argument of knowledge for the complete spend relation.
 
-## Research question
+## Constructionable V0
 
-Can a post-quantum private-spend protocol combine threshold-controlled authorization, hidden coin selection, deterministic asset-bound nullifiers, and practical proof costs under one explicit threat model?
+- **Threshold authorization:** Ringtail supplies an ordinary threshold signature under the selected coin's public key. V0 explicitly assumes its published dealer-based key generation unless DKG is added.
+- **Single anonymous proof (target):** one proof-of-knowledge / signature-of-knowledge relation is intended to establish selected-coin membership, coin commitment opening, threshold-signature validity, and nullifier correctness with the same hidden witness. The concrete backend is not yet selected or integrated. The nullifier itself supplies replay linkability; no extra LRS link tag is required by the protocol statement.
+- **Concrete coin commitment candidate:** SHAKE256-384 over a domain-separated, length-prefixed encoding of the public key, value, coin ID, nullifier secret and fresh 36-byte commitment salt.
+- **Nullifier:** SHAKE256-384 over a separate domain, version, 32-byte coin ID and 36-byte per-coin nullifier secret.
+- **Ledger:** reject a nullifier already spent, atomically.
+- **No bridge commitment:** all predicates are proven in one relation; there is no separate Layer 1/Layer 2 witness-matching step.
 
-This is a hypothesis, not a novelty claim. Related post-quantum ring signatures, threshold signatures, and linkable spend protocols already exist. The contribution must be demonstrated against those constructions, not inferred from a feature checklist.
+See [Constructionable V0](docs/theory/constructionable-v0.md) and [CHP3 construction pivot](docs/audit/chp3-construction-pivot.md).
 
-## Current architecture under investigation
+## Exact target relation
 
-- Layer 1 candidate: a lattice-based hidden-selection and threshold-authorization relation inspired by structured threshold ring-signature work.
-- Layer 2 candidate: a zero-knowledge proof that the public nullifier is correctly derived from the same hidden coin data.
-- Cross-layer interface: a fresh bridge commitment, referenced by both proofs.
+Public statement: (x=(R_C,\nu,M,\mathsf{state},\mathsf{params\_id}))
 
-The bridge commitment, extended Layer 1 relation, and zero-knowledge Layer 2 proof are **not yet instantiated as one working, security-reviewed construction**. Existing LoTRS code is a research baseline, not a drop-in generic 0PSP proof system.
+Hidden witness: (w=(j,C_j,pk_j,v,coin\_id,r_{\mathrm{nf}},\rho_C,\sigma))
 
-## Current status
+One proof must establish, for the same hidden j: selected-coin membership; the exact coin commitment opening; a valid Ringtail threshold signature under the same hidden key on transaction digest M; the nullifier equation; and eligible/unspent state. The selected index, opening and threshold signature remain hidden.
 
-| Area | Status |
+## Status
+
+| Component | Status |
 |---|---|
-| Literature and artifact review | Under revision; source and version discrepancies recorded |
-| Canonical byte-to-polynomial encoding | Functional helper with unit tests; not a secure commitment |
-| LoTRS-compatible extended lattice proof | Not implemented or demonstrated |
-| Bridge commitment with proven hiding and binding | Not selected; open blocker |
-| SHAKE nullifier computation | Deterministic function is testable; protocol unlinkability unproved |
-| Layer 2 AIR / STARK | Mathematical design notes only; no compiled 0PSP STARK |
-| Cross-layer composition | Conditional proof outline only; not an established theorem |
-| Constant-time implementation | Not implemented or assessed |
-| Side-channel evidence | Not collected |
-| Proof-size and runtime figures | Analytical projections only, not benchmarks |
-| Production readiness | **NO-GO** |
+| SHAKE nullifier helper | Python reference, 36-byte secret, 48-byte output, native OpenSSL implementation candidate and fixed known-answer tests |
+| SHAKE coin-commitment candidate | Functional helper and tests; QROM hiding/binding theorem not proved |
+| Ringtail adapter | Not integrated |
+| Single-relation ZK proof | Not instantiated |
+| Complete ZK / quantum soundness | OPEN |
+| End-to-end benchmark | Not measured |
+| Production | **NO-GO** |
 
-## Critical distinctions
+The constructionable V0 target is active, but the single-relation proof backend, security reductions, complete zero knowledge and independent cryptanalysis remain OPEN. The native nullifier is the first fixed-width secret-processing component, not a completed protocol.
 
-1. LoTRS uses two distinct moduli in its construction: the main modulus \(q=2^{43}-67\) and the binary-proof modulus \(\hat q=2^{35}-451\). They must not be collapsed into one generic ring parameter.
-2. The current Python ring and bridge-encoding helpers use the ML-DSA-like modulus \(q=8{,}380{,}417\). They do not implement a LoTRS-compatible bridge commitment.
-3. The proposed expression \(B=A_1m_x+A_2\tau_B\) is only an algebraic candidate. A hiding or binding theorem does not follow from that expression by naming Module-LWE or Module-SIS.
-4. Plonky3 provides multiple proof backends with different zero-knowledge and soundness properties. A hiding polynomial commitment alone does not prove that the complete application transcript is zero knowledge.
-5. Passing unit tests establishes only the tested behavior. It does not establish collision resistance, quantum security, zero knowledge, extractability, anonymity, or constant-time execution.
+## Functional and native checks
 
-The authoritative current status and exact unresolved obligations are recorded in the [Phase 1 consistency audit](docs/audit/phase1-consistency-audit.md), [CHP3 research corrections](docs/audit/chp3-research-corrections.md), [CHP3 mathematical review](docs/audit/chp3-mathematical-review.md), and [CHP4 constant-time and side-channel specification](docs/security/chp4-constant-time-and-side-channel-spec.md). CHP4 is an implementation-security specification and release-gate proposal, not evidence that its controls have already been implemented or passed.
-
-## Run local functional checks
-
-Python 3.11 or newer:
+Python 3.11+, a C compiler, OpenSSL development headers and binutils are required for the native component:
 
     python -m pip install -e ".[dev]"
+    make -C native test
+    make -C native audit
+    export PSP_NULLIFIER_LIBRARY="$PWD/native/build/libpsp_nullifier.so"
     python scripts/verify_nullifier_relation.py
     python scripts/security_budget_evaluator.py
     python scripts/audit_phase1_claims.py
     python -m pytest tests/ -q
 
-The security-budget script is a numeric consistency diagnostic only. Its success exit code is not a cryptographic security result. GitHub Actions runs the same functional checks; all cryptographic claims remain independently gated.
+The security-budget and carry arithmetic scripts are retained as **historical CHP3 diagnostics** for the retired split-layer proposal; their successful exit status does not evaluate V0 security or proof cost.
 
-## Related primary sources
+The nullifier input contains no separate chain/asset field, so `coin_id` must be minted and validated within one canonical ledger/deployment-and-asset namespace; this minting invariant remains an open full-construction gate. The fixed nullifier preimage is 99 bytes: `DOMAIN_NULLIFIER[26] || version[1] || uint16_le(32) || coin_id[32] || uint16_le(36) || r_nf[36]`; SHAKE256 returns 48 bytes. `r_nf` is a per-coin secret generated through OpenSSL `RAND_bytes` by the native helper and is distinct from the commitment salt. `make -C native timing` runs a preliminary local probe only; it is not dudect and is not a release gate.
 
-- LoTRS paper and implementation: https://eprint.iacr.org/2026/974 and https://github.com/lotrs-sig/lotrs
-- LoTRS v2 artifact: https://zenodo.org/records/22807126
-- NIST FIPS 202 (SHA-3 / SHAKE): https://csrc.nist.gov/pubs/fips/202/final
-- NIST FIPS 204 (ML-DSA): https://csrc.nist.gov/pubs/fips/204/final
-- Plonky3 architecture and backend obligations: https://github.com/Plonky3/Plonky3/blob/main/docs/architecture.md
-- Plonky3 binary proof and security configuration: https://github.com/Plonky3/Plonky3/blob/main/README.md
-- BLAKE3 security notes: https://github.com/BLAKE3-team/BLAKE3/blob/master/c/README.md
-- Ringtail: https://eprint.iacr.org/2024/1113
-- Obscura-PQ: https://arxiv.org/abs/2608.22645
+The Python function is a reference, not a constant-time path. CI compiles the native C wrapper with warnings as errors, checks known-answer vectors, captures its optimized wrapper disassembly and runs reference/native agreement tests. Neither the wrapper artifact nor timing probe establishes constant-time execution, and full protocol production status stays NO-GO.
 
-## License and usage
+## Research sources
 
-Research only. No production use until a concrete construction has undergone formal review, independent cryptanalysis, reproducible parameter estimation, and end-to-end implementation testing.
+- [Versioned upstream source manifest and evidence boundaries](docs/related-work/upstream-source-manifest.md)
+- [Constructionable V0](docs/theory/constructionable-v0.md)
+- [Nullifier v1 component contract](docs/theory/nullifier-v1-construction.md)
+- [Constant-time and side-channel release gates](docs/security/chp4-constant-time-and-side-channel-spec.md)
+
+- Ringtail paper and prototype: https://eprint.iacr.org/2024/1113 and https://github.com/daryakaviani/ringtail
+- Generic post-quantum SoK/LRS research scaffold: https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature
+- LoTRS comparator: https://eprint.iacr.org/2026/974 and https://zenodo.org/records/22807126
+- Obscura-PQ: https://arxiv.org/abs/2608.22645 and https://github.com/n-azimi/Obscura-PQ
+- 2024 ID-based threshold linkable dual-ring signature: https://www.mdpi.com/2410-387X/8/4/48
+- NIST FIPS 202: https://csrc.nist.gov/pubs/fips/202/final
+
+Research only. No production use until the concrete relation, proof backend, security reductions, parameter estimates and independent review are complete.

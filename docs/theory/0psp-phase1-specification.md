@@ -1,72 +1,92 @@
-# 0PSP Phase 1 Specification — Current Research Model
+# 0PSP Phase 1 Specification — Active V0 Research Model
 
-**Status:** Candidate model, not an implemented or proven primitive. This document supersedes earlier wording that treated SCRL or the five-property composition as the current construction.
+**Status: OPEN.** This is a research target, not a completed primitive or security proof.
 
-## 1. Research objective
+## Objective
 
-Study whether an asset-specific deterministic nullifier can be bound to the same hidden coin and threshold authorization that a spend proof validates, without revealing which member of the public anonymity set was selected.
+Study whether a post-quantum private-spend protocol can prove in one anonymous proof that the spender: (1) selected a valid coin from a public anonymity set without revealing which member; (2) knows its canonical commitment opening; (3) has threshold authorization for the transaction under that same coin key; (4) published the deterministic nullifier bound to that coin; and (5) satisfies ledger and transaction rules.
 
-The target properties are post-quantum authorization under explicit assumptions; hidden coin selection; deterministic asset-bound nullifier and duplicate-nullifier rejection; wallet custody threshold \(t\)-of-\(n\), distinct from anonymity-set size \(N\); and practical proof and verification costs that must be measured.
+Novelty, end-to-end security, zero knowledge, and practical proof costs remain unverified.
 
-Novelty and end-to-end security remain unverified research hypotheses.
+## Active architecture
 
-## 2. Current public statement and witness target
+CHP3 retires the earlier LoTRS + separate STARK + lattice bridge as the active V0 path. That architecture remains historical research. V0 targets one proof-of-knowledge / signature-of-knowledge relation for the complete spend. The proof backend is not selected or integrated.
 
-Candidate public statement:
+Ringtail is a candidate threshold-signature component. Its published prototype uses dealer-based key generation; V0 must state that trust assumption unless DKG is added. The generic PQ SoK/LRS repository is an experimental scaffold, and its documented zero-knowledge enhancement does not convey a security guarantee to 0PSP.
 
-\[
-\mathsf{Public}=(R_C,\nu,B,M,\mathsf{state})
-\]
-
-where \(R_C=\{C_1,\ldots,C_N\}\) is the eligible commitment set, \(\nu\) is a 48-byte nullifier, \(B\) is a fresh per-spend bridge commitment, \(M\) binds chain context, inputs, outputs and fees, and \(\mathsf{state}\) binds the accepted ledger root and spent-nullifier set.
-
-Candidate witness:
+## Public statement and hidden witness
 
 \[
-w=(j,pk_j,v,coin\_id,r_{\mathrm{nf}},\rho,\tau_B,\mathsf{auth})
+x_{\mathrm{pub}}=(R_C,\nu,M,\mathsf{state},\mathsf{params\_id})
 \]
 
-The index \(j\) and selected commitment \(C_j=R_C[j]\) must remain hidden. A complete relation must prove that \(C_j\) opens to the same wallet key and coin data used by the nullifier and authorization relations.
-
-## 3. Nullifier candidate
+Here \(R_C=\{C_1,\ldots,C_N\}\) is the public eligible-coin set, \(\nu\in\{0,1\}^{384}\) is the nullifier, \(M\) binds protocol version, chain ID, inputs, outputs, fees and \(\nu\), and state identifies the ledger snapshot used for verification.
 
 \[
-\nu=\operatorname{SHAKE256}
-(\mathsf{domain}_{\mathrm{null}}\parallel
-\mathsf{version}\parallel
-\mathsf{Encode}(coin\_id)\parallel
-r_{\mathrm{nf}},48\text{ bytes})
+w=(j,C_j,pk_j,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C,\sigma_{\mathrm{th}})
 \]
 
-Here \(r_{\mathrm{nf}}\) is a distinct coin-specific secret. The commitment must bind it to the coin. The formula is deterministic; this alone does not prove unlinkability, PQ security of the complete protocol, or soundness of the witness relation.
+The index \(j\) and selected commitment \(C_j=R_C[j]\) are hidden witnesses. Privacy means that the complete transcript does not reveal the selected member beyond explicitly permitted leakage.
 
-Domain, version, input lengths and canonical encoding must be frozen. The public verifier must reject a nullifier already recorded in the ledger's spent set.
+## Candidate coin commitment
 
-## 4. Parameter namespaces
+\[
+C=\operatorname{SHAKE256}_{384}\left(D_C\parallel
+\operatorname{Encode}(\mathsf{version},\mathsf{params\_id},pk,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C)\right).
+\]
 
-The current Python parameter object models ML-DSA-like arithmetic:
-- \(n=256\), \(q=8{,}380{,}417\).
-- It is not a LoTRS parameter object.
+The functional helper uses a 48-byte output, explicit field lengths, a 36-byte nullifier secret, and independent 36-byte commitment salt. This is a hash-commitment candidate, not a proven commitment. Hiding, binding, canonical public-key serialization, and a QROM proof of the exact opening relation remain open.
 
-The LoTRS artifact has separate roles for \(q=2^{43}-67\) and \(\hat q=2^{35}-451\). Do not silently instantiate the LoTRS proof using the ML-DSA ring class. The exact LoTRS arithmetic and auxiliary-prime NTT implementation must be reused or separately implemented and tested.
+## Candidate nullifier
 
-## 5. Protocol sketch (conditional)
+\[
+\nu=\operatorname{SHAKE256}_{384}\left(D_N\parallel\mathsf{version}\parallel
+\operatorname{LenEncode}(\mathsf{coin\_id})\parallel\mathsf{coin\_id}\parallel
+\operatorname{LenEncode}(r_{\mathrm{nf}})\parallel r_{\mathrm{nf}}\right).
+\]
 
-1. Mint a commitment whose opening binds wallet authorization key, coin identity, value and nullifier secret.
-2. Publish the coin commitment into the eligible set according to ledger consensus.
-3. A qualified \(t\)-of-\(n\) policy authorizes the transaction context. The relation between threshold authorization and the hidden commitment must be constructed explicitly.
-4. The prover computes deterministic \(\nu\), commits to nullifier input with fresh \(B\), and produces the paired proofs.
-5. Ledger verification checks both proof relations, transaction context, current eligible state, value conservation and duplicate-nullifier status; then atomically records \(\nu\) as spent.
+Current functional interface: 32-byte coin ID, 36-byte per-coin secret, 48-byte output, fixed domain/version, length-prefixed encoding. Determinism is testable; unlinkability does not follow from SHAKE output length. The 32-byte coin ID must be scoped to one canonical ledger/deployment and asset namespace because the nullifier preimage has no separate chain/asset field. The minting process must enforce uniqueness and bind that scoped ID into the coin commitment. The current helper does not generate or validate coin IDs, so this remains a full-construction gate; reusing a coin ID and nullifier secret across domains would reuse the nullifier and can enable unwanted cross-domain correlation or replay. A QROM theorem must specify the exact game, conditional-entropy premise, query budget, and reduction. The generic \(2^{b/3}\) quantum collision-work estimate is not a protocol theorem.
 
-Every item above is a specification target until a concrete implementation and proof exist. The current repository does not implement steps 3–5 as one secure protocol.
+## Required single-relation predicates
 
-## 6. Phase 1 gates
+The same hidden \(j\), key, coin ID and \(r_{\mathrm{nf}}\) must satisfy:
+1. \(j\in[N]\) and \(C_j=R_C[j]\).
+2. The canonical coin commitment opening is correct.
+3. The concrete threshold signature verifies under the same key bound into \(C_j\) on \(M\).
+4. \(\nu\) is the deterministic nullifier from the same committed coin ID and \(r_{\mathrm{nf}}\).
+5. The coin is eligible and unspent; transaction outputs, fees, and value conservation satisfy protocol rules.
+6. The index, opening, and threshold signature remain hidden to the degree required by the anonymity game.
 
-- Select and analyze real coin and bridge commitments.
-- Prove the same hidden index connects selection, commitment opening and threshold authorization.
-- Define a complete STARK AIR over explicitly specified fields, with all range and integer equality checks constrained.
-- Prove the two proofs compose under stated zero knowledge and knowledge-soundness assumptions.
-- Calculate security against the weakest component and reproduce parameter estimates.
-- Measure proof size, proving time, verification time, communication rounds and peak memory.
+The repository has only helper functions for commitment hashing, nullifier hashing, and an in-memory replay model. It does not implement a proof establishing these predicates together.
 
-No token, chain, production deployment, or novelty claim is in scope until these gates are passed.
+## Status gates
+
+| Property | Required evidence | Status |
+|---|---|---|
+| Threshold authorization | Concrete threshold scheme, access structure, corruption model | OPEN |
+| Commitment hiding/binding | Defined games and a concrete reduction | OPEN |
+| Proof knowledge-soundness / zero-knowledge | Selected backend, exact relation, theorem matching implementation | OPEN |
+| Hidden-member anonymity | Left/right game over full transcript and allowed leakage | OPEN |
+| Double-spend resistance | Binding, soundness, unique minting, atomic ledger rejection | OPEN |
+| 128-bit quantum target | Concrete weakest-component security analysis | OPEN |
+| Proof size/runtime | Reproducible compiled measurements | UNMEASURED |
+| Novelty | Versioned comparison at matched functionality | UNVERIFIED |
+
+## Parameter namespace discipline
+
+The current Python ring helper uses \(q=8{,}380{,}417\), an ML-DSA-like research parameter family. LoTRS uses \(q=2^{43}-67\) and \(\hat q=2^{35}-451\) in distinct roles. Ringtail has its own parameters. These are not interchangeable, and this repository does not yet integrate LoTRS or Ringtail arithmetic.
+
+## Implementation gates
+
+Pin upstream revisions, licenses, parameter manifests and test vectors; pass conformance tests; implement the complete one-proof relation; test valid spend, replay, wrong key/signature, wrong opening/nullifier, malformed encoding, stale state and invalid threshold subsets; establish the backend's actual ZK and quantum soundness; measure complete proof bytes/time/memory; obtain independent cryptanalysis.
+
+**Decision:** GO for component conformance and small functional prototypes. HOLD end-to-end security and production use. No token, chain, or novelty claim is in scope until the gates pass.
+
+## Primary sources
+
+- Ringtail: https://eprint.iacr.org/2024/1113 and https://github.com/daryakaviani/ringtail
+- Experimental PQ SoK/LRS scaffold: https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature
+- LoTRS comparator/artifact: https://eprint.iacr.org/2026/974 and https://zenodo.org/records/22807126
+- Obscura-PQ: https://arxiv.org/abs/2608.22645
+- NIST FIPS 202: https://csrc.nist.gov/pubs/fips/202/final
+- NIST FIPS 204: https://csrc.nist.gov/pubs/fips/204/final
