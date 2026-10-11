@@ -20,9 +20,44 @@ def log2_tail_bound() -> float:
     return math.log2(3584 * 2 * math.exp(-(14**2) / 2))
 
 
-def carry_residual(v_i: int, product_sum: int, b_i: int, carry_in: int, carry_out: int) -> int:
-    """Residual for conventional nonnegative base-W carry semantics."""
-    return v_i - product_sum - b_i - carry_in + W * carry_out
+def carry_residual(
+    v_i: int,
+    product_sum: int,
+    b_i: int,
+    carry_in: int,
+    carry_out: int,
+    base: int = W,
+) -> int:
+    """Residual for conventional nonnegative radix-base carry semantics.
+
+    The constrained identity is:
+        product_sum + b_i + carry_in = v_i + base * carry_out
+    where 0 <= v_i < base and carry_in/carry_out are nonnegative integers.
+    """
+    if base < 2:
+        raise ValueError("base must be at least 2")
+    return v_i - product_sum - b_i - carry_in + base * carry_out
+
+
+def exhaustive_small_radix_carry_cases() -> int:
+    """Check the carry identity over an exhaustive bounded small-radix domain.
+
+    This is an arithmetic regression check, not an AIR implementation or proof.
+    """
+    cases = 0
+    for base in range(2, 9):
+        for product_sum in range(0, 4 * base + 1):
+            for b_i in range(base):
+                for carry_in in range(0, 2 * base + 1):
+                    total = product_sum + b_i + carry_in
+                    v_i, carry_out = total % base, total // base
+                    assert 0 <= v_i < base
+                    assert carry_out >= 0
+                    assert carry_residual(
+                        v_i, product_sum, b_i, carry_in, carry_out, base
+                    ) == 0
+                    cases += 1
+    return cases
 
 
 def log2_conditional_qrom_bound(h: int, log2_queries: int) -> float:
@@ -45,10 +80,13 @@ def main() -> int:
     residual_bound = W + 3 * W**2 + 2**16 + (2**16) * W
     assert residual_bound == 1_879_130_112
     assert residual_bound < P_BABYBEAR
-    # Carry example: an exact limb sum of W yields limb 0 and carry 1.
+    # Carry boundary: an exact limb sum of W yields digit 0 and carry 1.
     assert carry_residual(v_i=0, product_sum=W, b_i=0, carry_in=0, carry_out=1) == 0
-    # The previously stated opposite-sign recurrence fails this same example.
+    assert carry_residual(v_i=W - 1, product_sum=W - 1, b_i=0, carry_in=0, carry_out=0) == 0
+    # The opposite-sign recurrence fails the exact-limb boundary case.
     assert 0 - W + 0 - W * 1 != 0
+    carry_cases = exhaustive_small_radix_carry_cases()
+    assert carry_cases > 0
 
     tail_log2 = log2_tail_bound()
     assert tail_log2 < -128
@@ -69,12 +107,14 @@ def main() -> int:
     print(f"36-bit six-vector raw packing: {six_vectors_36} bytes = {six_vectors_36/1024:.4f} KiB")
     print(f"43-bit six-vector raw packing: {six_vectors_43} bytes = {six_vectors_43/1024:.4f} KiB")
     print(f"BabyBear residual magnitude bound: {residual_bound} < {P_BABYBEAR}")
+    print(f"Exhaustive small-radix carry recurrence: {carry_cases} cases (radix 2..8)")
     print(f"14-sigma union-tail log2 bound: {tail_log2:.3f}")
     print(f"74x8 Merkle path at 32 bytes/digest: {path32} bytes = {path32/1024:.4f} KiB")
     print(f"74x8 Merkle path at 48 bytes/digest: {path48} bytes = {path48/1024:.4f} KiB")
     print(f"Conditional QROM arithmetic, h=256, q_H=2^64: 2^{qrom256:.3f}")
     print(f"Conditional QROM arithmetic, h=288, q_H=2^64: 2^{qrom288:.3f}")
     print("NOTE: QROM values are conditional arithmetic, not a protocol theorem.")
+    print("NOTE: Carry checks validate the stated arithmetic identity only, not an AIR.")
     print("NOTE: No cryptographic security or end-to-end proof is validated.")
     return 0
 
