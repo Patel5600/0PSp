@@ -37,6 +37,10 @@ int main(void) {
     uint8_t generated_id_a[PSP_SCOPED_COIN_ID_V2_BYTES];
     uint8_t generated_id_b[PSP_SCOPED_COIN_ID_V2_BYTES];
     uint8_t secret[PSP_NULLIFIER_V2_SECRET_BYTES];
+    uint8_t generated_secret_a[PSP_NULLIFIER_V2_SECRET_BYTES];
+    uint8_t generated_secret_b[PSP_NULLIFIER_V2_SECRET_BYTES];
+    uint8_t salt_a[PSP_NULLIFIER_V2_SALT_BYTES];
+    uint8_t salt_b[PSP_NULLIFIER_V2_SALT_BYTES];
     uint8_t out[PSP_NULLIFIER_V2_OUTPUT_BYTES];
     uint8_t out_2[PSP_NULLIFIER_V2_OUTPUT_BYTES];
     size_t i;
@@ -98,6 +102,27 @@ int main(void) {
         return 1;
     }
 
+    if (psp_nullifier_v2_generate_secret(generated_secret_a, sizeof(generated_secret_a)) != PSP_NULLIFIER_OK ||
+        psp_nullifier_v2_generate_secret(generated_secret_b, sizeof(generated_secret_b)) != PSP_NULLIFIER_OK ||
+        memcmp(generated_secret_a, generated_secret_b, sizeof(generated_secret_a)) == 0) {
+        fputs("FAIL: V2 nullifier-secret RNG smoke check\n", stderr);
+        OPENSSL_cleanse(generated_secret_a, sizeof(generated_secret_a));
+        OPENSSL_cleanse(generated_secret_b, sizeof(generated_secret_b));
+        return 1;
+    }
+
+    if (psp_coin_commitment_v2_generate_salt(salt_a, sizeof(salt_a)) != PSP_NULLIFIER_OK ||
+        psp_coin_commitment_v2_generate_salt(salt_b, sizeof(salt_b)) != PSP_NULLIFIER_OK ||
+        memcmp(salt_a, salt_b, sizeof(salt_a)) == 0 ||
+        memcmp(salt_a, generated_secret_a, sizeof(salt_a)) == 0) {
+        fputs("FAIL: V2 commitment-salt RNG smoke check\n", stderr);
+        OPENSSL_cleanse(salt_a, sizeof(salt_a));
+        OPENSSL_cleanse(salt_b, sizeof(salt_b));
+        OPENSSL_cleanse(generated_secret_a, sizeof(generated_secret_a));
+        OPENSSL_cleanse(generated_secret_b, sizeof(generated_secret_b));
+        return 1;
+    }
+
     memset(out, 0xA5, sizeof(out));
     if (psp_nullifier_v2(
             namespace_id, PSP_NAMESPACE_V2_BYTES - 1u, coin_id, sizeof(coin_id),
@@ -120,7 +145,11 @@ int main(void) {
     OPENSSL_cleanse(secret, sizeof(secret));
     OPENSSL_cleanse(generated_id_a, sizeof(generated_id_a));
     OPENSSL_cleanse(generated_id_b, sizeof(generated_id_b));
-    puts("PASS: namespace-v2/nullifier-v2 vectors, domain separation, and RNG smoke checks");
+    OPENSSL_cleanse(generated_secret_a, sizeof(generated_secret_a));
+    OPENSSL_cleanse(generated_secret_b, sizeof(generated_secret_b));
+    OPENSSL_cleanse(salt_a, sizeof(salt_a));
+    OPENSSL_cleanse(salt_b, sizeof(salt_b));
+    puts("PASS: namespace-v2/nullifier-v2 vectors, domain separation, secret/salt RNG smoke checks");
     puts("LIMIT: duplicate mint prevention must be atomic in ledger state; tests do not prove security");
     return 0;
 }
