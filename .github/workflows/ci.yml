@@ -31,5 +31,8 @@ jobs:
       - name: Run numeric consistency diagnostics
         run: python scripts/security_budget_evaluator.py
 
+      - name: Run Phase 1 arithmetic consistency audit
+        run: python scripts/audit_phase1_claims.py
+
       - name: Run unit and property tests
         run: python -m pytest tests/ -q
