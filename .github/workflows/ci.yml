@@ -44,8 +44,8 @@ jobs:
       - name: Upload wrapper disassembly for review
         uses: actions/upload-artifact@v4
         with:
-          name: nullifier-v1-wrapper-disassembly
-          path: native/build/nullifier_v1.disasm.txt
+          name: nullifier-native-disassembly
+          path: native/build/nullifier_native.disasm.txt
 
       - name: Run functional nullifier smoke tests
         run: python scripts/verify_nullifier_relation.py
