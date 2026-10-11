@@ -16,6 +16,7 @@ from src.primitives.nullifier import (
     NullifierSecret,
     compute_nullifier_v2,
     compute_nullifier_v2_native,
+    generate_nullifier_secret_v2_native,
     verify_nullifier_v2_consistency,
 )
 
@@ -93,3 +94,21 @@ def test_native_coin_id_generator_fails_closed_and_returns_fixed_size() -> None:
     assert first != second  # Probabilistic RNG smoke check, not an entropy proof.
     with pytest.raises(RuntimeError, match="cannot load native 0PSP library"):
         generate_scoped_coin_id_native(library_path="/nonexistent/psp.so")
+
+
+def test_native_v2_secret_generator_fails_closed_and_returns_mutable_fixed_size() -> None:
+    library = os.environ.get("PSP_NULLIFIER_LIBRARY")
+    if not library:
+        pytest.skip("build native library and set PSP_NULLIFIER_LIBRARY for native comparison")
+    first = generate_nullifier_secret_v2_native(library_path=library)
+    second = generate_nullifier_secret_v2_native(library_path=library)
+    try:
+        assert isinstance(first, bytearray) and isinstance(second, bytearray)
+        assert len(first) == len(second) == NULLIFIER_SECRET_BYTES
+        assert first != second  # Randomness smoke check only, not an entropy proof.
+    finally:
+        first[:] = bytes(NULLIFIER_SECRET_BYTES)
+        second[:] = bytes(NULLIFIER_SECRET_BYTES)
+
+    with pytest.raises(RuntimeError, match="cannot load native nullifier library"):
+        generate_nullifier_secret_v2_native(library_path="/nonexistent/psp.so")
