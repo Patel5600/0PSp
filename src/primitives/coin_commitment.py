@@ -202,6 +202,80 @@ def verify_coin_opening_v2(
     return hmac.compare_digest(commitment.value, expected.value)
 
 
+def commit_coin_v2_native(
+    namespace_id: NamespaceId,
+    public_key: bytes,
+    value: int,
+    coin_id: ScopedCoinId,
+    r_nf: bytearray,
+    rho_coin: bytearray,
+    params_id: bytes,
+    *,
+    library_path: str | Path,
+) -> CoinCommitment:
+    """Compute V2 commitment in the native helper without a Python hash fallback.
+
+    Secret inputs must be caller-owned bytearrays so this adapter can borrow
+    their buffers instead of first converting them to immutable Python bytes.
+    The ctypes boundary still does not establish zero-copy handling of all
+    surrounding data or constant-time behavior for the process.
+    """
+    if not isinstance(namespace_id, NamespaceId):
+        raise TypeError("namespace_id must be a NamespaceId")
+    if not isinstance(coin_id, ScopedCoinId):
+        raise TypeError("coin_id must be a ScopedCoinId")
+    if not isinstance(public_key, bytes) or not public_key or len(public_key) >= 2**32:
+        raise ValueError("public_key must be non-empty canonical bytes")
+    if not isinstance(params_id, bytes) or not params_id or len(params_id) >= 2**16:
+        raise ValueError("params_id must be 1..65535 bytes")
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < 2**64:
+        raise ValueError("value must be an unsigned 64-bit integer")
+    if not isinstance(r_nf, bytearray) or len(r_nf) != NULLIFIER_SECRET_BYTES:
+        raise ValueError(f"r_nf must be a bytearray of exactly {NULLIFIER_SECRET_BYTES} bytes")
+    if not isinstance(rho_coin, bytearray) or len(rho_coin) != COMMITMENT_RANDOMNESS_BYTES:
+        raise ValueError(
+            f"rho_coin must be a bytearray of exactly {COMMITMENT_RANDOMNESS_BYTES} bytes"
+        )
+    try:
+        library = ctypes.CDLL(str(Path(library_path)))
+    except OSError as exc:
+        raise RuntimeError(f"cannot load native 0PSP library: {library_path}") from exc
+
+    function = library.psp_coin_commitment_v2
+    byte_p = ctypes.POINTER(ctypes.c_ubyte)
+    function.argtypes = [
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+        ctypes.c_uint64,
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+    ]
+    function.restype = ctypes.c_int
+    params_buf = (ctypes.c_ubyte * len(params_id)).from_buffer_copy(params_id)
+    public_key_buf = (ctypes.c_ubyte * len(public_key)).from_buffer_copy(public_key)
+    namespace_buf = (ctypes.c_ubyte * NAMESPACE_ID_BYTES).from_buffer_copy(namespace_id.data)
+    coin_buf = (ctypes.c_ubyte * len(coin_id.data)).from_buffer_copy(coin_id.data)
+    secret_buf = (ctypes.c_ubyte * NULLIFIER_SECRET_BYTES).from_buffer(r_nf)
+    salt_buf = (ctypes.c_ubyte * COMMITMENT_RANDOMNESS_BYTES).from_buffer(rho_coin)
+    output_buf = (ctypes.c_ubyte * COMMITMENT_BYTES)()
+    status = function(
+        params_buf, len(params_id),
+        public_key_buf, len(public_key),
+        value,
+        namespace_buf, NAMESPACE_ID_BYTES,
+        coin_buf, len(coin_id.data),
+        secret_buf, NULLIFIER_SECRET_BYTES,
+        salt_buf, COMMITMENT_RANDOMNESS_BYTES,
+        output_buf, COMMITMENT_BYTES,
+    )
+    if status != 0:
+        raise RuntimeError(f"native V2 coin commitment failed with status {status}")
+    return CoinCommitment(bytes(output_buf))
+
+
 def generate_commitment_salt_v2_native(*, library_path: str | Path) -> bytearray:
     """Generate an independent 36-byte commitment salt through the native RNG.
 
