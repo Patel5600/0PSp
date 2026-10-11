@@ -61,3 +61,12 @@ The Layer 1 + Layer 2 sizes (including 118.62/119.75 KiB estimates) are unverifi
 - CI results and byte-accurate proof benchmarks.
 
 Until then, the honest project status is “candidate construction under falsification”, not “cryptographic audit passed”.
+
+
+### I. NTT correctness regression found by CI
+
+The first CHP3 CI run passed package installation, nullifier smoke tests, and numeric diagnostics, but reported four failures in NTT round-trip, identity, and naive-product tests. Inspection identified a shared inverse-transform defect: inverse twiddle indexing did not correspond to the forward layer/block assignment; the inverse difference used the wrong sign; and the inverse twiddle table also included \(n^{-1}\) while the inverse routine applied \(n^{-1}\) again.
+
+The follow-up patch changes the inverse layer to use the forward twiddle indices for each reversed layer, uses \((x-y)w^{-1}\), and applies \(n^{-1}\) once after the transform. A small independent arithmetic reproduction passed round-trip and naive negacyclic multiplication checks. This is not a substitute for the remote CI rerun, and it does not make the ring code production cryptography.
+
+The corrected transform still uses the current research/ML-DSA-like parameter object. It must not be treated as LoTRS arithmetic. Remote test status should be checked on the follow-up commit before reporting the regression resolved.

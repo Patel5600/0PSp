@@ -118,11 +118,12 @@ class NTT:
         n, q = self.n, self.q
         bits = n.bit_length() - 1
         zeta_inv = pow(self.zeta, q - 2, q)
-        n_inv = pow(n, q - 2, q)
         powers_inv = [1] * n
         for i in range(1, n):
             powers_inv[i] = (powers_inv[i - 1] * zeta_inv) % q
-        return [(powers_inv[self._bitrev(k, bits)] * n_inv) % q for k in range(n)]
+        # Inverse butterflies use inverse twiddles; apply n^{-1} exactly once
+        # after all stages, in inverse().
+        return [powers_inv[self._bitrev(k, bits)] for k in range(n)]
 
     def forward(self, poly: list[int]) -> list[int]:
         """
@@ -162,16 +163,20 @@ class NTT:
         n, q = self.n, self.q
         zetas_inv = self._zetas_inv
 
-        length = 1        # Start with 1-length blocks
-        k = 1             # Twiddle index
+        length = 1        # Invert the smallest forward-butterfly blocks first
         while length < n:
+            # Forward assigns indices [n/(2L), n/L - 1] to this layer.
+            # Reverse the layer order, but keep the block order within each layer.
+            k = n // (2 * length)
             for start in range(0, n, 2 * length):
                 w_inv = zetas_inv[k]
                 k += 1
                 for j in range(start, start + length):
                     t = a[j]
-                    a[j] = (t + a[j + length]) % q
-                    a[j + length] = (w_inv * (a[j + length] - t)) % q
+                    u = a[j + length]
+                    a[j] = (t + u) % q
+                    # Inverse of (u+w*v, u-w*v) uses (x-y)*w^{-1}.
+                    a[j + length] = (w_inv * (t - u)) % q
             length <<= 1
 
         # Apply the overall n^{-1} scaling factor
