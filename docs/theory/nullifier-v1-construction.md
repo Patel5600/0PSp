@@ -64,9 +64,9 @@ python -m pytest tests/ -q
 
 The native tests check two known-answer vectors, fixed lengths, deterministic output, sample coin/secret substitution, failure output clearing, and an RNG integration smoke check. Unit tests compare the native output against the Python reference. The secret-randomness distinction test is probabilistic sanity checking; it is not a proof of entropy.
 
-`make -C native audit` emits optimized wrapper disassembly to `native/build/nullifier_v1.disasm.txt`. CI retains that file as an artifact for review. It does not disassemble or certify OpenSSL internals, and it is not a proof of constant-time behavior.
+`make -C native audit` emits optimized wrapper disassembly to `native/build/nullifier_native.disasm.txt`. CI retains that file as an artifact for review. It does not disassemble or certify OpenSSL internals, and it is not a proof of constant-time behavior.
 
-`make -C native timing` runs a small, non-gating timing-class probe. It is not dudect and must not be used to claim that leakage is absent. The probe should be replaced or supplemented by a reviewed statistical harness on each supported release target.
+`make -C native timing` runs a small, non-gating timing-class probe. V1 is legacy-only; the V2 fixed-vs-random screen is at `native/tests/timing_probe_v2.c`. Neither probe is a formal proof or should be used to claim that leakage is absent. V2 tests must be run on controlled release targets.
 
 ## 4. Known-answer vectors
 
