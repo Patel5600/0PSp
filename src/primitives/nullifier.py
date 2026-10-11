@@ -291,16 +291,29 @@ def compute_nullifier_v2(
 
 def compute_nullifier_v2_native(
     namespace_id: NamespaceId,
-    coin_id: ScopedCoinId,
+    coin_id: ScopedCoinId | bytearray,
     r_nf: bytearray,
     *,
     library_path: str | Path,
 ) -> Nullifier:
-    """Use the native namespace-bound V2 implementation, without fallback."""
+    """Use the native namespace-bound V2 implementation, without fallback.
+
+    Passing a mutable 32-byte bytearray lets the native function borrow the
+    coin ID directly. Passing ScopedCoinId is convenient for tests, but copies
+    its immutable bytes into a ctypes buffer.
+    """
     if not isinstance(namespace_id, NamespaceId):
         raise TypeError("namespace_id must be a NamespaceId")
-    if not isinstance(coin_id, ScopedCoinId):
-        raise TypeError("coin_id must be a ScopedCoinId")
+    if isinstance(coin_id, bytearray):
+        if len(coin_id) != 32:
+            raise ValueError("native coin_id buffer must be exactly 32 bytes")
+        coin_id_len = len(coin_id)
+        coin_buf = (ctypes.c_ubyte * coin_id_len).from_buffer(coin_id)
+    elif isinstance(coin_id, ScopedCoinId):
+        coin_id_len = len(coin_id.data)
+        coin_buf = (ctypes.c_ubyte * coin_id_len).from_buffer_copy(coin_id.data)
+    else:
+        raise TypeError("coin_id must be a ScopedCoinId or bytearray")
     if not isinstance(r_nf, bytearray) or len(r_nf) != NULLIFIER_SECRET_BYTES:
         raise ValueError(
             f"native r_nf must be a bytearray of exactly {NULLIFIER_SECRET_BYTES} bytes"
@@ -317,12 +330,11 @@ def compute_nullifier_v2_native(
     ]
     function.restype = ctypes.c_int
     namespace_buf = (ctypes.c_ubyte * NAMESPACE_ID_BYTES).from_buffer_copy(namespace_id.data)
-    coin_buf = (ctypes.c_ubyte * len(coin_id.data)).from_buffer_copy(coin_id.data)
     secret_buf = (ctypes.c_ubyte * NULLIFIER_SECRET_BYTES).from_buffer(r_nf)
     output_buf = (ctypes.c_ubyte * NULLIFIER_BYTES)()
     status = function(
         namespace_buf, NAMESPACE_ID_BYTES,
-        coin_buf, len(coin_id.data),
+        coin_buf, coin_id_len,
         secret_buf, NULLIFIER_SECRET_BYTES,
         output_buf, NULLIFIER_BYTES,
     )
