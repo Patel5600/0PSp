@@ -21,9 +21,9 @@ Its ML-KEM implementation is a key-encapsulation mechanism, not a threshold sign
 
 ## V2 implementation delta since the initial baseline
 
-V2 component code is now present in `src/primitives/namespace.py`, `src/primitives/nullifier.py`, `src/primitives/coin_commitment.py`, and `native/nullifier_v2.c`. V2 uses a 48-byte namespace ID derived from fixed-width canonical ledger/deployment/asset identifiers, a random 32-byte coin ID, and an explicit namespace input to both the commitment and nullifier. The V2 nullifier preimage is 149 bytes and produces 48 bytes. Python/native known-answer tests and a concurrent in-memory mint-uniqueness model are included.
+V2 component code is now present in `src/primitives/namespace.py`, `src/primitives/nullifier.py`, `src/primitives/coin_commitment.py`, `native/nullifier_v2.c`, and `native/coin_commitment_v2.c`. V2 uses a 48-byte namespace ID derived from fixed-width canonical ledger/deployment/asset identifiers, a random 32-byte coin ID, and an explicit namespace input to both the commitment and nullifier. The nullifier preimage is 149 bytes and produces 48 bytes. Native secret/salt generation fails closed, Python/native known-answer tests cover V2 commitment/nullifier, ASan/UBSan tests are wired into CI, and separate nullifier/commitment timing screens compile in CI.
 
-These changes close byte-contract ambiguity at the component layer only. They do **not** close the live mint ledger, commitment hiding, Ringtail, zero-knowledge, full-security or side-channel gates. The V1 helper remains for historical vectors and is explicitly legacy-only.
+These changes close byte-contract ambiguity at the component layer only. They do **not** close the live mint ledger, commitment hiding, Ringtail, zero-knowledge, full-security or side-channel gates. A mint authority that learns `coin_id` and `r_nf` can compute a later public nullifier and trace the spend; issuer privacy therefore requires an explicit trust boundary or a blind-issuance design, neither of which is complete. The V1 helper remains for historical vectors and is explicitly legacy-only.
 
 See:
 - [V2 protocol/security argument](../security/v2-protocol-security-argument.md)
