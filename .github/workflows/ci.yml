@@ -33,6 +33,9 @@ jobs:
       - name: Build and test native nullifier
         run: make -C native test
 
+      - name: Compile preliminary timing probe (do not run in shared CI)
+        run: make -C native timing-probe-build
+
       - name: Capture optimized wrapper disassembly
         run: make -C native audit
 

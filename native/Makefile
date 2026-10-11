@@ -9,7 +9,7 @@ TEST_BIN := $(BUILD_DIR)/test_nullifier_v1
 TIMING_BIN := $(BUILD_DIR)/timing_probe_v1
 DISASM := $(BUILD_DIR)/nullifier_v1.disasm.txt
 
-.PHONY: all test audit timing clean
+.PHONY: all test audit timing timing-probe-build clean
 all: $(LIB)
 
 $(BUILD_DIR):
@@ -23,6 +23,9 @@ $(TEST_BIN): nullifier_v1.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifi
 
 $(TIMING_BIN): nullifier_v1.c tests/timing_probe_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c tests/timing_probe_v1.c -lcrypto -lm -o $@
+
+timing-probe-build: $(TIMING_BIN)
+	@printf 'Built preliminary timing probe; not a constant-time certification.\\n'
 
 test: $(LIB) $(TEST_BIN)
 	./$(TEST_BIN)
