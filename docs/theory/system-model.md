@@ -1,56 +1,56 @@
-# 0PSP System Model — Candidate Relation
+# 0PSP System Model — Active Single-Relation Candidate
 
-**Status:** Candidate model. No secure end-to-end construction currently instantiates this system model.
+**Status: OPEN.** The role model is specified; a complete secure protocol has not been instantiated.
 
 ## Participants
 
 | Role | Description |
 |---|---|
-| Owner | Owns a coin commitment and its authorization right |
-| Custody participant | Holds one share/key material in the specified t-of-n wallet policy |
-| Prover | Produces hidden-member and nullifier proofs |
-| Verifier | Verifies proof statements, transaction context and ledger state |
-| Ledger | Maintains eligible coin commitments and an atomic set of spent nullifiers |
-| Adversary | Quantum-capable adversary with explicitly defined corruption, oracle and transcript access |
+| Owner | Owns a valid coin commitment and spending right |
+| Custody participant | Holds key material in the specified \(t\)-of-\(n\) authorization scheme |
+| Prover | Produces the anonymous spend proof using a valid hidden witness |
+| Verifier | Verifies the proof and transaction statement |
+| Ledger | Maintains eligible commitments and atomically rejects spent nullifiers |
+| Adversary | Quantum-capable; corruption, oracle access, registration, and transcript powers must be defined |
 
 ## Public statement and witness
 
-Candidate public statement:
-
 \[
-\mathsf{Public}=(R_C,\nu,B,M,\mathsf{state}).
+\mathsf{Public}=(R_C,\nu,M,\mathsf{state},\mathsf{params\_id})
+\]
+\[
+w=(j,C_j,pk_j,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C,\sigma_{\mathrm{th}})
 \]
 
-The public set \(R_C\) contains candidate coin commitments. The index of the spent commitment must remain hidden. The public nullifier \(\nu\) is deterministic; \(B\) is a fresh bridge commitment; \(M\) binds chain ID, transaction version, inputs, outputs and fees; \(\mathsf{state}\) binds the relevant ledger state.
+The public set \(R_C\) is visible; the selected index \(j\) must remain hidden. The proof must connect the selected commitment opening, selected key, threshold signature, nullifier, and transaction/state rules using the same hidden coin.
 
-The witness contains a selected index \(j\), selected commitment opening, wallet key/witness, coin identity, nullifier secret, bridge opening and threshold authorization. A complete proof must show all elements refer to the same hidden coin.
-
-## Adversary capabilities to specify
-
-The formal game must state:
-- whether the adversary adaptively corrupts up to \(t-1\) custody participants;
-- whether it may choose malformed commitments or keys;
-- how valid coins are minted and how duplicate identifiers are prevented;
-- whether it can request honest spends/signatures and observe aborts;
-- whether hash access is classical or quantum superposition queries;
-- what side-channel, timing, amount and anonymity-set leakage is allowed;
-- how concurrent transactions and state updates are serialized.
-
-## Nullifier and ledger rule
-
-Candidate nullifier:
+## Candidate equations
 
 \[
-\nu=\operatorname{SHAKE256}_{384}
-(\mathsf{domain}\parallel\mathsf{version}\parallel\operatorname{Encode}(coin\_id)\parallel r_{\mathrm{nf}}).
+C_j=\operatorname{SHAKE256}_{384}(D_C\parallel
+\operatorname{Encode}(\mathsf{version},\mathsf{params\_id},pk_j,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C)).
 \]
 
-The commitment and proof must bind \(r_{\mathrm{nf}}\) to the coin and force the published nullifier to use that same secret. The ledger must atomically reject a nullifier already spent. The hash formula alone does not establish unlinkability or spend authorization.
+\[
+\nu=\operatorname{SHAKE256}_{384}(D_N\parallel\mathsf{version}\parallel
+\operatorname{LenEncode}(\mathsf{coin\_id})\parallel\mathsf{coin\_id}\parallel
+\operatorname{LenEncode}(r_{\mathrm{nf}})\parallel r_{\mathrm{nf}}).
+\]
 
-## Threshold policy versus anonymity set
+These are candidate functional relations. Commitment hiding/binding and full proof of both relations remain open.
 
-Wallet custody t-of-n and anonymity-set size \(N\) are different dimensions. The model must say whether the identity of the contributing custody subset is hidden, public, or partially leaked. LoTRS's structured threshold row/column pattern cannot be assumed to implement an arbitrary wallet policy without an explicit protocol mapping and proof.
+## Adversary model requirements
 
-## Current limitations
+Each experiment must specify adaptive corruption limits, malicious coin/key registration, honest mint/spend/signing oracles, classical and quantum oracle access, timing/amount/ordering leakage, aborts and side channels, replay and concurrent transaction handling, and whether the contributing custody subset is hidden or public.
 
-The repository's ring/bridge Python helper uses ML-DSA-like q=8,380,417, not LoTRS's q=2^43-67 and q-hat=2^35-451. The bridge commitment is not yet instantiated with proved binding and hiding. A Layer 2 AIR, its actual zero-knowledge backend, and cross-layer composition have not been implemented or proved. All combined-size figures remain projections.
+## Ledger invariants
+
+The verifier checks the full proof, transaction digest, policy/state rules, and eligibility of the selected coin. The ledger atomically rejects a nullifier already spent. Hash collision resistance does not replace authorization or proof soundness.
+
+## Threshold versus anonymity
+
+Wallet custody threshold \((t,n)\) and anonymity-set size \(N\) are separate. Ringtail's threshold semantics and any SoK/LRS anonymity semantics require an explicit mapping.
+
+## Current code boundary
+
+The nullifier module implements deterministic functional hashing and an in-memory replay model. The coin-commitment module recomputes a hash candidate. Neither is a proof system, consensus ledger, Ringtail adapter, or cryptographic security verifier. The ring helper is ML-DSA-like research arithmetic, not LoTRS or Ringtail arithmetic.

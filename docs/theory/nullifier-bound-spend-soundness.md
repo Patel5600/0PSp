@@ -1,66 +1,56 @@
-# Nullifier-Bound Spend Soundness — Target Relation and Open Proof Obligations
+# Nullifier-Bound Spend Soundness — Active V0 Target
 
-**Status:** Formal target definition. No end-to-end security reduction is complete.
+**Status: Formal target definition. No end-to-end security reduction is complete.**
 
-## 1. Threat being addressed
+## Goal
 
-Authorization and coin-membership must be bound to the same hidden asset. If the protocol only proves membership and separately publishes a nullifier, an attacker may attempt to substitute a dummy nullifier, bind it to another coin ID, or exploit duplicate minting. If nullifier computation requires the full threshold secret, reconstructing that secret would defeat the custody policy.
+Authorization, hidden coin membership, commitment opening and nullifier correctness must refer to the same asset. Separate proofs without a shared witness relation can allow attempted substitution of a coin ID, key, nullifier, or signature.
 
-## 2. Public statement and witness target
-
-The candidate public statement is:
+## Public statement and witness
 
 \[
-\mathsf{Public}=(R_C,\nu,B,M,\mathsf{state})
+\mathsf{Public}=(R_C,\nu,M,\mathsf{state},\mathsf{params\_id})
+\]
+\[
+w=(j,C_j,pk_j,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C,\sigma_{\mathrm{th}})
 \]
 
-where \(R_C\) is the public set of eligible coin commitments, \(\nu\) is the 384-bit nullifier, \(B\) is a fresh per-spend bridge commitment, \(M\) binds the transaction context, and \(\mathsf{state}\) binds the relevant ledger state.
+The selected member is \(C_j=R_C[j]\). The verifier sees the public anonymity set but must not learn which element was selected from the full transcript, beyond explicitly permitted leakage.
 
-The hidden witness contains the selected index \(j\), selected commitment \(C_j\), wallet public key, coin value, coin ID, nullifier secret, coin opening, bridge opening, and threshold authorization. Neither the selected index nor an additional public copy of the selected commitment may leak which member was spent.
+## Active single-proof relation
 
-## 3. Relations that must hold simultaneously
+The one proof must establish:
+1. hidden selected-commitment membership;
+2. the canonical coin-commitment opening using the same key, value, coin ID, nullifier secret and commitment salt;
+3. validity of the concrete threshold signature under that same key on \(M\);
+4. correct derivation of public \(\nu\) from the same committed coin ID and nullifier secret;
+5. coin eligibility, value conservation and state validity.
 
-1. **Membership:** \(j\in[N]\) and \(C_j=R_C[j]\).
-2. **Coin opening:** \(C_j=\operatorname{Com}_{\mathrm{coin}}(pk_j,v,coin\_id,r_{\mathrm{nf}};\rho)\).
-3. **Bridge opening:** \(B=\operatorname{Com}_{\mathrm{bridge}}(\operatorname{Encode}(\mathsf{version},coin\_id,r_{\mathrm{nf}});\tau_B)\).
-4. **Nullifier derivation:** \(\nu=\operatorname{SHAKE256}_{384}(\mathsf{domain}\parallel\mathsf{version}\parallel\operatorname{Encode}(coin\_id)\parallel r_{\mathrm{nf}})\).
-5. **Authorization:** the specified threshold authorization is valid for \(M\) under the same key \(pk_j\) bound in the coin commitment.
-6. **State validity:** the coin is eligible and unspent, transaction outputs satisfy value-conservation rules, and consensus records the nullifier atomically.
+The previous bridge commitment and separate Layer 1/Layer 2 composition are retired from the active path. A single proof removes the cross-proof equality obligation; it does not solve the full proof-system problem.
 
-The commitment and proof system for items 2 and 3 are not yet instantiated with demonstrated hiding/binding properties. A named Module-LWE or Module-SIS assumption does not automatically supply those properties.
-
-## 4. Security games still required
+## Required security experiments
 
 ### Spend soundness
-
-An adversary wins by causing acceptance of a spend for which the extracted witness does not satisfy the full relation, including threshold authorization and eligible coin membership.
+An adversary wins if a spend is accepted without a witness satisfying the entire relation and wallet policy. The reduction must use the selected proof system's actual soundness/knowledge property, concrete threshold-signature security theorem, and commitment relation.
 
 ### Double-spend resistance
-
-An adversary wins by obtaining acceptance for the same committed asset twice with distinct nullifiers. A proof must show the commitment fixes the nullifier input and deterministic derivation therefore fixes the nullifier; the ledger rejects reuse. This requires extraction/soundness, commitment binding, valid minting uniqueness, and state correctness.
+An adversary wins if the same committed coin is accepted twice with different nullifiers, or if an accepted nullifier is inconsistent with the committed witness. The argument needs commitment binding, proof soundness, minting uniqueness, correct state transitions, and atomic duplicate-nullifier rejection.
 
 ### Nullifier collision safety
-
-A separate event occurs if distinct legitimate assets yield the same nullifier, causing an accidental conflict. This is a hash/encoding security question and is not the mechanism that prevents a repeated spend of one asset.
+Two distinct valid coins producing the same nullifier is a separate event that can cause false conflict. Analyze it under the chosen encoding and hash model. It does not establish authorization or anonymity.
 
 ### Unlinkability
+Define a left/right game over the whole transaction and proof transcript. The challenger controls valid openings, amounts, state, allowed leaks and corrupted participants. A QROM argument must state the exact theorem, oracle interface, challenge input, query limit, and conditional entropy premise. Computational hiding alone does not establish a statistical conditional-min-entropy bound.
 
-A left-or-right game must include the full public transcript, ledger state, transaction timing, amounts, anonymity set, and corruption/quantum-query model. Computational hiding does not by itself prove a statistical conditional-min-entropy lower bound. Any QROM reduction must state and satisfy the exact theorem hypotheses.
+## Functional tests versus proof evidence
 
-## 5. What numerical checks can and cannot show
+Current tests cover deterministic output, length checks, sample domain separation, functional opening recomputation and in-memory duplicate-nullifier behavior. They do not establish collision resistance, quantum security, commitment hiding/binding, proof extractability, zero knowledge or unlinkability.
 
-Functional scripts can test canonical encoding, deterministic output, domain separation, basic length handling, and arithmetic identities. They cannot establish collision resistance, zero knowledge, knowledge soundness, Module-LWE/Module-SIS hardness, or spend unlinkability.
+## Sources and status
 
-## 6. Sources and status
+- Ringtail: https://eprint.iacr.org/2024/1113
+- PQ SoK/LRS research scaffold: https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature
+- NIST FIPS 202: https://csrc.nist.gov/pubs/fips/202/final
+- Prior-art comparison: ../related-work/nullifier-prior-art.md
 
-- LoTRS: https://eprint.iacr.org/2026/974 and https://github.com/lotrs-sig/lotrs
-- NIST SHAKE: https://csrc.nist.gov/pubs/fips/202/final
-- NIST ML-DSA: https://csrc.nist.gov/pubs/fips/204/final
-- Plonky3 backend caveats: https://github.com/Plonky3/Plonky3/blob/main/README.md
-
-This document specifies the problem that must be solved. It does not state that 0PSP currently solves it.
-
-
-## CHP3 active architecture supersession
-
-The bridge commitment B and separate Layer 1/Layer 2 composition above describe a retired candidate. The active V0 target puts membership, coin opening, threshold-signature verification and nullifier correctness inside one signature-of-knowledge proof. The ledger still atomically rejects duplicate nullifiers. The nullifier helper is functional code only; all proof soundness, zero knowledge and unlinkability obligations remain open. See [Constructionable V0](constructionable-v0.md).
+Current status is candidate construction under falsification. The proof and all end-to-end security claims remain OPEN.
