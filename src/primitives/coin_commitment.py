@@ -206,7 +206,7 @@ def commit_coin_v2_native(
     namespace_id: NamespaceId,
     public_key: bytes,
     value: int,
-    coin_id: ScopedCoinId,
+    coin_id: ScopedCoinId | bytearray,
     r_nf: bytearray,
     rho_coin: bytearray,
     params_id: bytes,
@@ -215,15 +215,24 @@ def commit_coin_v2_native(
 ) -> CoinCommitment:
     """Compute V2 commitment in the native helper without a Python hash fallback.
 
-    Secret inputs must be caller-owned bytearrays so this adapter can borrow
-    their buffers instead of first converting them to immutable Python bytes.
-    The ctypes boundary still does not establish zero-copy handling of all
-    surrounding data or constant-time behavior for the process.
+    Prefer mutable bytearrays for coin_id, r_nf and rho_coin so the native
+    call can borrow those buffers directly. ScopedCoinId is accepted for
+    convenience but its immutable bytes must be copied into a ctypes buffer.
+    PyDLL holds the GIL during borrowed-buffer calls; this does not make Python
+    a constant-time or fully zero-copy production boundary.
     """
     if not isinstance(namespace_id, NamespaceId):
         raise TypeError("namespace_id must be a NamespaceId")
-    if not isinstance(coin_id, ScopedCoinId):
-        raise TypeError("coin_id must be a ScopedCoinId")
+    if isinstance(coin_id, bytearray):
+        if len(coin_id) != SCOPED_COIN_ID_BYTES:
+            raise ValueError(f"coin_id buffer must be exactly {SCOPED_COIN_ID_BYTES} bytes")
+        coin_id_len = len(coin_id)
+        coin_buf = (ctypes.c_ubyte * coin_id_len).from_buffer(coin_id)
+    elif isinstance(coin_id, ScopedCoinId):
+        coin_id_len = len(coin_id.data)
+        coin_buf = (ctypes.c_ubyte * coin_id_len).from_buffer_copy(coin_id.data)
+    else:
+        raise TypeError("coin_id must be a ScopedCoinId or bytearray")
     if not isinstance(public_key, bytes) or not public_key or len(public_key) >= 2**32:
         raise ValueError("public_key must be non-empty canonical bytes")
     if not isinstance(params_id, bytes) or not params_id or len(params_id) >= 2**16:
@@ -257,7 +266,6 @@ def commit_coin_v2_native(
     params_buf = (ctypes.c_ubyte * len(params_id)).from_buffer_copy(params_id)
     public_key_buf = (ctypes.c_ubyte * len(public_key)).from_buffer_copy(public_key)
     namespace_buf = (ctypes.c_ubyte * NAMESPACE_ID_BYTES).from_buffer_copy(namespace_id.data)
-    coin_buf = (ctypes.c_ubyte * len(coin_id.data)).from_buffer_copy(coin_id.data)
     secret_buf = (ctypes.c_ubyte * NULLIFIER_SECRET_BYTES).from_buffer(r_nf)
     salt_buf = (ctypes.c_ubyte * COMMITMENT_RANDOMNESS_BYTES).from_buffer(rho_coin)
     output_buf = (ctypes.c_ubyte * COMMITMENT_BYTES)()
@@ -266,7 +274,7 @@ def commit_coin_v2_native(
         public_key_buf, len(public_key),
         value,
         namespace_buf, NAMESPACE_ID_BYTES,
-        coin_buf, len(coin_id.data),
+        coin_buf, coin_id_len,
         secret_buf, NULLIFIER_SECRET_BYTES,
         salt_buf, COMMITMENT_RANDOMNESS_BYTES,
         output_buf, COMMITMENT_BYTES,
