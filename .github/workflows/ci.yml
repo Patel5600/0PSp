@@ -32,6 +32,8 @@ jobs:
 
       - name: Build and test native nullifier
         run: make -C native test
+      - name: Run native checks under ASan and UBSan
+        run: make -C native sanitize-test
 
       - name: Compile preliminary timing probe (do not run in shared CI)
         run: make -C native timing-probe-build
