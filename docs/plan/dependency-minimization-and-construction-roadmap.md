@@ -1,7 +1,7 @@
 # 0PSP Dependency-Minimization and Construction Roadmap
 
 **Plan date:** 2026-10-11  
-**Baseline:** `Patel5600/PSp` main at `3116a8dc90c6e8828c988f77a7bc013434d27cba`  
+**Initial baseline:** `Patel5600/PSp` main at `3116a8dc90c6e8828c988f77a7bc013434d27cba`. V2 implementation progress is recorded in the live source and security documents.  
 **Status:** Planning and audit only; no cryptographic backend was switched by this plan.  
 **Security decision:** Research only; complete protocol remains **NO-GO**.
 
@@ -18,6 +18,17 @@ MAMA40 does **not** currently provide:
 - a full security reduction for 0PSP.
 
 Its ML-KEM implementation is a key-encapsulation mechanism, not a threshold signature. Do not substitute one for the other.
+
+## V2 implementation delta since the initial baseline
+
+V2 component code is now present in `src/primitives/namespace.py`, `src/primitives/nullifier.py`, `src/primitives/coin_commitment.py`, and `native/nullifier_v2.c`. V2 uses a 48-byte namespace ID derived from fixed-width canonical ledger/deployment/asset identifiers, a random 32-byte coin ID, and an explicit namespace input to both the commitment and nullifier. The V2 nullifier preimage is 149 bytes and produces 48 bytes. Python/native known-answer tests and a concurrent in-memory mint-uniqueness model are included.
+
+These changes close byte-contract ambiguity at the component layer only. They do **not** close the live mint ledger, commitment hiding, Ringtail, zero-knowledge, full-security or side-channel gates. The V1 helper remains for historical vectors and is explicitly legacy-only.
+
+See:
+- [V2 protocol/security argument](../security/v2-protocol-security-argument.md)
+- [Ringtail adapter contract](../theory/ringtail-adapter-contract.md)
+- [V2 proof-system feasibility decision](../theory/proof-system-feasibility-study.md)
 
 ## Why MAMA40 is only a candidate
 
