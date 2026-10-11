@@ -61,3 +61,8 @@ Use a fully stated left-or-right game with adversary oracle access, challenge ch
 LoTRS has separate main and binary proof moduli \(q=2^{43}-67\) and \(\hat q=2^{35}-451\). The current ML-DSA-like implementation is not a LoTRS implementation. Earlier Core-SVP/BKZ estimates in this repository are not formal hardness proofs; the claimed block sizes and error models need independent estimator validation. The 118.62/119.75 KiB package sizes are projections, not measured proof sizes.
 
 The only valid conclusion at this stage is the conditional same-commitment interface above. Full soundness, unlinkability, security level and practicality remain open.
+
+
+## CHP3 consistency review reference (2026-10-11)
+
+This document remains a conditional lemma/proof outline, not a completed composition theorem. The bridge binding implication applies only after a concrete bridge commitment with the required binding property and compatible proof extractors are instantiated. The current linear expression is not itself a proven commitment. The Layer 2 carry recurrence, QROM entropy premise, full ZK property, and byte-accurate proof size are still open. See [CHP3 mathematical review](../audit/chp3-mathematical-review.md).
