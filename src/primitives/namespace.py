@@ -87,16 +87,17 @@ def derive_namespace_id(
     return NamespaceId(hashlib.shake_256(preimage).digest(NAMESPACE_ID_BYTES))
 
 
-def generate_scoped_coin_id_native(*, library_path: str | Path) -> ScopedCoinId:
-    """Generate a 32-byte opaque coin ID through the native OS-backed RNG.
+def generate_scoped_coin_id_native_buffer(*, library_path: str | Path) -> bytearray:
+    """Generate a mutable 32-byte coin-ID buffer through native OS-backed RNG.
 
-    The minting ledger must atomically reject an already-used pair
-    (namespace_id, coin_id). This function only generates an identifier; it
-    cannot enforce uniqueness in a distributed ledger and has no Python RNG
-    fallback.
+    Prefer this form when the coin ID is still a private witness and will be
+    passed directly to the native nullifier/commitment functions. The caller
+    owns the returned buffer and should clear it after use. The actual mint
+    ledger must atomically reject duplicate (namespace_id, coin_id) pairs.
     """
     try:
-        library = ctypes.CDLL(str(Path(library_path)))
+        # Hold the GIL while native code writes into the borrowed bytearray.
+        library = ctypes.PyDLL(str(Path(library_path)))
     except OSError as exc:
         raise RuntimeError(f"cannot load native 0PSP library: {library_path}") from exc
     function = library.psp_coin_id_v2_generate
@@ -109,7 +110,21 @@ def generate_scoped_coin_id_native(*, library_path: str | Path) -> ScopedCoinId:
     if status != 0:
         raw[:] = bytes(SCOPED_COIN_ID_BYTES)
         raise RuntimeError(f"native coin-ID generation failed with status {status}")
-    return ScopedCoinId(bytes(raw))
+    return raw
+
+
+def generate_scoped_coin_id_native(*, library_path: str | Path) -> ScopedCoinId:
+    """Convenience wrapper for tests/reference code; returns an immutable ID.
+
+    For secret handling prefer generate_scoped_coin_id_native_buffer and keep
+    the result mutable. This compatibility helper necessarily creates an
+    immutable copy and must not be treated as a secret-safe boundary.
+    """
+    raw = generate_scoped_coin_id_native_buffer(library_path=library_path)
+    try:
+        return ScopedCoinId(bytes(raw))
+    finally:
+        raw[:] = bytes(SCOPED_COIN_ID_BYTES)
 
 
 class MintRegistryModel:
