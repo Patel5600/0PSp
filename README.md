@@ -30,6 +30,8 @@ The bridge commitment, extended Layer 1 relation, and zero-knowledge Layer 2 pro
 | SHAKE nullifier computation | Deterministic function is testable; protocol unlinkability unproved |
 | Layer 2 AIR / STARK | Mathematical design notes only; no compiled 0PSP STARK |
 | Cross-layer composition | Conditional proof outline only; not an established theorem |
+| Constant-time implementation | Not implemented or assessed |
+| Side-channel evidence | Not collected |
 | Proof-size and runtime figures | Analytical projections only, not benchmarks |
 | Production readiness | **NO-GO** |
 
@@ -39,9 +41,9 @@ The bridge commitment, extended Layer 1 relation, and zero-knowledge Layer 2 pro
 2. The current Python ring and bridge-encoding helpers use the ML-DSA-like modulus \(q=8{,}380{,}417\). They do not implement a LoTRS-compatible bridge commitment.
 3. The proposed expression \(B=A_1m_x+A_2\tau_B\) is only an algebraic candidate. A hiding or binding theorem does not follow from that expression by naming Module-LWE or Module-SIS.
 4. Plonky3 provides multiple proof backends with different zero-knowledge and soundness properties. A hiding polynomial commitment alone does not prove that the complete application transcript is zero knowledge.
-5. Passing unit tests establishes only the tested behavior. It does not establish collision resistance, quantum security, zero knowledge, extractability, or anonymity.
+5. Passing unit tests establishes only the tested behavior. It does not establish collision resistance, quantum security, zero knowledge, extractability, anonymity, or constant-time execution.
 
-The authoritative current status and exact unresolved obligations are recorded in the [Phase 1 consistency audit](docs/audit/phase1-consistency-audit.md), [CHP3 research corrections](docs/audit/chp3-research-corrections.md), and [CHP3 mathematical review](docs/audit/chp3-mathematical-review.md).
+The authoritative current status and exact unresolved obligations are recorded in the [Phase 1 consistency audit](docs/audit/phase1-consistency-audit.md), [CHP3 research corrections](docs/audit/chp3-research-corrections.md), [CHP3 mathematical review](docs/audit/chp3-mathematical-review.md), and [CHP4 constant-time and side-channel specification](docs/security/chp4-constant-time-and-side-channel-spec.md). CHP4 is an implementation-security specification and release-gate proposal, not evidence that its controls have already been implemented or passed.
 
 ## Run local functional checks
 
