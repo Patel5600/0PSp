@@ -2,6 +2,8 @@
 
 **Status:** V2 component implementation exists; end-to-end construction and security proof do not. Production remains **NO-GO**.
 
+> **RFC-02 review delta (2026-10-11):** The single-proof architecture remains the target, but the authorization predicate is not frozen. This document's threshold-signature descriptions are a committee-authorization candidate, not a completed decision to perform Ringtail verification inside the circuit. See [the current spend relation specification](spend-relation-spec.md) and [the evidence-first NO-GO register](../security/evidence-first-rfc-register.md). The self-spend key-knowledge alternative is permitted only if it matches the protocol's actual authorization policy and binds the canonical transaction fields; a generic `PoK(sk)` is not a substitute for required committee approval.
+
 ## Architecture decision
 
 Retire the uninstantiated LoTRS selection proof + separate SHAKE STARK + bridge-commitment stack. V2 targets **one post-quantum zero-knowledge argument for the complete spend relation**. This is a construction target, not a claim that the relation is already implemented or that one backend is automatically suitable.
