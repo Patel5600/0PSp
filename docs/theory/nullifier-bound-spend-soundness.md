@@ -2,6 +2,8 @@
 
 **Status: Component equation and test models exist. Full spend-soundness theorem remains OPEN.**
 
+> **RFC-02 status note (2026-10-11):** The [current spend relation specification](spend-relation-spec.md) is the normative candidate relation; authorization mode is still unresolved. The proof must not permit the same registered commitment to be opened under a substituted `coin_id` or `r_nf` and then produce a different accepted nullifier. The present component tests check opening recomputation only. They do not establish this property for a ZK proof, nor do they prove atomic ledger double-spend prevention.
+
 ## Objective
 
 Commitment opening, threshold authorization, namespace, coin ID and nullifier must all refer to the same hidden coin. Separate standalone checks do not guarantee witness consistency. The active design requires one proof relation with a shared witness.
