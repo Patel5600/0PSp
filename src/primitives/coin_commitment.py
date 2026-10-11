@@ -1,11 +1,13 @@
-"""Hash-based coin commitment candidate for the 0PSP single-proof prototype.
+"""0PSP coin-commitment V2 reference and legacy V1 helper.
 
-This is a concrete functional construction, not a proven commitment scheme. The helper assumes coin_id was already created/validated in a canonical ledger/deployment-and-asset namespace; it only commits to the supplied 32-byte value and does not enforce minting uniqueness or namespace correctness.
-Candidate security model: SHAKE256 modeled as a quantum-accessible random
-oracle; a 36-byte random salt is used to make guessing the commitment input
-expensive under the project's stated query budget. The spend proof must prove
-the opening relation. This module alone proves no hiding/binding theorem.
+V2 explicitly commits to a 48-byte namespace ID and 32-byte coin ID. V1 is
+retained only for historical vectors. These functions implement byte encodings
+and opening recomputation; they do not implement a commitment proof or a
+complete hiding/binding theorem. Canonical public-key encoding still depends
+on the signature scheme/parameters, and a real mint ledger must enforce
+namespace-scoped coin-ID uniqueness atomically.
 """
+
 from __future__ import annotations
 
 import hashlib
