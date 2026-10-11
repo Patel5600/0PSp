@@ -90,14 +90,15 @@ Requirements:
 - V2 nullifier: SHAKE256-384 over the V2 domain/version, 48-byte namespace ID, 32-byte coin ID and 36-byte nullifier secret. The 149-byte preimage crosses a SHAKE256 rate boundary.
 - V2 commitment binds the same public namespace and coin ID, as well as canonical public-key bytes, value, nullifier secret, independent 36-byte commitment salt and parameter identifier.
 
-The native V2 wrapper is in `native/nullifier_v2.c`. It calls OpenSSL EVP SHAKE256, allocates/frees an EVP context per operation, and obtains coin IDs through OpenSSL RAND_bytes. Fixed-width checks and source-level validation do not establish constant-time execution. The selected OpenSSL provider, generated machine code, allocator/runtime behavior, hardware, FFI/callers, error paths and complete prover must be assessed.
+The native V2 nullifier is in `native/nullifier_v2.c`; the native commitment is in `native/coin_commitment_v2.c`. Both call OpenSSL EVP SHAKE256 and allocate/free an EVP context per operation. Coin IDs and nullifier secrets use RAND_bytes in the nullifier module; independent commitment salts use RAND_bytes in the commitment module. Fixed-width checks and source-level validation do not establish constant-time execution. The selected OpenSSL provider, generated machine code, allocator/runtime behavior, hardware, FFI/callers, error paths and complete prover must be assessed.
 
-The current V2 timing screen is a fixed-versus-random diagnostic with randomized class order, repeated runs and an identical-input control. It is not the upstream dudect implementation, is not run in shared CI, and has not established any timing result for a controlled target. The Python reference is not a secret-safe constant-time path. CI builds the screen and captures wrapper disassembly; neither artifact proves constant-time behavior or absence of exploitable side channels.
+The V2 nullifier timing screen is fixed-versus-random with randomized class order, repeats and an identical-input control. A separate commitment screen tests `r_nf` and `rho_C` independently with same-input controls. Neither is the upstream dudect implementation, neither is run in shared CI, and neither has established any timing result on a controlled target. The Python reference is not a secret-safe constant-time path. CI compiles both screens and captures native disassembly for the V1/V2 library; neither artifact proves constant-time behavior or absence of exploitable side channels.
 
 Local diagnostic commands (run on an idle host, preferably on each release target):
 
-    make -C native clean test audit timing-v2-probe-build
+    make -C native clean test sanitize-test audit timing-v2-probe-build timing-commitment-v2-probe-build
     make -C native timing-v2
+    make -C native timing-commitment-v2
 
 A suspected leak is a blocker; an inconclusive control means no conclusion. Even a clean run only means that this experiment did not detect a first-order timing difference for its selected classes on that machine. It does not rule out cache, speculative, power, fault, FFI, memory-lifetime, transcript or network metadata leakage.
 
