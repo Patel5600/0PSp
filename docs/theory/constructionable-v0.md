@@ -38,9 +38,9 @@ The functional candidate is:
 
 The output is 48 bytes. The amount is an unsigned 64-bit little-endian value. The per-coin nullifier secret r_nf and commitment salt rho_C are independent 36-byte values. Public-key bytes must be canonical for the exact threshold-signature scheme. The parameter identifier is non-empty, versioned and length-prefixed.
 
-The helper computes and recomputes openings; it does not implement a proof. If canonical encoding is injective over accepted openings, a binding break gives two distinct inputs to SHAKE256-384 with the same output, hence a hash collision. This is a conditional reduction. The final public-key codec, accepted input domain and concrete collision-security model still need to be frozen and reviewed.
+The Python reference and native OpenSSL implementation use this same encoding; the native and Python known-answer vectors match. Helpers compute/recompute openings but do not implement a proof. If canonical encoding is injective over accepted openings, a binding break gives two distinct inputs to SHAKE256-384 with the same output, hence a hash collision. This is a conditional reduction. A 384-bit output has generic quantum collision-search scale around 2^128 oracle queries under the BHT-style idealized model, not 192-bit quantum collision security. The final public-key codec, accepted input domain and concrete query/security model still need to be frozen and reviewed.
 
-Hiding is still open. The 288-bit salt is not, by itself, a hiding proof. The final argument must define a classical-RO or quantum-RO game, account for the visible nullifier and all other public outputs, and prove a query-dependent bound. A classical q/2^288 guess estimate is not a valid substitute for a quantum-query reduction.
+Hiding is still open. The 288-bit salt is not, by itself, a hiding proof. The final argument must define a classical-RO or quantum-RO game, account for the visible nullifier and all other public outputs, and prove a query-dependent bound. A generic 2^144 quantum-search scale is only an idealized salt-search estimate and not a protocol hiding theorem.
 
 ## Nullifier V2 contract
 
@@ -81,7 +81,7 @@ The full relation must be specified in the selected proof system. It cannot be c
 
 ## Threshold signature choice
 
-Ringtail is the target two-round lattice threshold signature. Its paper reports LWE-based security, but the upstream Go repository labels itself an academic proof-of-concept that has not received careful code review and is not production-ready. Pin an immutable revision, license, parameters, canonical key/signature encoding and key-generation model. The existing design assumed dealer-based key generation; if that assumption is unacceptable, design and prove a DKG separately. Do not put the prototype networking demonstration inside the ledger runtime.
+Ringtail is the target two-round lattice threshold signature. Its paper reports LWE-based security, but the upstream Go repository labels itself an academic proof-of-concept that has not received careful code review and is not production-ready. Pin an immutable revision, license, parameters, canonical key/signature encoding and key-generation model. Use the [Ringtail adapter contract](ringtail-adapter-contract.md) as the integration gate. The existing design assumed dealer-based key generation; if that assumption is unacceptable, design and prove a DKG separately. Do not put the prototype networking demonstration inside the ledger runtime.
 
 Even after ordinary Ringtail signing and verification tests pass, its verification predicate must be represented inside the one anonymous proof using the same hidden public key bound into the commitment. A standalone FFI adapter is not sufficient.
 
