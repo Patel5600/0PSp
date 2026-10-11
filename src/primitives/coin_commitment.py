@@ -22,7 +22,7 @@ from .nullifier import (
     CoinId,
     NullifierSecret,
 )
-from .namespace import NAMESPACE_ID_BYTES, NamespaceId, ScopedCoinId
+from .namespace import NAMESPACE_ID_BYTES, SCOPED_COIN_ID_BYTES, NamespaceId, ScopedCoinId
 
 COMMITMENT_BYTES = 48
 COMMITMENT_RANDOMNESS_BYTES = 36
