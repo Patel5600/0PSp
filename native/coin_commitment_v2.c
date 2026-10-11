@@ -79,6 +79,7 @@ int psp_coin_commitment_v2(
     size_t lengths[15];
     size_t i;
     uint32_t public_key_len_u32;
+    int status;
 
     if (out == NULL || out_len != PSP_COIN_COMMITMENT_V2_OUTPUT_BYTES) {
         return PSP_NULLIFIER_ERR_ARGUMENT;
@@ -136,6 +137,15 @@ int psp_coin_commitment_v2(
     parts[14] = rho_c;
     lengths[14] = rho_c_len;
 
-    return shake256_parts(parts, lengths, 15u, out,
-                          PSP_COIN_COMMITMENT_V2_OUTPUT_BYTES);
+    status = shake256_parts(parts, lengths, 15u, out,
+                            PSP_COIN_COMMITMENT_V2_OUTPUT_BYTES);
+
+    /* value_le can encode a private amount before the commitment is published.
+       Clear local serialization buffers and pointer metadata before returning. */
+    OPENSSL_cleanse(value_le, sizeof(value_le));
+    OPENSSL_cleanse(params_len_le, sizeof(params_len_le));
+    OPENSSL_cleanse(public_key_len_le, sizeof(public_key_len_le));
+    OPENSSL_cleanse(parts, sizeof(parts));
+    OPENSSL_cleanse(lengths, sizeof(lengths));
+    return status;
 }
