@@ -2,6 +2,8 @@
 
 **Status: OPEN.** This is a research target, not a completed primitive or security proof.
 
+> **RFC-02 clarification (2026-10-11):** The phase-one goal still requires transaction authorization under the same hidden coin/key. The exact authorization semantics have not been frozen: committee threshold authorization and self-spend key-knowledge are different policies, not interchangeable implementations. See [the current relation draft](spend-relation-spec.md).
+
 ## Objective
 
 Study whether a post-quantum private-spend protocol can prove in one anonymous proof that the spender: (1) selected a valid coin from a public anonymity set without revealing which member; (2) knows its canonical commitment opening; (3) has threshold authorization for the transaction under that same coin key; (4) published the deterministic nullifier bound to that coin; and (5) satisfies ledger and transaction rules.

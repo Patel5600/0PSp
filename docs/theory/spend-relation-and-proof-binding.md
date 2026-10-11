@@ -2,6 +2,8 @@
 
 **Status: Formal target relation, not an implemented or proven ZK protocol. Production: NO-GO.**
 
+> **RFC-02 status note (2026-10-11):** This page documents the earlier target that placed Ringtail verification inside the same proof. Use [the current spend relation specification](spend-relation-spec.md) as the normative draft. Authorization mode has not been selected: an in-circuit committee signature is a candidate only when policy requires it; scheme-specific self-spend key knowledge is a separate candidate only when committee approval is not a policy requirement. Neither mode is implemented or proven.
+
 ## Public statement
 
     x = (namespace_id, R_C, nu, M, state, params_id)

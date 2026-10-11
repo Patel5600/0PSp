@@ -13,6 +13,10 @@
 7. **Proof-composition attack:** both Layer 1 and Layer 2 proofs verify but bind to different witnesses because a commitment is not actually binding or public-statement encodings differ.
 8. **Parameter/estimator error:** rely on a nominal security level, a BKZ block size larger than lattice dimension, or a heuristic estimate omitting a weaker component.
 9. **Zero-knowledge failure:** treat blinding rows or a hiding PCS as sufficient while the chosen trace/PCS/transcript still exposes witness information.
+10. **Multi-identity nullifier fork:** allow a prover to reuse a registered commitment while substituting `coin_id` or `r_nf` and thereby derive a second nullifier. Prevent by binding these values into the commitment and proving the exact shared opening/nullifier relation; then test alternate-witness rejection in the actual proof backend.
+11. **Issuer value-binding gap:** let a mint register `(C, v, deposit_tx)` without checking that hidden commitment opening `C` contains the same `v`. A receipt over those fields is insufficient. Require an issuance proof or another reviewed mechanism that binds opening, authorized deposit value and namespace without revealing the opening.
+12. **Transaction-digest detachment/replay:** accept a valid key-knowledge proof while treating the transaction digest as an unused public input, allowing the proof to be reused with changed transaction fields. Constrain canonical transaction fields and digest inside the relation.
+
 
 ## Current gate table
 

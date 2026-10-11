@@ -45,6 +45,13 @@ jobs:
       - name: Capture optimized wrapper disassembly
         run: make -C native audit
 
+      - name: Syntax-check optional cleansing disassembly diagnostic
+        run: bash -n scripts/audit_disasm_bzero.sh
+
+      - name: Advisory native cleansing call-site check
+        continue-on-error: true
+        run: bash scripts/audit_disasm_bzero.sh native/build/libpsp_nullifier.so
+
       - name: Upload wrapper disassembly for review
         uses: actions/upload-artifact@v4
         with:

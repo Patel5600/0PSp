@@ -2,6 +2,8 @@
 
 **Status: OPEN.** The role model is specified; a complete secure protocol has not been instantiated.
 
+> **Current RFC pointer (2026-10-11):** Use [RFC-02 spend relation specification](spend-relation-spec.md) for the current candidate public statement and witness. This page's threshold-custody model is a candidate policy; the repository has not yet decided whether committee authorization is mandatory for every spend or whether a self-spend key-knowledge policy is acceptable. The distinction must be decided in the threat model, not inferred from implementation convenience.
+
 ## Participants
 
 | Role | Description |
