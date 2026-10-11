@@ -104,6 +104,30 @@ int psp_coin_id_v2_generate(uint8_t *out, size_t out_len) {
     return PSP_NULLIFIER_OK;
 }
 
+int psp_nullifier_v2_generate_secret(uint8_t *out, size_t out_len) {
+    if (out == NULL || out_len != PSP_NULLIFIER_V2_SECRET_BYTES) {
+        return PSP_NULLIFIER_ERR_ARGUMENT;
+    }
+    OPENSSL_cleanse(out, PSP_NULLIFIER_V2_SECRET_BYTES);
+    if (RAND_bytes(out, (int)PSP_NULLIFIER_V2_SECRET_BYTES) != 1) {
+        OPENSSL_cleanse(out, PSP_NULLIFIER_V2_SECRET_BYTES);
+        return PSP_NULLIFIER_ERR_CRYPTO;
+    }
+    return PSP_NULLIFIER_OK;
+}
+
+int psp_coin_commitment_v2_generate_salt(uint8_t *out, size_t out_len) {
+    if (out == NULL || out_len != PSP_NULLIFIER_V2_SALT_BYTES) {
+        return PSP_NULLIFIER_ERR_ARGUMENT;
+    }
+    OPENSSL_cleanse(out, PSP_NULLIFIER_V2_SALT_BYTES);
+    if (RAND_bytes(out, (int)PSP_NULLIFIER_V2_SALT_BYTES) != 1) {
+        OPENSSL_cleanse(out, PSP_NULLIFIER_V2_SALT_BYTES);
+        return PSP_NULLIFIER_ERR_CRYPTO;
+    }
+    return PSP_NULLIFIER_OK;
+}
+
 int psp_nullifier_v2(
     const uint8_t *namespace_id, size_t namespace_id_len,
     const uint8_t *coin_id, size_t coin_id_len,
