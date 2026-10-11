@@ -102,3 +102,16 @@ Sources:
 ## Audit conclusion
 
 CHP3 fixes terminology, source provenance, build/test automation, and misleading “PASS/security closed” claims. It does not claim unsolved cryptographic obligations have vanished. Phase 1 remains open until the commitment construction, extended threshold-selection relation, complete ZK AIR, and composition proof are instantiated and independently checked.
+
+
+## Pass 6 — Review of the latest carry, size and query-budget claims
+
+A separate mathematical consistency review is recorded in [CHP3 mathematical review](chp3-mathematical-review.md). It identifies three arithmetic/protocol details that must not be marked closed without explicit constraints:
+
+1. The conventional nonnegative carry recurrence needs the signs \(-c_{i-1}+Wc_i\), not \(+c_{i-1}-Wc_i\). The claimed BabyBear residual magnitude may be below the field modulus, but the exact AIR relation and ranges still need validation.
+2. Six vectors of 256 coefficients packed at 36 bits occupy 6,912 bytes (6.75 KiB); 43-bit raw canonical residues occupy 8,256 bytes (8.0625 KiB). Since LoTRS main \(q=2^{43}-67\) needs 43 bits for arbitrary residues, a 36-bit width is justified only by a separately proved short-response range and concrete codec, not as a generic main-modulus coefficient encoding.
+3. The 74-by-8 Merkle path arithmetic is 18,944 bytes (18.5 KiB) at 32-byte digests and 28,416 bytes (27.75 KiB) at 48-byte digests. Previous 18.94/28.42 figures are decimal kB, not KiB. Recompute all totals from bytes.
+4. The 14-sigma union-tail arithmetic is approximately \(2^{-128.5}\) for 3,584 coordinates, but the sampler must specify rejection/resampling or clipping and account for the resulting distribution.
+5. The illustrative QROM bound at \(h=256,q_H=2^{64}\) is approximately \(2^{-123.7}\), not a strict 128-bit bound. The 288-bit result is conditional on actually having 288 bits of suitable conditional min-entropy, which is not established by the current 32-byte secret.
+
+These findings close arithmetic-consistency review items only after the implementation/specification is updated and checked. They do not remove the open cryptographic gates listed above.
