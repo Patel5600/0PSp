@@ -42,8 +42,8 @@ int main(void) {
     size_t i;
     static const char namespace_vector[] =
         "04c0037350b1b2551c5b7f8b19642abd"
-        "e118113083130340a0986aacfaad3d7"
-        "d38c96dac07c80e9c3d45e0a1111279d2";
+        "e118113083130340a0986aacfaad3d7d"
+        "38c96dac07c80e9c3d45e0a1111279d2";
     static const char nullifier_vector[] =
         "059698470b8228712d86c630144b9aae"
         "0d0815ba1f2038b53c9d22d484af5d46"
