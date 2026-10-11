@@ -1,4 +1,6 @@
-# Nullifier v1 — Fixed Byte Contract and Native Component
+# Nullifier v1 — Fixed Byte Contract and Native Component (Legacy)
+
+> **Legacy-only component.** V1 does not include a namespace input and must not be used for new scoped spends. The active V2 format explicitly binds the ledger/deployment/asset namespace into both the commitment and nullifier. See [V2 security argument](../security/v2-protocol-security-argument.md) and [V2 spend relation](spend-relation-and-proof-binding.md). V1 remains only for historical known-answer tests and compatibility; no implicit V1-to-V2 migration is allowed.
 
 **Status:** functional reference plus native implementation candidate. This is the first secret-processing component for constructionable V0, not a complete spend protocol or a proven PRF/commitment scheme.
 
