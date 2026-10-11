@@ -59,3 +59,8 @@ Functional scripts can test canonical encoding, deterministic output, domain sep
 - Plonky3 backend caveats: https://github.com/Plonky3/Plonky3/blob/main/README.md
 
 This document specifies the problem that must be solved. It does not state that 0PSP currently solves it.
+
+
+## CHP3 active architecture supersession
+
+The bridge commitment B and separate Layer 1/Layer 2 composition above describe a retired candidate. The active V0 target puts membership, coin opening, threshold-signature verification and nullifier correctness inside one signature-of-knowledge proof. The ledger still atomically rejects duplicate nullifiers. The nullifier helper is functional code only; all proof soundness, zero knowledge and unlinkability obligations remain open. See [Constructionable V0](constructionable-v0.md).

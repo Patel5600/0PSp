@@ -70,3 +70,8 @@ Every item above is a specification target until a concrete implementation and p
 - Measure proof size, proving time, verification time, communication rounds and peak memory.
 
 No token, chain, production deployment, or novelty claim is in scope until these gates are passed.
+
+
+## CHP3 active architecture supersession
+
+The previous paired Layer 1/Layer 2 relation with public bridge commitment B is historical and no longer the active V0 path. The active target is the single relation in [Constructionable V0](constructionable-v0.md): one anonymous signature-of-knowledge proof jointly establishes selected-coin membership/opening, threshold-signature validity under the same hidden key, and deterministic nullifier derivation. The bridge commitment is removed from the active public statement. Security and proof-size claims remain OPEN until the chosen generic SoK/LRS backend is instantiated and measured.

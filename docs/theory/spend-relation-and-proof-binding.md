@@ -47,3 +47,8 @@ The two proofs cannot merely be individually valid: they must reference the exac
 - **Unlinkability:** the selected member cannot be distinguished in the stated game, accounting for commitment hiding, both proofs' full zero knowledge, public transaction leakage, and the precise QROM/hash assumption.
 
 No reduction is claimed complete until the concrete schemes and adversary model are fixed.
+
+
+## CHP3 active relation supersession
+
+This paired-proof/bridge relation is retained as historical specification. V0 now targets one proof over the full relation, with public statement (R_C, nu, M, state, params_id) and hidden witness (j, C_j, pk_j, value, coin_id, r_nf, opening, threshold_signature). The proof must bind all predicates to the same hidden coin and include verification of the threshold signature and nullifier computation. The bridge commitment B and separate Layer 2 proof are removed from the active path. See [Constructionable V0](constructionable-v0.md).

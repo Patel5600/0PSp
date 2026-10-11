@@ -237,29 +237,29 @@ class TestShamirSecretSharing:
 
 class TestNullifier:
     def test_deterministic(self):
-        from src.primitives.nullifier import CoinId, compute_nullifier
-        rng = make_rng(b"test-null-det")
-        s = sample_secret(PARAMS, rng)
-        coin = CoinId(b"coin-001")
-        n1 = compute_nullifier(s, coin)
-        n2 = compute_nullifier(s, coin)
-        assert n1 == n2
+        from src.primitives.nullifier import (
+            CoinId, NullifierSecret, compute_nullifier, NULLIFIER_SECRET_BYTES
+        )
+        coin = CoinId(b"coin-001".ljust(32, b"\x00"))
+        secret = NullifierSecret(b"\x42" * NULLIFIER_SECRET_BYTES)
+        assert compute_nullifier(coin, secret) == compute_nullifier(coin, secret)
 
     def test_different_coins_different_nullifiers(self):
-        from src.primitives.nullifier import CoinId, compute_nullifier
-        rng = make_rng(b"test-null-diff")
-        s = sample_secret(PARAMS, rng)
-        n1 = compute_nullifier(s, CoinId(b"coin-001"))
-        n2 = compute_nullifier(s, CoinId(b"coin-002"))
-        assert n1 != n2
+        from src.primitives.nullifier import (
+            CoinId, NullifierSecret, compute_nullifier
+        )
+        secret = NullifierSecret(b"\x42" * 32)
+        coin1 = CoinId(b"coin-001".ljust(32, b"\x00"))
+        coin2 = CoinId(b"coin-002".ljust(32, b"\x00"))
+        assert compute_nullifier(coin1, secret) != compute_nullifier(coin2, secret)
 
     def test_double_spend_detection(self):
-        from src.primitives.nullifier import CoinId, compute_nullifier, NullifierSet
-        rng = make_rng(b"test-null-ds")
-        s = sample_secret(PARAMS, rng)
-        coin = CoinId(b"my-coin")
-        nul = compute_nullifier(s, coin)
-
+        from src.primitives.nullifier import (
+            CoinId, NullifierSecret, compute_nullifier, NullifierSet
+        )
+        coin = CoinId(b"my-coin".ljust(32, b"\x00"))
+        secret = NullifierSecret(b"\x73" * NULLIFIER_SECRET_BYTES)
+        nullifier = compute_nullifier(coin, secret)
         ledger = NullifierSet()
-        assert ledger.try_spend(nul) is True    # First spend succeeds
-        assert ledger.try_spend(nul) is False   # Second spend is rejected
+        assert ledger.try_spend(nullifier) is True
+        assert ledger.try_spend(nullifier) is False

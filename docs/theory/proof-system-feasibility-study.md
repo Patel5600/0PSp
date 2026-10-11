@@ -52,3 +52,8 @@ Sources:
 ## Decision
 
 The SHAKE equation is not natively established by the current LoTRS selection proof as documented. This is not a general impossibility result. The cross-layer bridge and complete proof system remain open research tasks; no cryptographic implementation GO decision is made by this document.
+
+
+## CHP3 constructionability decision
+
+The dual-layer LoTRS-plus-STARK route is retired as the active V0 implementation target. It is not claimed impossible; it is rejected for V0 because the bridge commitment and cross-layer proof composition were uninstantiated. The replacement target is a single post-quantum signature-of-knowledge / linkable-ring proof for the complete NP relation, using a Ringtail threshold signature as a private witness and the nullifier computation inside that same proof. This removes the bridge-equality obligation, not the need for a sound, zero-knowledge proof system. See [Constructionable V0](constructionable-v0.md). The generic upstream SoK/LRS implementation is research code with an informal ZK enhancement; no security claim follows until the concrete relation is implemented and reviewed.

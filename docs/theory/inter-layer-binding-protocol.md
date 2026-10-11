@@ -49,3 +49,8 @@ Do not infer a statistical min-entropy lower bound from computational hiding. A 
 Proceed to implementation only when a concrete commitment and parameterization are specified; both layers prove exactly the same canonical opening; custody threshold semantics are implemented; the full STARK AIR and ZK mode compile; and the composed security argument and parameter analysis match the concrete backend.
 
 If no commitment is efficiently provable in both layers with acceptable hiding, binding and proof cost, redesign or abandon the two-layer composition instead of treating the interface as a solved cryptographic primitive.
+
+
+## CHP3 status change: retired from active architecture
+
+This bridge protocol is retained as historical research. It is not the active V0 path because its candidate commitment did not have an established hiding/binding theorem and the paired proof systems were not instantiated. The active target uses one proof relation to bind coin selection, commitment opening, threshold-signature validity and nullifier correctness. See [Constructionable V0](constructionable-v0.md). The historical bridge is not considered secure or implemented.
