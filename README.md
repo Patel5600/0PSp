@@ -41,7 +41,7 @@ The bridge commitment, extended Layer 1 relation, and zero-knowledge Layer 2 pro
 4. Plonky3 provides multiple proof backends with different zero-knowledge and soundness properties. A hiding polynomial commitment alone does not prove that the complete application transcript is zero knowledge.
 5. Passing unit tests establishes only the tested behavior. It does not establish collision resistance, quantum security, zero knowledge, extractability, or anonymity.
 
-The authoritative current status and exact unresolved obligations are recorded in the [Phase 1 consistency audit](docs/audit/phase1-consistency-audit.md) and [CHP3 research corrections](docs/audit/chp3-research-corrections.md).
+The authoritative current status and exact unresolved obligations are recorded in the [Phase 1 consistency audit](docs/audit/phase1-consistency-audit.md), [CHP3 research corrections](docs/audit/chp3-research-corrections.md), and [CHP3 mathematical review](docs/audit/chp3-mathematical-review.md).
 
 ## Run local functional checks
 
