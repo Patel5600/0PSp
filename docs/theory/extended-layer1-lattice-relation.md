@@ -1,5 +1,7 @@
 # Extended Layer 1 Lattice Relation — Candidate, Not Instantiated
 
+> **HISTORICAL / NOT ACTIVE V0:** This design is historical and not part of active V0. The Layer 1 LoTRS extension was not instantiated or proven. See [Constructionable V0](constructionable-v0.md).
+
 **Status:** Algebraic design target. No working LoTRS extension or formal security proof currently exists in this repository.
 
 ## 1. Modulus separation

@@ -1,5 +1,7 @@
 # Cross-Layer Composition — Conditional Lemmas and Open Assumptions
 
+> **HISTORICAL / NOT ACTIVE V0:** This is a historical conditional outline, not a completed theorem. The paired proof architecture is retired from active V0. See [Constructionable V0](constructionable-v0.md).
+
 **Status:** Conditional proof outline. Earlier versions called this a completed theorem; that claim is withdrawn because the required commitment, extractors, zero-knowledge backend and parameter security have not been instantiated.
 
 ## 1. Public statement and intended relations

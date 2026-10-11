@@ -1,5 +1,7 @@
 # Layer 2 STARK AIR — Constraints to Be Instantiated
 
+> **HISTORICAL / NOT ACTIVE V0:** This design is historical and not part of active V0. No compiled 0PSP AIR or measured zero-knowledge proof exists. See [Constructionable V0](constructionable-v0.md).
+
 **Status:** Design target only. No compiled 0PSP AIR or measured zero-knowledge proof exists in this repository.
 
 ## 1. Intended statement and witness
