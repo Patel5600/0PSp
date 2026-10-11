@@ -13,7 +13,7 @@
 - **Ledger:** reject a nullifier already spent, atomically.
 - **No bridge commitment:** all predicates are proven in one relation; there is no separate Layer 1/Layer 2 witness-matching step.
 
-See [Constructionable V0](docs/theory/constructionable-v0.md), [CHP3 construction pivot](docs/audit/chp3-construction-pivot.md), and the [CHP4 construction-readiness record](docs/security/chp4-construction-readiness.md).
+See [Constructionable V0](docs/theory/constructionable-v0.md), [CHP3 construction pivot](docs/audit/chp3-construction-pivot.md), the [CHP4 construction-readiness record](docs/security/chp4-construction-readiness.md), and the [dependency-minimization and construction roadmap](docs/plan/dependency-minimization-and-construction-roadmap.md).
 
 ## Exact target relation
 
