@@ -250,6 +250,27 @@ def _nullifier_v2_preimage(
     ))
 
 
+def generate_nullifier_secret_v2_native(*, library_path: str | Path) -> bytearray:
+    """Generate a fresh 36-byte V2 nullifier secret with no Python fallback.
+
+    Returns a mutable caller-owned buffer. Clear it after use. This helper is
+    a FFI boundary for tests/research; it does not make the Python process a
+    constant-time or zero-copy secret-handling environment.
+    """
+    library = _load_native_library(library_path)
+    function = library.psp_nullifier_v2_generate_secret
+    byte_p = ctypes.POINTER(ctypes.c_ubyte)
+    function.argtypes = [byte_p, ctypes.c_size_t]
+    function.restype = ctypes.c_int
+    secret = bytearray(NULLIFIER_SECRET_BYTES)
+    out_buf = (ctypes.c_ubyte * NULLIFIER_SECRET_BYTES).from_buffer(secret)
+    status = function(out_buf, NULLIFIER_SECRET_BYTES)
+    if status != 0:
+        secret[:] = bytes(NULLIFIER_SECRET_BYTES)
+        raise RuntimeError(f"native V2 nullifier secret generation failed with status {status}")
+    return secret
+
+
 def compute_nullifier_v2(
     namespace_id: NamespaceId,
     coin_id: ScopedCoinId,
