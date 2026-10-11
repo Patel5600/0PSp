@@ -54,3 +54,8 @@ The Layer 1 research gate is satisfied only after:
 - every shortness bound is proved for the concrete sampler and representatives;
 - proof soundness/zero-knowledge definitions and reductions match the implemented protocol;
 - selected LoTRS and bridge parameter sets are evaluated with reproducible estimators.
+
+
+## CHP3 superseding consistency note (2026-10-11)
+
+The earlier response-expansion figures in this document are unverified projections and must not be used as a finalized size claim. A raw 36-bit encoding is insufficient for arbitrary canonical residues modulo the 43-bit main modulus; it is only potentially justified for a separately bounded response representation with a specified codec. The current repository does not yet instantiate that extended response encoding. See [CHP3 mathematical review](../audit/chp3-mathematical-review.md) for the byte-level arithmetic and remaining gates.
