@@ -39,6 +39,8 @@ jobs:
         run: make -C native timing-probe-build
       - name: Compile namespace-bound V2 timing screen (do not run in shared CI)
         run: make -C native timing-v2-probe-build
+      - name: Compile namespace-bound V2 commitment timing screen (do not run in shared CI)
+        run: make -C native timing-commitment-v2-probe-build
 
       - name: Capture optimized wrapper disassembly
         run: make -C native audit
