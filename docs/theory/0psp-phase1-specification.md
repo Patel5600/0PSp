@@ -1,123 +1,72 @@
-# 0PSP Phase 1: Cryptographic Specification & Falsification Framework
+# 0PSP Phase 1 Specification — Current Research Model
 
-**Codename:** 0PSP (Zero-knowledge Post-quantum Spend Primitive)  
-**Phase:** 1 (Mathematical Core Falsification)  
-**Date:** October 2026  
-**Document Status:** Foundation Research Specification
+**Status:** Candidate model, not an implemented or proven primitive. This document supersedes earlier wording that treated SCRL or the five-property composition as the current construction.
 
----
+## 1. Research objective
 
-## 1. System Model & Lifecycle
+Study whether an asset-specific deterministic nullifier can be bound to the same hidden coin and threshold authorization that a spend proof validates, without revealing which member of the public anonymity set was selected.
 
-### 1.1 Participants & Environment
-The protocol operates in an asynchronous network under standard post-quantum cryptographic assumptions (Module-LWE and Module-SIS over polynomial rings).
+The target properties are post-quantum authorization under explicit assumptions; hidden coin selection; deterministic asset-bound nullifier and duplicate-nullifier rejection; wallet custody threshold \(t\)-of-\(n\), distinct from anonymity-set size \(N\); and practical proof and verification costs that must be measured.
 
-* **Owner / Wallet:** A logical entity owning an asset committed on-chain. The private spending capability is split among $n$ distributed nodes.
-* **Key Holders ($\mathcal{P}_1, \dots, \mathcal{P}_n$):** A set of $n$ participants, each holding a private share $sh_i$ and a public verification key $vk_i$. Any authorized subset $S \subset [n]$ with $|S| \ge t$ can authorize an asset spend.
-* **Verifier / Ledger:** Stateless consensus verifiers and an append-only ledger tracking spent nullifiers $\mathcal{N} \subset \{0,1\}^{256}$.
-* **Adversary ($\mathcal{A}$):** A Quantum Polynomial-Time (QPT) algorithm that may adaptively corrupt up to $t-1$ key holders, observe all public ledger data and broadcast transcripts, and query partial signing, rerandomization, and nullifier oracles polynomially many times.
+Novelty and end-to-end security remain unverified research hypotheses.
 
-### 1.2 Mathematical Substrate: The Ring & Module
-* **Cyclotomic Ring:** $R = \mathbb{Z}[x]/(x^n + 1)$ with $n = 256$ (power of 2).
-* **Modulus:** Prime $q = 8,380,417$ ($q \equiv 1 \pmod{2n}$, supporting full NTT). Note that $R_q = R/qR$ is **not a field**; it splits into $n$ degree-1 factors modulo $q$.
-* **Secret Distribution:** Centered binomial distribution $S_\eta$ with $\eta = 4$. Secrets $s \in R_q^\ell$ and errors $e \in R_q^k$ are short vectors ($\|s\|_\infty \le \eta$).
-* **Public Key:** $(A, t) \in R_q^{k \times \ell} \times R_q^k$ where $t = A s + e$.
+## 2. Current public statement and witness target
 
-### 1.3 Spend Transaction Lifecycle
-1. **Minting / Receipt:** A coin $C = \mathsf{Commit}(pk, v, \text{coin\_id}, r_{\text{nf}}; \rho)$ is registered on the ledger (e.g., in a Merkle commitment tree or ring of unspent coins).
-2. **Threshold Spend Authorization (Experiment 2A):** When spending, $t$ participants verify policy and threshold-sign transaction details $m^* = (m, C, \nu)$ producing $\sigma_{\text{thresh}}$ under static $pk$.
-3. **Nullification:** A deterministic, post-quantum nullifier is evaluated by the spender client:
-   $$\nu = H_{\text{PQ}}\left( \mathsf{domain}_{\text{null}} \,\|\, \mathsf{Encode}(C) \,\|\, \mathsf{Encode}(r_{\text{nf}}) \right)$$
-   and proven inside the zero-knowledge spend proof $\pi$.
-4. **Verification:** The verifier asserts:
-   * Spend authorization is valid: $\mathsf{VerifySpend}(R, \nu, m, \pi) = 1$.
-   * Nullifier has not been recorded previously: $\nu \notin \mathcal{N}$.
-   * The nullifier is then atomically appended: $\mathcal{N} \leftarrow \mathcal{N} \cup \{\nu\}$.
+Candidate public statement:
 
----
+\[
+\mathsf{Public}=(R_C,\nu,B,M,\mathsf{state})
+\]
 
-## 2. Formal SCRL Definition & Split
+where \(R_C=\{C_1,\ldots,C_N\}\) is the eligible commitment set, \(\nu\) is a 48-byte nullifier, \(B\) is a fresh per-spend bridge commitment, \(M\) binds chain context, inputs, outputs and fees, and \(\mathsf{state}\) binds the accepted ledger root and spent-nullifier set.
 
-The Share-Compatible Rerandomization Lemma (SCRL) is decomposed into four testable sub-claims to isolate mathematical failure modes:
+Candidate witness:
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        SCRL DECOMPOSED SUB-CLAIMS                      │
-├────────────────────────────────────────────────────────────────────────┤
-│  [SC-1] Representation & Threshold Correctness                         │
-│  [SC-2] Rerandomization Feasibility & Norm Preservation                │
-│  [SC-3] Related-Key & Unlinkability Security                           │
-│  [SC-4] Privacy Composition & Nullifier Binding                        │
-└────────────────────────────────────────────────────────────────────────┘
-```
+\[
+w=(j,pk_j,v,coin\_id,r_{\mathrm{nf}},\rho,\tau_B,\mathsf{auth})
+\]
 
-### 2.1 [SC-1] Representation & Threshold Correctness
-* **Inputs:** Secret $s \in R_q^\ell$ ($\|s\|_\infty \le \eta$), parameters $t, n$.
-* **Outputs:** Shares $sh_1, \dots, sh_n \in R_q^\ell$, verification keys $vk_1, \dots, vk_n \in R_q^k$.
-* **Correctness Condition:**
-  For any subset $S \subseteq [n]$ with $|S| = t$, there exist public reconstruction weights $\{\lambda_i\}_{i \in S}$ such that for honest partial signatures $\sigma_i \leftarrow \mathsf{PartSign}(sh_i, m)$:
-  $$\mathsf{Combine}(\{\sigma_i\}_{i \in S}) = \sigma \quad \text{s.t.} \quad \mathsf{Verify}(pk, m, \sigma) = 1 \quad \wedge \quad \|\sigma\|_\infty \le \gamma_1 - \beta$$
-* **Falsification Verdict:** **Naive Shamir Response Interpolation FAILS.**
-  Lagrange coefficients $\lambda_i \pmod q$ can be $O(q)$. When modular wrapping occurs, the combined response $z = \sum \lambda_i z_i \pmod q$ behaves pseudorandomly over $(-q/2, q/2]^d$, driving the rejection sampling acceptance probability to $P_{\text{accept}} \approx 2^{-3840}$ for ML-DSA-65 (and $2^{-5120}$ for ML-DSA-44).
-  *Resolution:* Threshold signing schemes must avoid naive linear response interpolation. They must either adopt **additive secret sharing with zero-sum one-time masks** (Threshold Raccoon paradigm) or **scalar Shamir with distributed non-interactive preprocessing** (Ringtail paradigm).
+The index \(j\) and selected commitment \(C_j=R_C[j]\) must remain hidden. A complete relation must prove that \(C_j\) opens to the same wallet key and coin data used by the nullifier and authorization relations.
 
-### 2.2 [SC-2] Rerandomization Feasibility
-* **Inputs:** Public key $pk = (A, t)$, rerandomization vector $r \in R_q^k$, individual share $sh_i$.
-* **Outputs:** Transformed public key $pk' = \varphi_r(pk)$, transformed share $sh'_i = \psi_r(sh_i)$.
-* **Correctness Conditions:**
-  1. **Homomorphic Alignment:** $A \cdot \psi_r(sh_i) = \varphi_r(A \cdot sh_i)$.
-  2. **Shortness Preservation:** $\|sh'_i\|_\infty \le \beta_{\text{share}}$, allowing continued signing without rejection loops.
-* **Falsification Verdict:** **ACTIVE BOTTLENECK.**
-  If $t' = t + r$, an honest share update requires adding $\Delta_i$ such that $A \Delta_i \equiv r/n \pmod q$. Finding a short $\Delta_i$ is an instance of the inhomogeneous Module-SIS problem. Solving it in PPT requires either a public trapdoor (destroying security) or increases share norms beyond acceptable bounds.
+## 3. Nullifier candidate
 
-### 2.3 [SC-3] Related-Key Security
-* **Security Game:**
-  Challenger samples $(sk, pk) \leftarrow \mathsf{KeyGen}(pp)$. Adversary queries:
-  * $\mathcal{O}_{\text{Rerand}}(r)$: returns $pk' = \varphi_r(pk)$ and corrupted share updates $\{sh'_i\}_{i \in \text{Corrupt}}$.
-  * $\mathcal{O}_{\text{Sign}}(i, m, r)$: returns partial signatures under rerandomized keys.
-  Adversary outputs candidate key $s^*$ or distinguishes derived keys from fresh Module-LWE samples.
-* **Requirement:** No QPT adversary can recover $s$ or distinguish $pk'$ with non-negligible advantage over Module-LWE.
+\[
+\nu=\operatorname{SHAKE256}
+(\mathsf{domain}_{\mathrm{null}}\parallel
+\mathsf{version}\parallel
+\mathsf{Encode}(coin\_id)\parallel
+r_{\mathrm{nf}},48\text{ bytes})
+\]
 
-### 2.4 [SC-4] Privacy Composition
-* **Security Game:** Full left-or-right anonymity game where adversary specifies two public keys $pk_0, pk_1$, receives a signature $\sigma^*$ and nullifier $nul^*$ for $pk_b$ ($b \stackrel{\$}{\leftarrow} \{0,1\}$), and must guess $b$.
-* **Requirement:** $\mathbf{Adv}^{\text{ANON}}(\mathcal{A}) \le \mathsf{negl}(\lambda)$ under simultaneous availability of nullifiers and threshold oracles.
+Here \(r_{\mathrm{nf}}\) is a distinct coin-specific secret. The commitment must bind it to the coin. The formula is deterministic; this alone does not prove unlinkability, PQ security of the complete protocol, or soundness of the witness relation.
 
----
+Domain, version, input lengths and canonical encoding must be frozen. The public verifier must reject a nullifier already recorded in the ledger's spent set.
 
-## 3. Construction Comparison: Design A vs. Design B
+## 4. Parameter namespaces
 
-| Architectural Dimension | Design A: Rerandomized Keys & Shares | Design B: Static Keys + Anonymous Proof |
-|---|---|---|
-| **Core Mechanism** | Mutates keys and shares per transaction: $(sk', pk') \leftarrow (\psi_r(sk), \varphi_r(pk))$. | Leaves keys and shares static; proves authorization via 1-out-of-$N$ structured ring proof. |
-| **Mathematical Dependency** | Requires resolving SCRL and inhomogeneous Module-SIS preimage generation. | Relies on proven lattice multisignatures (Raccoon/Ringtail) + 1-out-of-$N$ proofs (LoTRS). |
-| **Attack Surface** | Exposed to Related-Key Attacks (RKA) and share norm drift over successive spends. | Standard EUF-CMA threshold unforgeability; zero related-key exposure. |
-| **Implementation Feasibility** | **High risk / unproven:** Lacks existing post-quantum precedent. | **Demonstrated baseline:** LoTRS demonstrates practical structured TRS at **53.53 KiB** (Sept 2026 artifact). |
-| **Spend Privacy Level** | Unlinkable if SCRL holds. | Cryptographically unlinkable via zero-knowledge membership proof and nullifier. |
+The current Python parameter object models ML-DSA-like arithmetic:
+- \(n=256\), \(q=8{,}380{,}417\).
+- It is not a LoTRS parameter object.
 
-**Strategic Finding:** Design A imposes severe mathematical risks to solve an issue that Design B resolves natively. In transactional privacy, spenders do not need to alter their root identity; they need to prove membership in an eligible anonymity set and cancel an unspendable tag.
+The LoTRS artifact has separate roles for \(q=2^{43}-67\) and \(\hat q=2^{35}-451\). Do not silently instantiate the LoTRS proof using the ML-DSA ring class. The exact LoTRS arithmetic and auxiliary-prime NTT implementation must be reused or separately implemented and tested.
 
----
+## 5. Protocol sketch (conditional)
 
-## 4. Adversarial Attack Catalogue
+1. Mint a commitment whose opening binds wallet authorization key, coin identity, value and nullifier secret.
+2. Publish the coin commitment into the eligible set according to ledger consensus.
+3. A qualified \(t\)-of-\(n\) policy authorizes the transaction context. The relation between threshold authorization and the hidden commitment must be constructed explicitly.
+4. The prover computes deterministic \(\nu\), commits to nullifier input with fresh \(B\), and produces the paired proofs.
+5. Ledger verification checks both proof relations, transaction context, current eligible state, value conservation and duplicate-nullifier status; then atomically records \(\nu\) as spent.
 
-1. **[ATK-1] Malformed Share & Rogue Contribution:** Corrupted participants submit out-of-bound partial signatures to corrupt aggregated rejection sampling. *Mitigation:* Strict per-share norm bounds $\beta_{\text{partial}}$ verified against public $vk_i$.
-2. **[ATK-2] Related-Key Leakage:** Adversary collects linear equations $A \Delta_j \equiv r_j \pmod q$ from observed rerandomizations. *Mitigation:* Eliminated entirely under Design B.
-3. **[ATK-3] Adaptive Participant Corruption ($t-1$):** Adversary uses $t-1$ shares to bias signing challenges. *Mitigation:* 2-round commitment protocols with joint deterministic challenge generation.
-4. **[ATK-4] Nullifier Collisions & Linkability:** Non-linear threshold rounding in LWR nullifiers causing evaluation mismatches. *Mitigation:* Evaluating the nullifier over the invariant coin commitment opening within the ZK argument (Experiment 2A).
-5. **[ATK-5] Transcript Side-Channels:** Statistical variance in rejection sampling revealing secret key norms. *Mitigation:* Strict Gaussian tail bounds with randomized smoothing.
+Every item above is a specification target until a concrete implementation and proof exist. The current repository does not implement steps 3–5 as one secure protocol.
 
----
+## 6. Phase 1 gates
 
-## 5. Go / No-Go Decision Criteria
+- Select and analyze real coin and bridge commitments.
+- Prove the same hidden index connects selection, commitment opening and threshold authorization.
+- Define a complete STARK AIR over explicitly specified fields, with all range and integer equality checks constrained.
+- Prove the two proofs compose under stated zero knowledge and knowledge-soundness assumptions.
+- Calculate security against the weakest component and reproduce parameter estimates.
+- Measure proof size, proving time, verification time, communication rounds and peak memory.
 
-Phase 1 establishes clear mathematical gating criteria:
-
-1. **NO-GO on Naive Shamir Response Interpolation:**
-   *Mathematical Proof:* Modular wrap drives acceptance probability to $P_{\text{accept}} \approx 2^{-3840}$.
-   *Action:* Adopt collaborative additive masking (Raccoon) or non-interactive preprocessing (Ringtail).
-2. **GATE on Design A (SCRL):**
-   *Criterion:* Does an efficient algorithm exist to update lattice secret shares under an additive public key shift $t' = t + r$ without increasing share norms beyond $\gamma_1$ and without solving Module-SIS?
-   *Status:* No known construction. Flagged as high-risk open problem.
-3. **GO on Design B / Experiment 2A (Static Keys + Selection Proof + Commitment-Bound Nullifier):**
-   *Criterion:* LoTRS (ACM CCS 2026) validates post-quantum structured threshold ring signatures (calibrated production baseline: **53.53 KiB** at 50-of-100).
-   *Action:* Experiment 2A adopted as the primary architecture for 0PSP. The mathematical focus shifts to proving the unified spend relation $\mathcal{R}_{\text{spend}}$.
+No token, chain, production deployment, or novelty claim is in scope until these gates are passed.

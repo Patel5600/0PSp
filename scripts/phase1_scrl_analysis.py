@@ -335,7 +335,7 @@ def main() -> None:
     print("\n  [Using RESEARCH_SMALL params for fast experiments]")
     print(f"  n={RESEARCH_SMALL.n}, q={RESEARCH_SMALL.q}, k={RESEARCH_SMALL.k}, ℓ={RESEARCH_SMALL.ell}")
     print(f"  η={RESEARCH_SMALL.eta}, γ₁={RESEARCH_SMALL.gamma1}")
-    print("\n  WARNING: RESEARCH_SMALL has security_bits=0. NOT FOR SECURITY USE.")
+    print("\n  WARNING: RESEARCH_SMALL has security_category=0. Research-only parameters, not for security use.")
 
     params = RESEARCH_SMALL
 

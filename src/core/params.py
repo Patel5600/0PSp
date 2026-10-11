@@ -2,8 +2,8 @@
 0PSP — Post-Quantum Private Spend Primitive
 src/core/params.py
 
-Module-LWE parameter sets mirroring Dilithium-III (FIPS 204 / ML-DSA-65).
-All parameters are research defaults — NOT a security-reviewed parameter choice.
+ML-DSA parameter metadata and research-only ring defaults.
+This module is not a LoTRS parameter implementation and is not a security estimator.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class Params:
     eta : int
         Coefficient bound for secret and error sampling. Dilithium-III: η=4.
     gamma1 : int
-        Masking vector bound (commitment randomness). Dilithium-III: γ₁=2¹⁷.
+        ML-DSA-44 uses γ₁=2¹⁷; ML-DSA-65 uses γ₁=2¹⁹.
     gamma2 : int
         Low-order rounding bound. Dilithium-III: γ₂=(q-1)/32.
     tau : int
@@ -39,8 +39,9 @@ class Params:
         Rejection bound for signatures: β = τ·η.
     omega : int
         Maximum number of ones in hint vector. Dilithium-III: ω=55.
-    security_bits : int
-        Target security level in bits (post-quantum).
+    security_category : int
+        NIST ML-DSA category metadata (2 or 3); 0 marks a research-only set.
+        This is not an estimated or proven number of attack-security bits.
     """
     n: int
     q: int
@@ -52,7 +53,7 @@ class Params:
     tau: int
     beta: int
     omega: int
-    security_bits: int
+    security_category: int
 
     def __post_init__(self) -> None:
         """Verify necessary conditions hold."""
@@ -92,7 +93,7 @@ ML_DSA_44 = Params(
     tau=39,
     beta=39 * 2,       # τ·η = 78
     omega=80,
-    security_bits=128,
+    security_category=2,
 )
 
 #: ML-DSA-65 (FIPS 204 / Dilithium-III / NIST Security Level 3)
@@ -107,7 +108,7 @@ ML_DSA_65 = Params(
     tau=49,
     beta=49 * 4,       # τ·η = 196
     omega=55,
-    security_bits=192,
+    security_category=3,
 )
 
 #: Backwards compatibility alias
@@ -126,7 +127,7 @@ RESEARCH_SMALL = Params(
     tau=17,
     beta=17 * 2,       # τ·η = 34
     omega=8,
-    security_bits=0,   # Explicitly 0: not intended for security use
+    security_category=0,   # Research-only; no NIST category or security claim
 )
 
 

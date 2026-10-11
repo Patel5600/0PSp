@@ -1,12 +1,14 @@
 """
-0PSP — Post-Quantum Private Spend Primitive
-src/primitives/bridge_encoding.py
+0PSP — Experimental byte-to-polynomial encoding helper.
 
-Canonical 2-bit chunk polynomial encoding and Module-SIS bridge commitment.
+SECURITY WARNING:
+- This module defaults to ML-DSA-44-like q=8,380,417, not either LoTRS modulus.
+- compute_bridge_commitment only evaluates a linear expression. It does not
+  establish commitment hiding, binding, Module-LWE security, or Module-SIS security.
+- The module does not implement a LoTRS-compatible proof or a complete 0PSP protocol.
+- Unit tests cover functional encoding and arithmetic only; they are not cryptographic validation.
 
-Encodes canonical nullifier secret input x = (coin_id || r_nf) (512 bits) into
-a short polynomial m_x(X) in R_q = Z_q[X]/(X^256 + 1) with coefficients in {0, 1, 2, 3}.
-This bridges Layer 1 (extended lattice Σ-protocol over R_q) and Layer 2 (STARK AIR).
+Encodes coin_id || r_nf into 2-bit polynomial coefficients for prototype tests.
 """
 
 from __future__ import annotations
@@ -124,8 +126,8 @@ def compute_bridge_commitment(
     params: Params = ML_DSA_44,
 ) -> ModuleVec:
     """
-    Evaluate the Module-SIS / Module-LWE bridge commitment:
-        B = A_1 · m_x + A_2 · τ_B (mod q)
+    Evaluate the experimental linear map B = A_1 · m_x + A_2 · τ_B (mod q).
+    This function is arithmetic only; no hiding or binding theorem is implied.
 
     Parameters
     ----------
@@ -162,7 +164,8 @@ def verify_bridge_opening(
     params: Params = ML_DSA_44,
 ) -> bool:
     """
-    Verify opening of bridge commitment B.
+    Check functional consistency of the experimental opening relation.
+    This is not a cryptographic commitment-security verifier.
 
     Checks:
     1. Arithmetic equality: B == A_1 · m_x + A_2 · τ_B (mod q)
