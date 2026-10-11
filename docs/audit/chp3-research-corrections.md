@@ -1,5 +1,7 @@
 # CHP3 Research Corrections and Source Ledger
 
+> Versioned source snapshots and claim boundaries are tracked in [upstream-source-manifest.md](../related-work/upstream-source-manifest.md). The manifest records the upstream revisions inspected on 2026-10-11.
+
 This document records corrections made after checking the live 0PSP repository against primary public specifications and upstream implementations. It is a source ledger and engineering checklist, not a cryptographic certificate.
 
 ## Primary sources checked

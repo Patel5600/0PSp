@@ -49,6 +49,8 @@ These checks establish code behavior and arithmetic identities only, not cryptog
 
 ## Research sources
 
+- [Versioned upstream source manifest and evidence boundaries](docs/related-work/upstream-source-manifest.md)
+
 - Ringtail paper and prototype: https://eprint.iacr.org/2024/1113 and https://github.com/daryakaviani/ringtail
 - Generic post-quantum SoK/LRS research scaffold: https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature
 - LoTRS comparator: https://eprint.iacr.org/2026/974 and https://zenodo.org/records/22807126
