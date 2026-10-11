@@ -106,17 +106,20 @@ def test_native_commitment_v2_matches_reference_known_answer_and_borrows_secrets
     if not library:
         pytest.skip("build native library and set PSP_NULLIFIER_LIBRARY for native comparison")
     ns, pk, value, coin, secret, rho, params = _witness()
+    coin_buf = bytearray(coin.data)
     secret_buf = bytearray(secret.data)
     salt_buf = bytearray(rho)
     try:
         native = commit_coin_v2_native(
-            ns, pk, value, coin, secret_buf, salt_buf, params, library_path=library
+            ns, pk, value, coin_buf, secret_buf, salt_buf, params, library_path=library
         )
         reference = commit_coin_v2(ns, pk, value, coin, secret, rho, params)
         assert native.value == COMMITMENT_VECTOR
         assert native == reference
+        assert coin_buf == bytearray(coin.data)
         assert secret_buf == bytearray(secret.data)
         assert salt_buf == bytearray(rho)
     finally:
+        coin_buf[:] = bytes(len(coin_buf))
         secret_buf[:] = bytes(len(secret_buf))
         salt_buf[:] = bytes(len(salt_buf))
