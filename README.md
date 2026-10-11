@@ -56,6 +56,7 @@ The old scripts `security_budget_evaluator.py`, `audit_phase1_claims.py` and `ve
 - [Spend relation and proof binding](docs/theory/spend-relation-and-proof-binding.md)
 - [Nullifier-bound spend soundness](docs/theory/nullifier-bound-spend-soundness.md)
 - [Proof-system feasibility study](docs/theory/proof-system-feasibility-study.md)
+- [Ringtail adapter contract](docs/theory/ringtail-adapter-contract.md)
 - [Side-channel and constant-time release gates](docs/security/chp4-constant-time-and-side-channel-spec.md)
 - [CHP4 construction-readiness record](docs/security/chp4-construction-readiness.md)
 - [Dependency-minimization and construction roadmap](docs/plan/dependency-minimization-and-construction-roadmap.md)
