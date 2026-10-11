@@ -1,59 +1,110 @@
-# Proof-System Feasibility — Current Obstruction and Decision Record
+# Proof-System Feasibility — V2 Relation and Backend Selection
 
-**Status:** Feasibility analysis, not a proof of impossibility and not an implementation specification.
+**Status:** Feasibility decision record. No backend has been instantiated; no proof-system impossibility is claimed. Overall construction remains **NO-GO**.
 
-## Executive summary
+## Executive decision
 
-The current LoTRS selection proof is designed for a particular family of lattice relations. The 0PSP nullifier relation uses SHAKE256, a bit-level sponge with nonlinear Keccak operations. Merely appending a coin commitment or other linear data to a LoTRS selection vector does not prove that a public nullifier is the hash of a hidden input.
+V2 has a single intended proof statement. It must bind hidden membership, namespace-bound commitment opening, Ringtail threshold-signature validity, namespace-bound nullifier correctness, and policy/state eligibility to the **same hidden coin and key**.
 
-This is a scope statement about the documented proof relation, not an impossibility theorem for all lattice zero-knowledge proofs. A separately designed proof system might express the hash relation; its security and cost must be demonstrated.
+Do not return to a split LoTRS selection proof plus separate SHAKE STARK and an unproven bridge commitment merely because those pieces have individual demos. The current selected direction is one post-quantum zero-knowledge argument. This is an architectural target, not evidence that a practical backend has been found.
 
-## What the LoTRS selection layer must prove
+## Exact relation to encode
 
-Let the public structured key table be \(P\) and let \(b\) be a hidden one-hot selection vector. The existing construction proves a relation tailored to its table and signature equations. If coin data is appended to each column, a modified selection proof may be able to bind a selected linear commitment to the same index. That modification is not shown to prove a SHAKE computation.
+Public statement:
 
-## Why SHAKE is a separate relation
+    x = (namespace_id, R_C, nu, M, state, params_id)
 
-The intended nullifier statement is:
+Witness:
 
-\[
-\nu=\operatorname{SHAKE256}_{384}(\mathsf{domain}\parallel\mathsf{version}\parallel coin\_id\parallel r_{\mathrm{nf}}).
-\]
+    w = (j, C_j, pk_j, value, coin_id, r_nf, rho_C, sigma_th)
 
-Keccak-f[1600] has nonlinear bit-level operations. A linear relation proof over a polynomial ring cannot evaluate those gates merely by appending more linear columns. A separate nonlinear proof system or a different nullifier construction is required.
+The proof must establish:
 
-For a 90-byte input, one SHAKE256 rate block is sufficient under the fixed proposed encoding. A count of \(24\times1600=38{,}400\) chi-layer bit operations is not a full AIR constraint count, proof size, or runtime estimate.
+1. j is in range and C_j = R_C[j].
+2. C_j is the V2 SHAKE256-384 commitment opening over the canonical parameter ID, public key, value, namespace ID, coin ID, nullifier secret and independent salt.
+3. Ringtail verifies sigma_th under the same pk_j on transaction digest M.
+4. nu equals the V2 nullifier over namespace ID, coin ID and r_nf.
+5. State, unspent status, value conservation, outputs, fees and policy are valid.
+6. The transcript hides the selected index, opening and threshold signature except for explicitly allowed leakage.
 
-## Architecture options
+The V2 namespace ID is 48 bytes, coin ID 32 bytes, nullifier secret 36 bytes, and nullifier preimage 149 bytes. The commitment preimage is variable-length but canonical and length-prefixed. Both hashes use SHAKE256-384 and must be constrained as real computations in the proof. A standalone helper result or a public host-side check does not prove these statements.
 
-### Option A: Extended LoTRS relation plus auxiliary STARK
+The transaction digest M must bind protocol version, namespace, nullifier, inputs, outputs, fees and ledger context. The proof must not let the membership predicate select one key while the threshold-signature predicate verifies against another.
 
-Specify a concrete bridge commitment, then prove in the lattice layer that the selected hidden coin opens to the same bridge value bound to the wallet key and authorization. The STARK must prove the bridge opening and hash relation. Both systems must use exactly the same canonical input, public commitment and parameters. This path requires a real lattice commitment with demonstrated hiding and binding; the bare equation \(B=A_1m_x+A_2\tau_B\bmod q\) does not establish those properties.
+## Candidate comparison
 
-### Option B: A proof system that natively handles the full relation
-
-Evaluate another lattice-based or post-quantum proof system that can establish coin membership, authorization and the hash relation within one compatible proof. Its security reduction and concrete costs need independent analysis.
-
-### Option C: Change the nullifier construction
-
-Investigate a nullifier function whose correctness relation is efficient to prove in the selected system. Any replacement must still provide deterministic asset binding, collision safety, unlinkability, and resistance to unauthorized/nullifier-substitution spends under an explicit model.
-
-## Cost claims
-
-The previous proof-size figures of roughly 35–48 KiB for the hash proof and 90–100 KiB or 118.62–119.75 KiB for the combined package are unverified projections. They must not be presented as benchmark results. A valid comparison requires a compiled implementation, exact AIR and backend configuration, actual zero-knowledge mode, serialized proof sizes, runtime, peak memory, and explicit soundness parameters.
-
-Plonky3 is a toolkit with multiple backends. Its documented BinaryPcs example is explicitly not zero knowledge. A hiding PCS in another configuration would not alone establish zero knowledge of all application witnesses or transcript fields.
+| Candidate | Potential value | Blocking question | Current decision |
+|---|---|---|---|
+| SmallWood (hash-based ZK argument) | Designed for small-to-medium statements; paper discusses hash-preimage and lattice-based relations | Can the exact V2 relation, including Ringtail verification, fit practical soundness, proof-size and memory limits? Code is a prototype and unaudited | **First feasibility prototype**, not a production dependency |
+| Generic post-quantum SoK/LRS research scaffold | Related anonymous-signature relation and code to inspect | The available ZK enhancement is informal and the complete V2 relation/quantum security is not established | Comparator only |
+| Extended LoTRS plus STARK | Each layer can express some specialized relations | Requires a concrete bridge commitment, cross-proof witness binding and full composition proof; SHAKE is not proven by a linear LoTRS relation alone | Retired active path |
+| Generic classical SNARK stack | Potentially mature developer tooling | Classical curve assumptions may invalidate a post-quantum security claim; a hash PCS alone does not establish zero knowledge of the whole witness | Reject unless the exact security model supports the protocol goal |
+| Custom proof system | Could be tailored to the relation | Highest risk: new protocol, soundness, zero knowledge, quantum model and implementation all need independent proof/review | Do not build from scratch without a specific theorem/feasibility rationale |
 
 Sources:
+- SmallWood paper: https://eprint.iacr.org/2025/1085
+- SmallWood implementation and its unaudited-prototype warning: https://github.com/CryptoExperts/smallwood
+- Generic post-quantum SoK/LRS scaffold: https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature
 - LoTRS: https://eprint.iacr.org/2026/974 and https://github.com/lotrs-sig/lotrs
-- Plonky3 documentation: https://github.com/Plonky3/Plonky3/blob/main/README.md and https://github.com/Plonky3/Plonky3/blob/main/docs/architecture.md
 - SHAKE specification: https://csrc.nist.gov/pubs/fips/202/final
 
-## Decision
+## Why the old linear proof cannot be extended by append-only encoding
 
-The SHAKE equation is not natively established by the current LoTRS selection proof as documented. This is not a general impossibility result. The cross-layer bridge and complete proof system remain open research tasks; no cryptographic implementation GO decision is made by this document.
+The old LoTRS selection relation proves a specialized algebraic statement. Appending a coin ID or commitment column may bind more linear data to a selected index, but it does not prove that a SHAKE256 output is the hash of a hidden 149-byte input. Keccak-f[1600] contains nonlinear bit-level operations. Such a hash requires its gates/trace to be explicitly represented by the selected proof system, or a different nullifier construction with its own security argument.
 
+This is a scope statement about the documented relation, not an impossibility theorem for lattice ZK.
 
-## CHP3 constructionability decision
+## Ringtail constraint
 
-The dual-layer LoTRS-plus-STARK route is retired as the active V0 implementation target. It is not claimed impossible; it is rejected for V0 because the bridge commitment and cross-layer proof composition were uninstantiated. The replacement target is a single post-quantum signature-of-knowledge / linkable-ring proof for the complete NP relation, using a Ringtail threshold signature as a private witness and the nullifier computation inside that same proof. This removes the bridge-equality obligation, not the need for a sound, zero-knowledge proof system. See [Constructionable V0](constructionable-v0.md). The generic upstream SoK/LRS implementation is research code with an informal ZK enhancement; no security claim follows until the concrete relation is implemented and reviewed.
+Ringtail is a two-round lattice threshold signature whose paper states security from LWE in the random-oracle model. The current upstream Go code explicitly labels itself an academic proof-of-concept that has not received careful code review and is not production-ready.
+
+Required before proof integration:
+- Pin the source revision, license, concrete parameter set and canonical key/signature serialization.
+- State whether dealer-based key generation is trusted; if not, separately design and prove a DKG.
+- Run upstream vectors and independent malformed-signature/encoding tests.
+- Translate the exact verification predicate into the proof representation.
+- Demonstrate the verifier checks the same hidden pk bound by the commitment, and the signature binds the same M/namespace.
+- Do not link the upstream networking demo as part of ledger acceptance.
+
+Ordinary threshold signing/verification is a necessary test, not a ZK integration.
+
+Source: https://eprint.iacr.org/2024/1113 and https://github.com/daryakaviani/ringtail.
+
+## Required feasibility experiment
+
+### Stage 1: backend sanity
+- Reproduce the selected backend's upstream examples and test vectors from a clean, pinned checkout.
+- Record license, transitive dependencies, compiler/toolchain, parameter choices and known caveats.
+- Confirm the exact configuration offers zero knowledge and post-quantum security for the intended adversary model. A marketing description is not a proof.
+
+### Stage 2: minimal end-to-end relation
+Use N=2 commitments first. Create valid and invalid test cases covering:
+- correct witness and signature;
+- wrong namespace;
+- wrong coin ID, nullifier secret or salt;
+- wrong commitment opening;
+- signature valid under a different public key;
+- invalid threshold signature and malformed key/signature encoding;
+- stale state, missing membership and already-spent nullifier;
+- cross-asset and cross-deployment substitution attempts.
+
+The backend must reject each invalid witness through the proof relation, not through a separate trusted side check.
+
+### Stage 3: cost and soundness
+Measure actual proof bytes, prover time, verifier time, peak memory and failure behavior. State the soundness/knowledge error, transcript derivation, oracle model, setup assumptions and concrete post-quantum security. Do not revive previous estimated proof-size numbers unless they come from a reproducible build and serialized proof.
+
+### Stage 4: scale and review
+Increase N only after the full relation is correct at N=2. Obtain independent review of the proof relation and reduction before increasing security claims.
+
+## Release gates
+
+A backend is accepted only if it satisfies all of the following:
+1. One proof binds every predicate to one hidden witness.
+2. The exact instantiation has a documented zero-knowledge and knowledge-soundness argument.
+3. The full proof composition matches the claimed post-quantum model.
+4. Namespace, commitment and nullifier byte encodings match test vectors exactly.
+5. Ringtail verification has been integrated as a proven relation, not just a host-side function.
+6. State eligibility and atomic replay handling are correctly bound.
+7. Reproducible measurements and independent security review exist.
+
+**Current decision:** SmallWood is the first experimental candidate because it is explicitly aimed at hash-based ZK for moderate statements and discusses hash-preimage and lattice relations. Its prototype is not trusted for production. Ringtail remains an unaudited prototype target. The actual V2 proof remains unimplemented, and the overall protocol remains **NO-GO**.
