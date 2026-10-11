@@ -50,6 +50,7 @@ Python 3.11 or newer:
     python -m pip install -e ".[dev]"
     python scripts/verify_nullifier_relation.py
     python scripts/security_budget_evaluator.py
+    python scripts/audit_phase1_claims.py
     python -m pytest tests/ -q
 
 The security-budget script is a numeric consistency diagnostic only. Its success exit code is not a cryptographic security result. GitHub Actions runs the same functional checks; all cryptographic claims remain independently gated.
