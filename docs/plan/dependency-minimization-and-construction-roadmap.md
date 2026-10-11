@@ -49,7 +49,7 @@ Reasons not to trust it as a drop-in replacement today:
 
 - Keep `main` as the integration branch and pin the exact starting commit in every audit report.
 - Record current CI outcomes, build flags, binary linkage, supported architectures, native test vectors and Python/native agreement.
-- Audit every non-\`main\` branch against \`main\`; preserve any unique required commit before deleting stale refs. Closing a pull request or moving a branch does not delete it. The target is one branch, \`main\`, after the ancestry/content check is complete.
+- Audit every non-`main` branch against `main`; preserve any unique required commit before deleting stale refs. Closing a pull request or moving a branch does not delete it. The target is one branch, `main`, after the ancestry/content check is complete.
 - Preserve the current OpenSSL-backed nullifier until an alternate backend passes parity tests; no flag-day replacement.
 
 **Gate:** the baseline build and tests are reproducible from a clean checkout.
