@@ -69,4 +69,4 @@ The first CHP3 CI run passed package installation, nullifier smoke tests, and nu
 
 The follow-up patch changes the inverse layer to use the forward twiddle indices for each reversed layer, uses \((x-y)w^{-1}\), and applies \(n^{-1}\) once after the transform. A small independent arithmetic reproduction passed round-trip and naive negacyclic multiplication checks. This is not a substitute for the remote CI rerun, and it does not make the ring code production cryptography.
 
-The corrected transform still uses the current research/ML-DSA-like parameter object. It must not be treated as LoTRS arithmetic. Remote test status should be checked on the follow-up commit before reporting the regression resolved.
+The corrected transform still uses the current research/ML-DSA-like parameter object. It must not be treated as LoTRS arithmetic. The GitHub Actions run for commit 4952de491b1de69fa00c7243a7788bf63957473b completed successfully: package install, nullifier smoke checks, numeric diagnostics, arithmetic audit, and unit/property tests all passed. This closes the CI regression for that revision only; subsequent code changes require a fresh run.
