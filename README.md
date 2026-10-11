@@ -7,7 +7,7 @@
 ## Constructionable V0
 
 - **Threshold authorization:** Ringtail supplies an ordinary threshold signature under the selected coin's public key. V0 explicitly assumes its published dealer-based key generation unless DKG is added.
-- **Single anonymous proof:** one generic ZK-STARK / signature-of-knowledge proves selected-coin membership, coin commitment opening, threshold-signature validity, and nullifier correctness with the same hidden witness. The nullifier itself supplies replay linkability; no extra LRS link tag is required by the protocol statement.
+- **Single anonymous proof (target):** one proof-of-knowledge / signature-of-knowledge relation is intended to establish selected-coin membership, coin commitment opening, threshold-signature validity, and nullifier correctness with the same hidden witness. The concrete backend is not yet selected or integrated. The nullifier itself supplies replay linkability; no extra LRS link tag is required by the protocol statement.
 - **Concrete coin commitment candidate:** SHAKE256-384 over a domain-separated, length-prefixed encoding of the public key, value, coin ID, nullifier secret and fresh 36-byte commitment salt.
 - **Nullifier:** SHAKE256-384 over a separate domain, version, 32-byte coin ID and 36-byte per-coin nullifier secret.
 - **Ledger:** reject a nullifier already spent, atomically.

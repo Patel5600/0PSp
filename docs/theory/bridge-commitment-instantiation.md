@@ -1,5 +1,7 @@
 # Bridge Commitment Instantiation — Open Research Gate
 
+> **HISTORICAL / NOT ACTIVE V0:** no secure commitment was instantiated for the retired bridge architecture. This candidate is not proof evidence. See [Constructionable V0](constructionable-v0.md).
+
 **Status:** No secure commitment instantiation selected. The algebraic formula below is a candidate, not a proved commitment.
 
 ## 1. Required interface

@@ -1,5 +1,7 @@
 # Inter-Layer Binding Protocol — Interface Under Falsification
 
+> **HISTORICAL / NOT ACTIVE V0:** this describes the retired two-proof bridge architecture. The bridge commitment and cross-layer proof are not implemented or proven. See [Constructionable V0](constructionable-v0.md).
+
 **Status:** Candidate interface. It is not an implemented or proven construction, and the candidate commitment has not been shown to be both hiding and binding.
 
 ## 1. Purpose
