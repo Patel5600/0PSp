@@ -20,6 +20,11 @@ def log2_tail_bound() -> float:
     return math.log2(3584 * 2 * math.exp(-(14**2) / 2))
 
 
+def carry_residual(v_i: int, product_sum: int, b_i: int, carry_in: int, carry_out: int) -> int:
+    """Residual for conventional nonnegative base-W carry semantics."""
+    return v_i - product_sum - b_i - carry_in + W * carry_out
+
+
 def log2_conditional_qrom_bound(h: int, log2_queries: int) -> float:
     # log2(2*pi^2*(q_H+1)^2 / 2^h), approximating q_H+1 by q_H.
     return math.log2(2 * math.pi**2) + 2 * log2_queries - h
@@ -40,6 +45,10 @@ def main() -> int:
     residual_bound = W + 3 * W**2 + 2**16 + (2**16) * W
     assert residual_bound == 1_879_130_112
     assert residual_bound < P_BABYBEAR
+    # Carry example: an exact limb sum of W yields limb 0 and carry 1.
+    assert carry_residual(v_i=0, product_sum=W, b_i=0, carry_in=0, carry_out=1) == 0
+    # The previously stated opposite-sign recurrence fails this same example.
+    assert 0 - W + 0 - W * 1 != 0
 
     tail_log2 = log2_tail_bound()
     assert tail_log2 < -128
