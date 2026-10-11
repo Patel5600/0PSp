@@ -104,7 +104,10 @@ def compute_nullifier(coin_id: CoinId, r_nf: NullifierSecret) -> Nullifier:
 
 def _load_native_library(library_path: str | Path):
     try:
-        return ctypes.CDLL(str(Path(library_path)))
+        # PyDLL retains the GIL across a call so another Python thread cannot
+        # mutate a borrowed secret bytearray while the native function reads it.
+        # This does not protect against native threads or establish constant time.
+        return ctypes.PyDLL(str(Path(library_path)))
     except OSError as exc:
         raise RuntimeError(f"cannot load native nullifier library: {library_path}") from exc
 
