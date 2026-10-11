@@ -74,7 +74,8 @@ static int run_experiment(int control, unsigned repeat, double *t_out) {
     unsigned char *classes = NULL;
     uint64_t *times_a = NULL, *times_b = NULL;
     size_t na = 0u, nb = 0u, i, j;
-    uint32_t state = UINT32_C(0x7a3c91d5) ^ (uint32_t)(repeat * UINT32_C(0x9e3779b9));
+    uint32_t class_state = UINT32_C(0x7a3c91d5) ^ (uint32_t)(repeat * UINT32_C(0x9e3779b9));
+    uint32_t secret_state = UINT32_C(0x243f6a88) ^ (uint32_t)(repeat * UINT32_C(0x85ebca6b));
     volatile uint8_t sink = 0u;
     int status = EXIT_FAILURE;
 
@@ -92,11 +93,16 @@ static int run_experiment(int control, unsigned repeat, double *t_out) {
         goto cleanup;
     }
 
+    /* Generate class order independently from the random secret values. */
     for (i = 0u; i < SAMPLE_COUNT; ++i) {
-        classes[i] = (unsigned char)(rng_next(&state) & 1u);
-        if (!control && classes[i] != 0u) {
-            for (j = 0u; j < PSP_NULLIFIER_V2_SECRET_BYTES; ++j) {
-                random_secrets[i][j] = (uint8_t)rng_next(&state);
+        classes[i] = (unsigned char)(rng_next(&class_state) >> 31);
+    }
+    if (!control) {
+        for (i = 0u; i < SAMPLE_COUNT; ++i) {
+            if (classes[i] != 0u) {
+                for (j = 0u; j < PSP_NULLIFIER_V2_SECRET_BYTES; ++j) {
+                    random_secrets[i][j] = (uint8_t)(rng_next(&secret_state) >> 24);
+                }
             }
         }
     }
@@ -183,8 +189,10 @@ int main(void) {
         }
     }
 
-    if (leakage_suspected && !inconclusive) {
-        puts("FAIL: repeated timing difference detected; investigate before any release.");
+    /* A clean control plus a |t| >= 10 target sample is a blocker even if
+       another repetition was noisy. Do not hide a detected leak as inconclusive. */
+    if (leakage_suspected) {
+        puts("FAIL: target timing difference detected with a clean control; investigate before any release.");
         return EXIT_FAILURE;
     }
     if (inconclusive) {
