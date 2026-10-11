@@ -52,3 +52,26 @@ Source: https://github.com/BLAKE3-team/BLAKE3/blob/master/c/README.md
 ## 5. Proof-size status
 
 The 58.34 KiB Layer 2 value and 118.62/119.75 KiB combined values remain **unverified analytical projections**. Merkle paths alone do not determine proof size. Measurement must serialize a complete proof from a selected zero-knowledge backend and include all trace openings, FRI/PCS data, public inputs, bridge opening constraints, masking, transcript and transaction overhead. Proving/verification time and peak memory must also be measured.
+
+
+## CHP3 arithmetic correction (2026-10-11)
+
+The signed carry recurrence must match the chosen carry convention. For nonnegative conventional carries in base \(W=2^{14}\), use
+\[
+\sum_{j=0}^{i}k_jq_{i-j}+b_i+c_{i-1}=v_i+Wc_i,
+\]
+or equivalently
+\[
+v_i-\sum_{j=0}^{i}k_jq_{i-j}-b_i-c_{i-1}+Wc_i=0.
+\]
+Do not use the opposite signs for \(c_{i-1}\) and \(c_i\) with nonnegative carries. A simple test case where the limb sum is \(W\) must yield output limb 0 and outgoing carry 1.
+
+With \(W=16{,}384\), three products each below \(W^2\), and carries bounded by \(2^{16}\), the stated rough absolute residual cap is
+\[
+W+3W^2+2^{16}+2^{16}W=1{,}879{,}130{,}112
+\]
+which is below \(p_{\mathrm{BabyBear}}=2{,}013{,}265{,}921\). This is only a field-aliasing check for that declared cap; the full AIR still needs exact limb ranges, signed/canonical representation, carry bounds, top-limb constraints, and terminal carry checks.
+
+Use byte-accurate KiB accounting. For 74 paths with 8 sibling digests each, 32-byte digests occupy 18,944 bytes = 18.5 KiB; 48-byte digests occupy 28,416 bytes = 27.75 KiB. Values 18.94 and 28.42 are decimal kB, not KiB. The complete proof-size projection must be recomputed from serialized byte counts.
+
+The 14-sigma union-tail calculation is approximately \(2^{-128.5}\) for 3,584 coordinates under the stated Gaussian model. The sampler must specify rejection/resampling versus clipping and bound the distributional effect of truncation. This arithmetic alone does not validate a sampler or its security proof.
