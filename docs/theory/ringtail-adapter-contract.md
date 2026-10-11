@@ -2,6 +2,8 @@
 
 **Status:** interface/verification contract only. Ringtail is not integrated into 0PSP. Do not describe a host-side verifier as part of the zero-knowledge proof.
 
+> **RFC-02 decision boundary (2026-10-11):** Treat this as the committee-signature authorization path only. The repository's policy has not yet frozen that every spend must require a committee signature. If that policy is required, the spend proof must bind verification to the same hidden `pk` committed by the coin. If a self-spend mode is considered, this adapter contract does not prove that it is an equivalent substitute. Use [the current spend relation specification](spend-relation-spec.md); no Ringtail production adapter or in-circuit verifier exists.
+
 ## Pinned upstream snapshot and boundary
 
 Current upstream snapshot inspected: [daryakaviani/ringtail commit 1e181c356492e9360765cf27d58497018172ba3c](https://github.com/daryakaviani/ringtail/commit/1e181c356492e9360765cf27d58497018172ba3c). License: Apache-2.0. Its README explicitly warns that the implementation is an academic proof-of-concept, has not received careful code review and is not ready for production.
