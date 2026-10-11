@@ -39,3 +39,11 @@ def test_merkle_path_byte_accounting():
 def test_qrom_bound_does_not_claim_128_bits_for_256_bit_entropy_at_2_pow_64_queries():
     assert -124 < audit.log2_conditional_qrom_bound(256, 64) < -123
     assert -156 < audit.log2_conditional_qrom_bound(288, 64) < -155
+
+
+
+def test_conventional_carry_recurrence_signs():
+    # W input value produces a zero output limb and carry 1.
+    assert audit.carry_residual(v_i=0, product_sum=audit.W, b_i=0, carry_in=0, carry_out=1) == 0
+    # The opposite-sign formula does not satisfy this valid base-W example.
+    assert 0 - audit.W + 0 - audit.W * 1 != 0
