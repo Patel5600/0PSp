@@ -11,6 +11,7 @@ extern "C" {
 #define PSP_NAMESPACE_V2_BYTES 48u
 #define PSP_SCOPED_COIN_ID_V2_BYTES 32u
 #define PSP_NULLIFIER_V2_SECRET_BYTES 36u
+#define PSP_NULLIFIER_V2_SALT_BYTES 36u
 #define PSP_NULLIFIER_V2_OUTPUT_BYTES 48u
 #define PSP_NULLIFIER_V2_VERSION 2u
 
@@ -37,6 +38,19 @@ int psp_namespace_v2_derive(
  * a duplicate (namespace_id, coin_id) pair. This helper is not a mint ledger.
  */
 int psp_coin_id_v2_generate(uint8_t *out, size_t out_len);
+
+/*
+ * Generate a fresh per-coin nullifier secret through OpenSSL RAND_bytes.
+ * This V2 symbol intentionally avoids routing new V2 callers through the
+ * legacy V1 API name. The caller owns the buffer's lifetime and must erase it.
+ */
+int psp_nullifier_v2_generate_secret(uint8_t *out, size_t out_len);
+
+/*
+ * Generate an independent commitment salt through OpenSSL RAND_bytes.
+ * Never reuse this output as r_nf or as another coin's commitment salt.
+ */
+int psp_coin_commitment_v2_generate_salt(uint8_t *out, size_t out_len);
 
 /*
  * Compute SHAKE256-384 over the exact namespace-bound preimage:
