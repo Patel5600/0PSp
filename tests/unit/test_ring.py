@@ -246,16 +246,17 @@ class TestNullifier:
 
     def test_different_coins_different_nullifiers(self):
         from src.primitives.nullifier import (
-            CoinId, NullifierSecret, compute_nullifier
+            CoinId, NullifierSecret, compute_nullifier, NULLIFIER_SECRET_BYTES
         )
-        secret = NullifierSecret(b"\x42" * 32)
+        secret = NullifierSecret(b"\x42" * NULLIFIER_SECRET_BYTES)
         coin1 = CoinId(b"coin-001".ljust(32, b"\x00"))
         coin2 = CoinId(b"coin-002".ljust(32, b"\x00"))
         assert compute_nullifier(coin1, secret) != compute_nullifier(coin2, secret)
 
     def test_double_spend_detection(self):
         from src.primitives.nullifier import (
-            CoinId, NullifierSecret, compute_nullifier, NullifierSet
+            CoinId, NullifierSecret, compute_nullifier, NullifierSet,
+            NULLIFIER_SECRET_BYTES,
         )
         coin = CoinId(b"my-coin".ljust(32, b"\x00"))
         secret = NullifierSecret(b"\x73" * NULLIFIER_SECRET_BYTES)

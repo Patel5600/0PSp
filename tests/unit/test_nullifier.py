@@ -31,8 +31,8 @@ def test_sample_witness_substitutions_change_output() -> None:
 def test_rejects_invalid_lengths() -> None:
     with pytest.raises(ValueError, match="coin_id must be exactly 32 bytes"):
         CoinId(b"x" * 31)
-    with pytest.raises(ValueError, match="r_nf must be exactly 32 bytes"):
-        NullifierSecret(b"x" * 33)
+    with pytest.raises(ValueError, match="r_nf must be exactly 36 bytes"):
+        NullifierSecret(b"x" * 35)
     with pytest.raises(ValueError, match="nullifier must be exactly 48 bytes"):
         Nullifier(b"x" * 32)
 
