@@ -32,7 +32,7 @@ def _opening():
         2500,
         ScopedCoinId(bytes(range(32))),
         NullifierSecret(bytes(range(36))),
-        b"\\x33" * COMMITMENT_RANDOMNESS_BYTES,
+        bytes([0x33]) * COMMITMENT_RANDOMNESS_BYTES,
         b"ringtail-test-params-v1",
     )
 
@@ -51,7 +51,7 @@ def test_same_commitment_rejects_alternate_coin_identity_and_nullifier_secret() 
         namespace,
         public_key,
         value,
-        ScopedCoinId(b"\\xA5" * 32),
+        ScopedCoinId(bytes([0xA5]) * 32),
         r_nf,
         rho,
         params_id,
@@ -62,7 +62,7 @@ def test_same_commitment_rejects_alternate_coin_identity_and_nullifier_secret() 
         public_key,
         value,
         coin_id,
-        NullifierSecret(b"\\x5A" * 36),
+        NullifierSecret(bytes([0x5A]) * 36),
         rho,
         params_id,
     )
@@ -73,7 +73,7 @@ def test_same_commitment_rejects_value_namespace_key_salt_or_parameter_substitut
     commitment = commit_coin_v2(
         namespace, public_key, value, coin_id, r_nf, rho, params_id
     )
-    other_namespace = NamespaceId(b"\\x99" * 48)
+    other_namespace = NamespaceId(bytes([0x99]) * 48)
 
     assert not verify_coin_opening_v2(
         commitment, namespace, public_key, value + 1, coin_id, r_nf, rho, params_id
@@ -85,7 +85,7 @@ def test_same_commitment_rejects_value_namespace_key_salt_or_parameter_substitut
         commitment, namespace, public_key + b"-other", value, coin_id, r_nf, rho, params_id
     )
     assert not verify_coin_opening_v2(
-        commitment, namespace, public_key, value, coin_id, r_nf, b"\\x44" * 36, params_id
+        commitment, namespace, public_key, value, coin_id, r_nf, bytes([0x44]) * 36, params_id
     )
     assert not verify_coin_opening_v2(
         commitment, namespace, public_key, value, coin_id, r_nf, rho, b"other-params-v1"
@@ -105,8 +105,8 @@ def test_alternate_opening_is_not_a_valid_same_commitment_opening_even_if_its_nu
     commitment = commit_coin_v2(
         namespace, public_key, value, coin_id, r_nf, rho, params_id
     )
-    alternate_coin = ScopedCoinId(b"\\xA5" * 32)
-    alternate_secret = NullifierSecret(b"\\x5A" * 36)
+    alternate_coin = ScopedCoinId(bytes([0xA5]) * 32)
+    alternate_secret = NullifierSecret(bytes([0x5A]) * 36)
     alternate_nullifier = compute_nullifier_v2(
         namespace, alternate_coin, alternate_secret
     )
