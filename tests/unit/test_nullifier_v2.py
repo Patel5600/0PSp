@@ -9,6 +9,7 @@ from src.primitives.namespace import (
     ScopedCoinId,
     derive_namespace_id,
     generate_scoped_coin_id_native,
+    generate_scoped_coin_id_native_buffer,
 )
 from src.primitives.nullifier import (
     NULLIFIER_SECRET_BYTES,
@@ -72,16 +73,19 @@ def test_native_v2_matches_reference_vector_and_does_not_mutate_secret() -> None
         pytest.skip("build native library and set PSP_NULLIFIER_LIBRARY for native comparison")
     ns, coin, secret = _witness()
     secret_buf = bytearray(secret.data)
+    coin_buf = bytearray(coin.data)
     try:
         assert compute_nullifier_v2_native(
-            ns, coin, secret_buf, library_path=library
+            ns, coin_buf, secret_buf, library_path=library
         ).value == NULLIFIER_VECTOR
         assert secret_buf == bytearray(secret.data)
+        assert coin_buf == bytearray(coin.data)
         assert compute_nullifier_v2_native(
-            ns, coin, secret_buf, library_path=library
+            ns, coin_buf, secret_buf, library_path=library
         ) == compute_nullifier_v2(ns, coin, secret)
     finally:
         secret_buf[:] = bytes(NULLIFIER_SECRET_BYTES)
+        coin_buf[:] = bytes(len(coin_buf))
 
 
 def test_native_coin_id_generator_fails_closed_and_returns_fixed_size() -> None:
@@ -112,3 +116,17 @@ def test_native_v2_secret_generator_fails_closed_and_returns_mutable_fixed_size(
 
     with pytest.raises(RuntimeError, match="cannot load native nullifier library"):
         generate_nullifier_secret_v2_native(library_path="/nonexistent/psp.so")
+
+
+def test_native_coin_id_mutable_buffer_is_wipeable() -> None:
+    library = os.environ.get("PSP_NULLIFIER_LIBRARY")
+    if not library:
+        pytest.skip("build native library and set PSP_NULLIFIER_LIBRARY for native comparison")
+    coin_id = generate_scoped_coin_id_native_buffer(library_path=library)
+    try:
+        assert isinstance(coin_id, bytearray)
+        assert len(coin_id) == 32
+        assert any(coin_id)
+    finally:
+        coin_id[:] = bytes(len(coin_id))
+    assert coin_id == bytearray(32)
