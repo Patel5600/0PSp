@@ -1,4 +1,5 @@
 #include "psp_nullifier_v2.h"
+#include "psp_coin_commitment_v2.h"
 
 #include <openssl/crypto.h>
 #include <stdio.h>
@@ -39,8 +40,10 @@ int main(void) {
     uint8_t secret[PSP_NULLIFIER_V2_SECRET_BYTES];
     uint8_t generated_secret_a[PSP_NULLIFIER_V2_SECRET_BYTES];
     uint8_t generated_secret_b[PSP_NULLIFIER_V2_SECRET_BYTES];
-    uint8_t salt_a[PSP_NULLIFIER_V2_SALT_BYTES];
-    uint8_t salt_b[PSP_NULLIFIER_V2_SALT_BYTES];
+    uint8_t salt_a[PSP_COIN_COMMITMENT_V2_SALT_BYTES];
+    uint8_t salt_b[PSP_COIN_COMMITMENT_V2_SALT_BYTES];
+    uint8_t rho_commit[PSP_COIN_COMMITMENT_V2_SALT_BYTES];
+    uint8_t commitment_out[PSP_COIN_COMMITMENT_V2_OUTPUT_BYTES];
     uint8_t out[PSP_NULLIFIER_V2_OUTPUT_BYTES];
     uint8_t out_2[PSP_NULLIFIER_V2_OUTPUT_BYTES];
     size_t i;
@@ -52,6 +55,12 @@ int main(void) {
         "059698470b8228712d86c630144b9aae"
         "0d0815ba1f2038b53c9d22d484af5d46"
         "60100eb47c8fea686ebb4855cd35159d";
+    static const char commitment_vector[] =
+        "d3c1c39fc5ad52a88015245b550d567a"
+        "38bf31138ee1201776ef35b836ad9ce0"
+        "6748cdd4a0840566bd1f3cbbf525669d";
+    static const uint8_t params_id[] = "ringtail-test-params-v1";
+    static const uint8_t public_key[] = "canonical-threshold-public-key-v1";
 
     for (i = 0u; i < sizeof(ledger); ++i) {
         ledger[i] = (uint8_t)i;
@@ -74,6 +83,21 @@ int main(void) {
             secret, sizeof(secret), out, sizeof(out)) != PSP_NULLIFIER_OK ||
         !equals_hex(out, sizeof(out), nullifier_vector)) {
         fputs("FAIL: nullifier-v2 known-answer vector\n", stderr);
+        return 1;
+    }
+
+    memset(rho_commit, 0x33, sizeof(rho_commit));
+    if (psp_coin_commitment_v2(
+            params_id, sizeof(params_id) - 1u,
+            public_key, sizeof(public_key) - 1u,
+            UINT64_C(2500),
+            namespace_id, sizeof(namespace_id),
+            coin_id, sizeof(coin_id),
+            secret, sizeof(secret),
+            rho_commit, sizeof(rho_commit),
+            commitment_out, sizeof(commitment_out)) != PSP_NULLIFIER_OK ||
+        !equals_hex(commitment_out, sizeof(commitment_out), commitment_vector)) {
+        fputs("FAIL: coin-commitment-v2 known-answer vector\n", stderr);
         return 1;
     }
 
@@ -143,13 +167,14 @@ int main(void) {
     }
 
     OPENSSL_cleanse(secret, sizeof(secret));
+    OPENSSL_cleanse(rho_commit, sizeof(rho_commit));
     OPENSSL_cleanse(generated_id_a, sizeof(generated_id_a));
     OPENSSL_cleanse(generated_id_b, sizeof(generated_id_b));
     OPENSSL_cleanse(generated_secret_a, sizeof(generated_secret_a));
     OPENSSL_cleanse(generated_secret_b, sizeof(generated_secret_b));
     OPENSSL_cleanse(salt_a, sizeof(salt_a));
     OPENSSL_cleanse(salt_b, sizeof(salt_b));
-    puts("PASS: namespace-v2/nullifier-v2 vectors, domain separation, secret/salt RNG smoke checks");
+    puts("PASS: namespace, commitment and nullifier V2 vectors, domain separation, independent secret/salt RNG smoke checks");
     puts("LIMIT: duplicate mint prevention must be atomic in ledger state; tests do not prove security");
     return 0;
 }
