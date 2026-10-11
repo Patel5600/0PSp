@@ -30,22 +30,23 @@ The preimage length is 149 bytes; SHAKE256 outputs 48 bytes. This crosses the 13
 
 ### Coin commitment V2
 
-The V2 48-byte commitment hashes a canonical length-prefixed encoding of parameter ID, canonical public key, unsigned 64-bit value, namespace ID, coin ID, 36-byte nullifier secret and independent 36-byte salt. The exact formula and the conditional binding implication are in [the V2 security argument](v2-protocol-security-argument.md). Commitment hiding in the QROM remains open.
+The V2 48-byte commitment has Python-reference and native OpenSSL implementations over the same canonical length-prefixed encoding: parameter ID, public key bytes, unsigned 64-bit value, namespace ID, coin ID, 36-byte nullifier secret and independent 36-byte salt. The native function is `psp_coin_commitment_v2` in `native/coin_commitment_v2.c`; its known-answer vector matches the Python reference. The native salt generator is a separate API. The exact formula and conditional binding implication are in [the V2 security argument](v2-protocol-security-argument.md). Commitment hiding in the QROM remains open.
 
 ## Reproducible checks
 
 CI now performs:
 1. Native build with warnings treated as errors.
-2. V1 and V2 known-answer, length-validation, failure-output-clearing and RNG smoke checks.
+2. V1 and V2 known-answer, length-validation, failure-output-clearing, and independent coin-ID/nullifier-secret/commitment-salt RNG smoke checks.
 3. Python namespace/nullifier/commitment V2 vectors and native/reference agreement tests.
-4. Optimized disassembly capture for the combined native V1/V2 library.
-5. Compile-only validation of the V1 and V2 timing diagnostics.
+4. Optimized disassembly capture for the combined native V1/V2/nullifier/commitment library.
+5. ASan/UBSan runs for native V1/V2 test executables; compile-only validation of separate V2 nullifier and commitment timing screens.
 6. Full Python unit/property tests.
 
 Local commands:
 
     python -m pip install -e ".[dev]"
     make -C native clean test
+    make -C native sanitize-test
     make -C native audit
     export PSP_NULLIFIER_LIBRARY="$PWD/native/build/libpsp_nullifier.so"
     python -m pytest tests/ -q
@@ -54,8 +55,10 @@ On an idle test machine, the V2 diagnostic can be built/run manually:
 
     make -C native timing-v2-probe-build
     make -C native timing-v2
+    make -C native timing-commitment-v2-probe-build
+    make -C native timing-commitment-v2
 
-The local diagnostic is fixed-vs-random, repeated, randomized-order and controlled, but it is not the official dudect implementation. It has not established a timing result for a controlled target. A clean result would still not prove constant-time behavior or absence of other side channels, and timing diagnostics are not run in shared CI because its scheduler/virtualization noise makes timing conclusions unreliable.
+The two local diagnostics compare fixed versus random values in randomized order, repeat trials, and use same-input controls. The commitment screen tests `r_nf` and `rho_C` separately. Neither is the official dudect implementation. It has not established a timing result for a controlled target. A clean result would still not prove constant-time behavior or absence of other side channels, and timing diagnostics are not run in shared CI because its scheduler/virtualization noise makes timing conclusions unreliable.
 
 The old security-budget, phase-1 and nullifier-relation scripts contain historical CHP3/V1 diagnostics. Their success does not validate V2 minting, commitment hiding, Ringtail, zero knowledge or overall protocol security.
 
@@ -67,10 +70,10 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; ledger uniqueness open |
 | Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof |
 | Nullifier V2 byte agreement | Fixed KAT plus Python/native comparison | Functional checks pass; not a security theorem |
-| Commitment V2 byte agreement | Fixed KAT, opening recomputation and field-substitution tests | Functional checks pass; formal hiding and final binding parameters open |
+| Commitment V2 byte agreement | Matching native/Python KAT, native namespace-binding and failure-path tests, opening recomputation and field-substitution tests | Functional checks pass; formal hiding and final binding parameters open |
 | Native source control-flow observations | Fixed widths and public metadata checks | Partial source inspection only |
-| Optimized wrapper binary | CI disassembly artifact | Review and provider internals OPEN |
-| Constant-time behavior | V2 diagnostic exists but was not run on a controlled target | **NOT ESTABLISHED** |
+| Optimized native binaries | CI disassembly artifact includes V1/V2 nullifier and commitment objects | Review and provider internals OPEN |
+| Constant-time behavior | Separate V2 nullifier and commitment screens compile in CI but have not been run on a controlled target | **NOT ESTABLISHED** |
 | Absence of exploitable side channels | No complete platform or full-protocol leakage assessment | **NOT ESTABLISHED** |
 | Threshold signature inside proof | No pinned Ringtail adapter | OPEN |
 | Complete single-relation ZK proof | No backend instantiated | OPEN |
@@ -87,6 +90,6 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 6. Review release binaries, OpenSSL provider internals, secret lifetime and errors; run controlled per-target timing/leakage tests for every sensitive routine.
 7. Measure full end-to-end proof size, runtime, memory and verifier cost, then obtain independent cryptographic review.
 
-The Python reference and ctypes FFI are not a secret-safe production boundary. Native fixed-size checks and a wrapper disassembly artifact do not prove constant-time execution. The current native V2 implementation uses OpenSSL EVP and allocates an EVP context per call; full provider, compiler, hardware and caller behavior remain under review.
+The Python reference and ctypes FFI are not a secret-safe production boundary. The native V2 nullifier and commitment use OpenSSL EVP and allocate an EVP context per call; both use OpenSSL RAND_bytes for new secrets/salts, and each output is cleared on supported failure paths. Fixed-size checks, sanitizers and wrapper disassembly do not prove constant-time execution. The selected provider, compiler output, memory allocation, hardware, FFI/callers and complete prover remain under review.
 
 **Release decision: NO-GO.** The V2 component checkpoint is stronger and testable, but the live ledger, commitment theorem, Ringtail integration, complete proof, composed security argument and full-path side-channel assurance are still open.
