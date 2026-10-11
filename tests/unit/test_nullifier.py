@@ -28,6 +28,13 @@ def test_sample_witness_substitutions_change_output() -> None:
     assert base != compute_nullifier(coin_a, other_secret)
 
 
+def test_coin_id_repr_redacts_identifier() -> None:
+    identifier = b"\xAB" * COIN_ID_BYTES
+    rendered = repr(CoinId(identifier))
+    assert rendered == "CoinId(<redacted>)"
+    assert identifier.hex()[:16] not in rendered
+
+
 def test_rejects_invalid_lengths() -> None:
     with pytest.raises(ValueError, match="coin_id must be exactly 32 bytes"):
         CoinId(b"x" * 31)

@@ -32,7 +32,8 @@ class CoinId:
             raise ValueError(f"coin_id must be exactly {COIN_ID_BYTES} bytes")
 
     def __repr__(self) -> str:
-        return f"CoinId({self.data.hex()[:16]}…)"
+        # A coin ID may be a hidden witness. Do not leak a prefix via debug logs.
+        return "CoinId(<redacted>)"
 
 
 @dataclass(frozen=True)
