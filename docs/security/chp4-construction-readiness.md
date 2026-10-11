@@ -1,75 +1,92 @@
-# CHP4 Construction Readiness Record
+# CHP4 / V2 Construction Readiness Record
 
-**Checkpoint:** first secret-processing component implemented; full protocol remains **NO-GO**.  
-**Scope:** fixed-width SHAKE256 nullifier candidate, native OpenSSL wrapper, per-coin secret generation, reproducible functional tests, and implementation-security release gates.
+**Checkpoint:** namespace-bound component functions and fixed vectors are implemented. Full 0PSP protocol remains **NO-GO**.
 
-## Concrete component contract
+## Active V2 component contract
 
-The active research candidate currently defines:
+### Namespace
 
-- Coin identifier: 32 bytes.
-- Per-coin nullifier secret: 36 bytes (288 bits), independent from wallet keys and commitment salt.
-- Preimage: `"0PSP-NULLIFIER-v1-SHAKE256" || 0x01 || uint16_le(32) || coin_id || uint16_le(36) || r_nf`.
-- Preimage length: 99 bytes.
-- Output: SHAKE256-384, exactly 48 bytes.
-- Secret generation: OpenSSL `RAND_bytes` through the native C interface; fail closed without a Python RNG fallback.
-- Error handling: fixed-size output is cleared on supported failure paths; native wrapper validates public pointer/length metadata and does not branch on secret bytes in its own source.
-- Replay demonstration: in-memory atomic duplicate-nullifier rejection, explicitly not a consensus ledger.
+The public namespace is a 48-byte SHAKE256-384 digest of the domain/version and three canonical 32-byte IDs:
 
-The 99-byte input fits within one SHAKE256 rate block (136 bytes). That is a byte-layout fact, not a cryptographic security argument.
+    "0PSP-NAMESPACE-v2-SHAKE256" || 0x02 ||
+    uint16_le(32) || ledger_id[32] ||
+    uint16_le(32) || deployment_id[32] ||
+    uint16_le(32) || asset_id[32]
+
+The IDs must be canonically mapped from the actual ledger/network instance, deployment instance and asset. No chain-specific adapter or minting contract is implemented yet.
+
+### Coin identity and minting
+
+The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes. The complete identity is (namespace_id, coin_id). The live ledger must atomically reject a duplicate pair and register the coin commitment in the same state transition. The Python MintRegistryModel is only an in-memory test model.
+
+### Nullifier V2
+
+    "0PSP-NULLIFIER-v2-SHAKE256" || 0x02 ||
+    uint16_le(48) || namespace_id[48] ||
+    uint16_le(32) || coin_id[32] ||
+    uint16_le(36) || r_nf[36]
+
+The preimage length is 149 bytes; SHAKE256 outputs 48 bytes. This crosses the 136-byte SHAKE256 rate boundary. The older V1 helper is legacy test compatibility only.
+
+### Coin commitment V2
+
+The V2 48-byte commitment hashes a canonical length-prefixed encoding of parameter ID, canonical public key, unsigned 64-bit value, namespace ID, coin ID, 36-byte nullifier secret and independent 36-byte salt. The exact formula and the conditional binding implication are in [the V2 security argument](v2-protocol-security-argument.md). Commitment hiding in the QROM remains open.
 
 ## Reproducible checks
 
-The repository CI performs:
-1. Native compilation with `-O2 -Wall -Wextra -Werror -pedantic`.
-2. Native known-answer, encoding, failure-path, and RNG smoke checks.
-3. Optimized wrapper disassembly capture as a review artifact.
-4. Compilation of the preliminary timing probe, without treating timing output as a release gate.
-5. Python/native known-answer agreement, nullifier functional smoke tests, arithmetic diagnostics, and unit/property tests.
+CI now performs:
+1. Native build with warnings treated as errors.
+2. V1 and V2 known-answer, length-validation, failure-output-clearing and RNG smoke checks.
+3. Python namespace/nullifier/commitment V2 vectors and native/reference agreement tests.
+4. Optimized disassembly capture for the combined native V1/V2 library.
+5. Compile-only validation of the V1 and V2 timing diagnostics.
+6. Full Python unit/property tests.
 
 Local commands:
 
-```sh
-python -m pip install -e ".[dev]"
-make -C native clean test
-make -C native audit
-make -C native timing-probe-build
-export PSP_NULLIFIER_LIBRARY="$PWD/native/build/libpsp_nullifier.so"
-python scripts/verify_nullifier_relation.py
-python -m pytest tests/ -q
-```
+    python -m pip install -e ".[dev]"
+    make -C native clean test
+    make -C native audit
+    export PSP_NULLIFIER_LIBRARY="$PWD/native/build/libpsp_nullifier.so"
+    python -m pytest tests/ -q
 
-The timing probe is deliberately not run in shared CI because scheduler and virtualization noise make such a run unsuitable as release evidence. It is a preliminary diagnostic, not dudect and not a constant-time proof.
+On an idle test machine, the V2 diagnostic can be built/run manually:
+
+    make -C native timing-v2-probe-build
+    make -C native timing-v2
+
+The local diagnostic is fixed-vs-random, repeated, randomized-order and controlled, but it is not the official dudect implementation. It has not established a timing result for a controlled target. A clean result would still not prove constant-time behavior or absence of other side channels, and timing diagnostics are not run in shared CI because its scheduler/virtualization noise makes timing conclusions unreliable.
+
+The old security-budget, phase-1 and nullifier-relation scripts contain historical CHP3/V1 diagnostics. Their success does not validate V2 minting, commitment hiding, Ringtail, zero knowledge or overall protocol security.
 
 ## Evidence versus claims
 
-| Claim | Current evidence | Decision |
+| Claim | Evidence | Decision |
 |---|---|---|
-| Python/native byte-level agreement | Fixed known-answer vectors and CI tests | Functional check passes |
-| Fresh per-coin secret generation | OpenSSL RNG integration and smoke checks | Functional check only; not an entropy proof |
-| Wrapper does not branch on secret bytes in source | Source inspection; optimized wrapper disassembly captured | Preliminary, compiler/build-specific evidence |
-| Constant-time SHAKE implementation | OpenSSL internals/provider and supported target binaries not independently assessed | **OPEN** |
-| No exploitable side channels | No complete platform-level leakage assessment; timing probe is non-gating | **NOT ESTABLISHED** |
-| Asset/deployment-scoped coin IDs | Required invariant documented, but minting derivation and enforcement are not implemented | **OPEN** |
-| Coin-commitment hiding and binding | SHAKE commitment candidate only; reduction not completed | **OPEN** |
-| Threshold authorization in the anonymous proof | Ringtail adapter not integrated | **OPEN** |
-| Complete single-relation zero-knowledge proof | Backend and full relation not instantiated | **OPEN** |
-| Quantum soundness, unlinkability, composition | No complete reduction or independent cryptanalysis | **OPEN** |
-| Production readiness | Several mathematical and implementation gates remain open | **NO-GO** |
+| Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
+| Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; ledger uniqueness open |
+| Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof |
+| Nullifier V2 byte agreement | Fixed KAT plus Python/native comparison | Functional checks pass; not a security theorem |
+| Commitment V2 byte agreement | Fixed KAT, opening recomputation and field-substitution tests | Functional checks pass; formal hiding and final binding parameters open |
+| Native source control-flow observations | Fixed widths and public metadata checks | Partial source inspection only |
+| Optimized wrapper binary | CI disassembly artifact | Review and provider internals OPEN |
+| Constant-time behavior | V2 diagnostic exists but was not run on a controlled target | **NOT ESTABLISHED** |
+| Absence of exploitable side channels | No complete platform or full-protocol leakage assessment | **NOT ESTABLISHED** |
+| Threshold signature inside proof | No pinned Ringtail adapter | OPEN |
+| Complete single-relation ZK proof | No backend instantiated | OPEN |
+| Quantum soundness/anonymity/composition | No composed reduction or independent cryptanalysis | OPEN |
+| Production readiness | Several mathematical, ledger and implementation gates remain | **NO-GO** |
 
-## Explicit implementation boundary
+## Full-construction blockers
 
-The Python reference is not a constant-time secret-handling boundary. The C wrapper's source-level control flow is not sufficient to prove constant-time behavior: compiler output, OpenSSL's selected implementation, hardware, FFI, memory lifecycle, and callers all matter. A successful test suite does not establish zero knowledge, anonymity, collision resistance, post-quantum security, or absence of side channels.
+1. Implement actual canonical ledger/deployment/asset adapters and a durable atomic mint registry.
+2. Freeze canonical public-key and parameter encodings and complete the commitment hiding theorem, including the quantum random-oracle model and all public outputs.
+3. Pin and review Ringtail source, parameters, license and key-generation assumptions; integrate its signature verification into the same hidden-witness relation.
+4. Instantiate a single post-quantum ZK argument for membership, commitment opening, threshold authorization, V2 nullifier and state/policy predicates.
+5. Complete knowledge-soundness, zero-knowledge, spend-soundness, replay/double-spend, unlinkability and composition arguments with concrete parameters.
+6. Review release binaries, OpenSSL provider internals, secret lifetime and errors; run controlled per-target timing/leakage tests for every sensitive routine.
+7. Measure full end-to-end proof size, runtime, memory and verifier cost, then obtain independent cryptographic review.
 
-The nullifier does not accept a separate asset or deployment identifier. Until a canonical minting function and ledger validation enforce a unique `coin_id` namespace per deployment and asset, the full protocol must not claim asset-bound nullifiers.
+The Python reference and ctypes FFI are not a secret-safe production boundary. Native fixed-size checks and a wrapper disassembly artifact do not prove constant-time execution. The current native V2 implementation uses OpenSSL EVP and allocates an EVP context per call; full provider, compiler, hardware and caller behavior remain under review.
 
-## Next mandatory gates
-
-1. Specify and implement canonical minting and asset/deployment namespace validation.
-2. Select and pin the threshold-signature implementation and concrete single-proof backend.
-3. Instantiate the complete relation, including hidden membership, commitment opening, threshold signature, nullifier, state and policy predicates.
-4. Complete the commitment hiding/binding and full-protocol soundness/unlinkability arguments, including the quantum-oracle model and concrete bounds.
-5. Review the selected OpenSSL provider, optimized native binaries and every supported target; run a reviewed statistical timing harness and adversarial leakage tests.
-6. Obtain independent cryptographic review and reproducible end-to-end proof-size/runtime/memory measurements.
-
-Until all gates are closed with evidence, this checkpoint is a research component integration, not a production-ready 0PSP protocol.
+**Release decision: NO-GO.** The V2 component checkpoint is stronger and testable, but the live ledger, commitment theorem, Ringtail integration, complete proof, composed security argument and full-path side-channel assurance are still open.
