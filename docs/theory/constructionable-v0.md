@@ -6,7 +6,7 @@
 
 Retire the active plan combining an extended LoTRS selection proof, separate SHAKE STARK, and custom lattice bridge commitment. The bridge had no established hiding/binding theorem and the two proof systems had no compiled common relation.
 
-V0 uses **one zero-knowledge argument of knowledge (ZK-STARK / signature-of-knowledge) for the complete spend relation**. Threshold authorization is a private witness inside that proof. The public deterministic nullifier supplies replay linkability. There is no separate LRS tag requirement, public bridge commitment, or cross-layer equality argument.
+V0 targets **one anonymous proof-of-knowledge / signature-of-knowledge relation for the complete spend statement**. The exact backend (including whether it is STARK-based) is not selected or integrated. Threshold authorization is a private witness inside that proof. The public deterministic nullifier supplies replay linkability. There is no separate LRS tag requirement, public bridge commitment, or cross-layer equality argument.
 
 ## Concrete byte-level relations
 
