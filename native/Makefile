@@ -19,14 +19,14 @@ all: $(LIB)
 $(BUILD_DIR):
 	mkdir -p $@
 
-$(LIB): nullifier_v1.c nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
-	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -fPIC -shared -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c -lcrypto -o $@
+$(LIB): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -fPIC -shared -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c -lcrypto -o $@
 
 $(TEST_BIN): nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c -lcrypto -o $@
 
-$(V2_TEST_BIN): nullifier_v1.c nullifier_v2.c tests/test_nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
-	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c tests/test_nullifier_v2.c -lcrypto -o $@
+$(V2_TEST_BIN): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c -lcrypto -o $@
 
 $(TIMING_BIN): nullifier_v1.c tests/timing_probe_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c tests/timing_probe_v1.c -lcrypto -lm -o $@
@@ -49,11 +49,11 @@ test: $(LIB) $(TEST_BIN) $(V2_TEST_BIN)
 
 SANITIZE_CFLAGS := -O1 -g -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer
 
-$(SAN_TEST_V1_BIN): nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
-	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c -lcrypto -o $@
+$(SAN_TEST_V1_BIN): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v1.c -lcrypto -o $@
 
-$(SAN_TEST_V2_BIN): nullifier_v1.c nullifier_v2.c tests/test_nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
-	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c tests/test_nullifier_v2.c -lcrypto -o $@
+$(SAN_TEST_V2_BIN): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c -lcrypto -o $@
 
 sanitize-test: $(SAN_TEST_V1_BIN) $(SAN_TEST_V2_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./$(SAN_TEST_V1_BIN)
