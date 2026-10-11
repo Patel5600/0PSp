@@ -8,10 +8,12 @@ LIB := $(BUILD_DIR)/libpsp_nullifier.so
 TEST_BIN := $(BUILD_DIR)/test_nullifier_v1
 TIMING_BIN := $(BUILD_DIR)/timing_probe_v1
 TIMING_V2_BIN := $(BUILD_DIR)/timing_probe_v2
+SAN_TEST_V1_BIN := $(BUILD_DIR)/test_nullifier_v1_sanitize
+SAN_TEST_V2_BIN := $(BUILD_DIR)/test_nullifier_v2_sanitize
 V2_TEST_BIN := $(BUILD_DIR)/test_nullifier_v2
 DISASM := $(BUILD_DIR)/nullifier_native.disasm.txt
 
-.PHONY: all test audit timing timing-probe-build timing-v2 timing-v2-probe-build clean
+.PHONY: all test audit timing timing-probe-build timing-v2 timing-v2-probe-build sanitize-test clean
 all: $(LIB)
 
 $(BUILD_DIR):
@@ -44,6 +46,18 @@ timing-v2: $(TIMING_V2_BIN)
 test: $(LIB) $(TEST_BIN) $(V2_TEST_BIN)
 	./$(TEST_BIN)
 	./$(V2_TEST_BIN)
+
+SANITIZE_CFLAGS := -O1 -g -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer
+
+$(SAN_TEST_V1_BIN): nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c -lcrypto -o $@
+
+$(SAN_TEST_V2_BIN): nullifier_v1.c nullifier_v2.c tests/test_nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c tests/test_nullifier_v2.c -lcrypto -o $@
+
+sanitize-test: $(SAN_TEST_V1_BIN) $(SAN_TEST_V2_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./$(SAN_TEST_V1_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./$(SAN_TEST_V2_BIN)
 
 audit: $(LIB)
 	$(OBJDUMP) -d -Mintel $(LIB) > $(DISASM)
