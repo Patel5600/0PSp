@@ -44,6 +44,7 @@ int main(void) {
     uint8_t salt_b[PSP_COIN_COMMITMENT_V2_SALT_BYTES];
     uint8_t rho_commit[PSP_COIN_COMMITMENT_V2_SALT_BYTES];
     uint8_t commitment_out[PSP_COIN_COMMITMENT_V2_OUTPUT_BYTES];
+    uint8_t commitment_out_2[PSP_COIN_COMMITMENT_V2_OUTPUT_BYTES];
     uint8_t out[PSP_NULLIFIER_V2_OUTPUT_BYTES];
     uint8_t out_2[PSP_NULLIFIER_V2_OUTPUT_BYTES];
     size_t i;
@@ -114,6 +115,35 @@ int main(void) {
             secret, sizeof(secret), out_2, sizeof(out_2)) != PSP_NULLIFIER_OK ||
         memcmp(out, out_2, sizeof(out)) == 0) {
         fputs("FAIL: nullifier changes across namespaces\n", stderr);
+        return 1;
+    }
+
+    if (psp_coin_commitment_v2(
+            params_id, sizeof(params_id) - 1u,
+            public_key, sizeof(public_key) - 1u,
+            UINT64_C(2500),
+            namespace_id_2, sizeof(namespace_id_2),
+            coin_id, sizeof(coin_id),
+            secret, sizeof(secret),
+            rho_commit, sizeof(rho_commit),
+            commitment_out_2, sizeof(commitment_out_2)) != PSP_NULLIFIER_OK ||
+        memcmp(commitment_out, commitment_out_2, sizeof(commitment_out)) == 0) {
+        fputs("FAIL: commitment changes across namespaces\n", stderr);
+        return 1;
+    }
+
+    memset(commitment_out_2, 0xA5, sizeof(commitment_out_2));
+    if (psp_coin_commitment_v2(
+            params_id, sizeof(params_id) - 1u,
+            public_key, sizeof(public_key) - 1u,
+            UINT64_C(2500),
+            namespace_id_2, PSP_NAMESPACE_V2_BYTES - 1u,
+            coin_id, sizeof(coin_id),
+            secret, sizeof(secret),
+            rho_commit, sizeof(rho_commit),
+            commitment_out_2, sizeof(commitment_out_2)) != PSP_NULLIFIER_ERR_ARGUMENT ||
+        !all_zero(commitment_out_2, sizeof(commitment_out_2))) {
+        fputs("FAIL: commitment invalid namespace length / output clearing\n", stderr);
         return 1;
     }
 
