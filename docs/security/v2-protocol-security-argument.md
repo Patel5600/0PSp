@@ -14,7 +14,7 @@ The V2 namespace identifier is 48 bytes:
       uint16_le(32) || deployment_id[32] ||
       uint16_le(32) || asset_id[32])
 
-The fixed-width input contracts and domain/version prefix make the byte encoding unambiguous. The 48-byte output is intentionally not truncated to 32 bytes.
+The fixed-width input contracts and domain/version prefix make the byte encoding unambiguous. The 48-byte output is intentionally not truncated to 32 bytes. A 384-bit output has generic quantum collision-search cost on the order of 2^128 oracle queries under the usual BHT-style model, not 192-bit quantum collision security. This estimate is conditional on an idealized oracle model, not a proof of SHAKE's concrete security in this protocol.
 
 **Still open:** the core primitive has no chain-specific adapter or live minting contract. Real ledger/network, deployment and asset identifiers must be canonically mapped to the three inputs above before any production use.
 
@@ -52,7 +52,7 @@ The encoded input is exactly 149 bytes and the public output is 48 bytes. The in
 
 The 48-byte output commits to the canonical parameter ID, canonical public key, unsigned 64-bit value, explicit namespace, coin ID, nullifier secret and independent 36-byte salt. Until Ringtail's exact key codec and parameters are pinned, canonical public-key encoding remains an integration gate.
 
-The helper recomputes an opening for functional tests. It does not establish a zero-knowledge proof.
+The Python helper recomputes openings for reference tests; `native/coin_commitment_v2.c` implements the same byte contract through OpenSSL EVP, and its C known-answer vector matches the Python vector. Native parity is a functional result, not a commitment theorem or a constant-time proof.
 
 ## 5. What can be said about commitment binding
 
@@ -64,7 +64,7 @@ This argument is conditional. We still need to freeze canonical public-key seria
 
 Define a challenge game where an adversary chooses two candidate openings with the same public parameters. The challenger commits to one of them using a fresh uniform independent 288-bit rho_C. The adversary must guess which opening was selected.
 
-Salt size alone is not a hiding proof. The final theorem must specify classical random-oracle versus quantum-accessible random-oracle access, account for the visible nullifier and other public outputs, and bound distinguishing advantage as a function of the adversary's query budget. A classical q/2^288 salt-guessing estimate is not a valid substitute for a quantum-query argument. This repo does not yet contain the required QROM theorem or a complete hiding reduction. Do not label V2 cryptographically hiding until that gate is closed.
+Salt size alone is not a hiding proof. The final theorem must specify classical random-oracle versus quantum-accessible random-oracle access, account for the visible nullifier and other public outputs, and bound distinguishing advantage as a function of the adversary's query budget. A classical q/2^288 salt-guessing estimate is not a valid substitute for a quantum-query argument. This repo does not yet contain the required QROM theorem or a complete hiding reduction. A 288-bit salt suggests a generic quantum search scale around 2^144 queries only under a suitable idealized oracle model; that estimate does not prove hiding for this transcript or account for every public output. Do not label V2 cryptographically hiding until that gate is closed.
 
 ## 7. Active single-proof relation
 
@@ -112,12 +112,13 @@ Evaluate SmallWood first as an experimental proof candidate. Its hash-based ZK a
 
 ## 10. Side-channel boundary
 
-The V2 diagnostic compares fixed and random secret classes, randomizes class order, repeats the experiment, includes a same-input control, and returns inconclusive rather than reporting a pass when its control is noisy. It is a locally run screen, not the official dudect implementation, a constant-time proof, or a side-channel certification. It is deliberately not run in shared CI.
+The V2 nullifier and commitment diagnostics compare fixed and random secret classes, randomize class order, repeat the experiment, include same-input controls and return inconclusive rather than reporting a pass when controls are noisy. The commitment screen tests `r_nf` and `rho_C` separately. They are local screens, not the official dudect implementation, a constant-time proof or side-channel certification. They are deliberately not run in shared CI.
 
 Run on an idle machine using release flags:
 
-    make -C native clean test audit timing-v2-probe-build
+    make -C native clean test sanitize-test audit timing-v2-probe-build timing-commitment-v2-probe-build
     make -C native timing-v2
+    make -C native timing-commitment-v2
 
 A suspected leak blocks release. An inconclusive test requires a controlled rerun. A clean result only means this experiment did not detect a first-order timing difference for these classes on that machine. OpenSSL EVP/provider code, allocations, compiler output, hardware and callers still need review. Since the full prover and threshold-signature path are not implemented, the full-path side-channel gate cannot yet close.
 
