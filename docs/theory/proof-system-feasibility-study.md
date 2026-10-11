@@ -2,6 +2,8 @@
 
 **Status:** Feasibility decision record. No backend has been instantiated; no proof-system impossibility is claimed. Overall construction remains **NO-GO**.
 
+> **Authorization-mode update (2026-10-11):** This study's Ringtail-verification-in-circuit discussion is a candidate path, not a frozen design decision. The [RFC-02 spend relation](spend-relation-spec.md) now records both the committee-signature relation and a policy-limited self-spend key-knowledge alternative. The latter must bind the full transaction statement and cannot replace committee approval if the protocol policy requires it. Circuit costs are unknown until the exact backend and relation are implemented and benchmarked.
+
 ## Executive decision
 
 V2 has a single intended proof statement. It must bind hidden membership, namespace-bound commitment opening, Ringtail threshold-signature validity, namespace-bound nullifier correctness, and policy/state eligibility to the **same hidden coin and key**.
