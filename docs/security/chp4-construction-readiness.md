@@ -69,6 +69,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
 | Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; ledger uniqueness open |
 | Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof |
+| Mint-authority privacy | No blind-issuance construction implemented | OPEN: authority that knows coin ID and nullifier secret can match a later public nullifier to its record |
 | Nullifier V2 byte agreement | Fixed KAT plus Python/native comparison | Functional checks pass; not a security theorem |
 | Commitment V2 byte agreement | Matching native/Python KAT, native namespace-binding and failure-path tests, opening recomputation and field-substitution tests | Functional checks pass; formal hiding and final binding parameters open |
 | Native source control-flow observations | Fixed widths and public metadata checks | Partial source inspection only |
