@@ -1,56 +1,51 @@
-# Nullifier-Bound Spend Soundness — Active V0 Target
+# Nullifier-Bound Spend Soundness — V2 Target
 
-**Status: Formal target definition. No end-to-end security reduction is complete.**
+**Status: Component equation and test models exist. Full spend-soundness theorem remains OPEN.**
 
-## Goal
+## Objective
 
-Authorization, hidden coin membership, commitment opening and nullifier correctness must refer to the same asset. Separate proofs without a shared witness relation can allow attempted substitution of a coin ID, key, nullifier, or signature.
+Commitment opening, threshold authorization, namespace, coin ID and nullifier must all refer to the same hidden coin. Separate standalone checks do not guarantee witness consistency. The active design requires one proof relation with a shared witness.
 
 ## Public statement and witness
 
-\[
-\mathsf{Public}=(R_C,\nu,M,\mathsf{state},\mathsf{params\_id})
-\]
-\[
-w=(j,C_j,pk_j,v,\mathsf{coin\_id},r_{\mathrm{nf}},\rho_C,\sigma_{\mathrm{th}})
-\]
+    Public = (namespace_id, R_C, nu, M, state, params_id)
+    Witness = (j, C_j, pk_j, value, coin_id, r_nf, rho_C, sigma_th)
 
-The selected member is \(C_j=R_C[j]\). The verifier sees the public anonymity set but must not learn which element was selected from the full transcript, beyond explicitly permitted leakage.
+namespace_id is a 48-byte SHAKE256-384 digest of canonical 32-byte ledger, deployment and asset identifiers. coin_id is a fresh 32-byte opaque identifier. The full identity is (namespace_id, coin_id), and the mint ledger must atomically reject duplicate pairs.
 
-## Active single-proof relation
+## Active V2 relation
 
-The one proof must establish:
-1. hidden selected-commitment membership;
-2. the canonical coin-commitment opening using the same key, value, coin ID, nullifier secret and commitment salt;
-3. validity of the concrete threshold signature under that same key on \(M\);
-4. correct derivation of public \(\nu\) from the same committed coin ID and nullifier secret;
-5. coin eligibility, value conservation and state validity.
+The same proof must establish:
+1. C_j = R_C[j] for a hidden valid j.
+2. The namespace-bound V2 commitment opens to pk_j, value, coin_id, r_nf and rho_C using canonical encodings.
+3. The Ringtail threshold signature verifies under that same pk_j for transaction digest M.
+4. nu equals the V2 nullifier equation over namespace_id, coin_id and r_nf.
+5. The coin is eligible in the authenticated state, not already spent, and satisfies transaction/value/fee policy.
+6. The proof reveals no more about j/opening/signature than allowed by the anonymity definition.
 
-The previous bridge commitment and separate Layer 1/Layer 2 composition are retired from the active path. A single proof removes the cross-proof equality obligation; it does not solve the full proof-system problem.
+M binds the version, namespace, nullifier, inputs, outputs, fees and required ledger context. The ledger verifies the state and commits the nullifier atomically. V1 nullifiers are legacy only; no unversioned fallback is allowed.
 
-## Required security experiments
+## Required games and reductions
+
+### Mint uniqueness and namespace separation
+The chain adapter must canonically map ledger/deployment/asset identifiers. The mint state machine rejects duplicate (namespace_id, coin_id) pairs atomically. Namespace hash collisions are a separate cryptographic failure event. Local tests do not prove a durable ledger invariant.
 
 ### Spend soundness
-An adversary wins if a spend is accepted without a witness satisfying the entire relation and wallet policy. The reduction must use the selected proof system's actual soundness/knowledge property, concrete threshold-signature security theorem, and commitment relation.
+An adversary wins by producing an accepted proof without a witness satisfying every predicate. The reduction must identify which assumption is broken: proof-system knowledge soundness, Ringtail unforgeability, commitment binding, canonical encoding, or ledger-state soundness. The current repository lacks the instantiated proof and therefore cannot complete this reduction.
 
 ### Double-spend resistance
-An adversary wins if the same committed coin is accepted twice with different nullifiers, or if an accepted nullifier is inconsistent with the committed witness. The argument needs commitment binding, proof soundness, minting uniqueness, correct state transitions, and atomic duplicate-nullifier rejection.
+An adversary wins if a single valid coin is accepted twice under distinct nullifiers or an accepted nullifier is inconsistent with its committed witness. The proof must tie nu to the exact opening, and the ledger must atomically prevent replay across concurrent transactions, forks/reorgs and state recovery. A thread-safe in-memory set is not sufficient evidence for consensus safety.
 
-### Nullifier collision safety
-Two distinct valid coins producing the same nullifier is a separate event that can cause false conflict. Analyze it under the chosen encoding and hash model. It does not establish authorization or anonymity.
+### Commitment hiding and unlinkability
+A commitment-hiding theorem requires an explicit random-oracle model, a query bound and account of all visible data. For the quantum setting, a classical salt-guess estimate is not enough. Unlinkability must be phrased as a left/right game over the full transaction/proof transcript and must explicitly permit repeated nullifier equality for the same coin.
 
-### Unlinkability
-Define a left/right game over the whole transaction and proof transcript. The challenger controls valid openings, amounts, state, allowed leaks and corrupted participants. A QROM argument must state the exact theorem, oracle interface, challenge input, query limit, and conditional entropy premise. Computational hiding alone does not establish a statistical conditional-min-entropy bound.
+### Full quantum composition
+The final theorem must state concrete parameters, query budgets, reduction loss, proof backend setup assumptions, hash/Fiat-Shamir model, Ringtail key-generation assumptions and which public leakage is permitted. It must combine these results rather than merely list them.
 
-## Functional tests versus proof evidence
+## Status
 
-Current tests cover deterministic output, length checks, sample domain separation, functional opening recomputation and in-memory duplicate-nullifier behavior. They do not establish collision resistance, quantum security, commitment hiding/binding, proof extractability, zero knowledge or unlinkability.
+Implemented: V2 namespace and nullifier byte contracts, functional reference/native agreement vectors, namespace/coin substitution tests, commitment V2 helper, and a local mint-uniqueness model.
 
-## Sources and status
+Open: durable mint/ledger adapter, formal commitment hiding theorem, Ringtail proof-relation integration, full post-quantum ZK argument, knowledge soundness, unlinkability reduction, consensus replay/reorg proof, independent review and full-path side-channel evidence.
 
-- Ringtail: https://eprint.iacr.org/2024/1113
-- PQ SoK/LRS research scaffold: https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature
-- NIST FIPS 202: https://csrc.nist.gov/pubs/fips/202/final
-- Prior-art comparison: ../related-work/nullifier-prior-art.md
-
-Current status is candidate construction under falsification. The proof and all end-to-end security claims remain OPEN.
+See ../security/v2-protocol-security-argument.md for the normative byte contracts and security-game checklist.
