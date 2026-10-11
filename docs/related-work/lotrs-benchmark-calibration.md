@@ -55,3 +55,8 @@ The figures +6.75/+7.88 KiB for Layer 1, 58.34 KiB for Layer 2, and 118.62/119.7
 FIPS 204 ML-DSA parameters belong in a separate namespace and test suite. ML-DSA-44/65 NIST category labels are not exact measured security-bit estimates for 0PSP or LoTRS.
 
 Source: https://csrc.nist.gov/pubs/fips/204/final
+
+
+## CHP3 byte-accounting correction (2026-10-11)
+
+All earlier 0PSP Layer 1/Layer 2 total-size figures in this document remain unverified projections. The Merkle-path terms in prior drafts mixed decimal kB and KiB: 74×8×32 bytes is 18,944 bytes = 18.5 KiB, while 74×8×48 bytes is 28,416 bytes = 27.75 KiB. Recompute complete totals from exact serialized byte counts; do not preserve a total by adding unit-mismatched components. The 53.53 KiB LoTRS v2 figure remains an artifact measurement for its stated profile, not a security-matched 0PSP benchmark. See [CHP3 mathematical review](../audit/chp3-mathematical-review.md).
