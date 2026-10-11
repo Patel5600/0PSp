@@ -16,6 +16,12 @@ from pathlib import Path
 import threading
 from typing import Final
 
+from .namespace import (
+    NAMESPACE_ID_BYTES,
+    NamespaceId,
+    ScopedCoinId,
+)
+
 COIN_ID_BYTES: Final = 32
 NULLIFIER_SECRET_BYTES: Final = 36
 NULLIFIER_BYTES: Final = 48
@@ -205,3 +211,108 @@ class NullifierSet:
 
     def __repr__(self) -> str:
         return f"NullifierSet(spent={len(self)})"
+
+
+# Namespace-bound V2 is the active protocol target. V1 remains only for the
+# frozen legacy component vectors and must not be used for new scoped spends.
+DOMAIN_NULLIFIER_V2: Final = b"0PSP-NULLIFIER-v2-SHAKE256"
+NULLIFIER_V2_VERSION: Final = b"\x02"
+NULLIFIER_V2_INPUT_BYTES: Final = (
+    len(DOMAIN_NULLIFIER_V2) + len(NULLIFIER_V2_VERSION)
+    + 2 + NAMESPACE_ID_BYTES + 2 + 32 + 2 + NULLIFIER_SECRET_BYTES
+)
+
+
+def _nullifier_v2_preimage(
+    namespace_id: NamespaceId,
+    coin_id: ScopedCoinId,
+    r_nf: NullifierSecret,
+) -> bytes:
+    if not isinstance(namespace_id, NamespaceId):
+        raise TypeError("namespace_id must be a NamespaceId")
+    if not isinstance(coin_id, ScopedCoinId):
+        raise TypeError("coin_id must be a ScopedCoinId")
+    if not isinstance(r_nf, NullifierSecret):
+        raise TypeError("r_nf must be a NullifierSecret")
+    return b"".join((
+        DOMAIN_NULLIFIER_V2,
+        NULLIFIER_V2_VERSION,
+        len(namespace_id.data).to_bytes(2, "little"),
+        namespace_id.data,
+        len(coin_id.data).to_bytes(2, "little"),
+        coin_id.data,
+        len(r_nf.data).to_bytes(2, "little"),
+        r_nf.data,
+    ))
+
+
+def compute_nullifier_v2(
+    namespace_id: NamespaceId,
+    coin_id: ScopedCoinId,
+    r_nf: NullifierSecret,
+) -> Nullifier:
+    """Compute a namespace-bound V2 nullifier reference.
+
+    The public namespace_id and scoped coin_id must also be bound by the coin
+    commitment and the full proof relation. This helper alone validates neither
+    minting nor spend eligibility.
+    """
+    preimage = _nullifier_v2_preimage(namespace_id, coin_id, r_nf)
+    return Nullifier(hashlib.shake_256(preimage).digest(NULLIFIER_BYTES))
+
+
+def compute_nullifier_v2_native(
+    namespace_id: NamespaceId,
+    coin_id: ScopedCoinId,
+    r_nf: bytearray,
+    *,
+    library_path: str | Path,
+) -> Nullifier:
+    """Use the native namespace-bound V2 implementation, without fallback."""
+    if not isinstance(namespace_id, NamespaceId):
+        raise TypeError("namespace_id must be a NamespaceId")
+    if not isinstance(coin_id, ScopedCoinId):
+        raise TypeError("coin_id must be a ScopedCoinId")
+    if not isinstance(r_nf, bytearray) or len(r_nf) != NULLIFIER_SECRET_BYTES:
+        raise ValueError(
+            f"native r_nf must be a bytearray of exactly {NULLIFIER_SECRET_BYTES} bytes"
+        )
+
+    library = _load_native_library(library_path)
+    function = library.psp_nullifier_v2
+    byte_p = ctypes.POINTER(ctypes.c_ubyte)
+    function.argtypes = [
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+        byte_p, ctypes.c_size_t,
+    ]
+    function.restype = ctypes.c_int
+    namespace_buf = (ctypes.c_ubyte * NAMESPACE_ID_BYTES).from_buffer_copy(namespace_id.data)
+    coin_buf = (ctypes.c_ubyte * len(coin_id.data)).from_buffer_copy(coin_id.data)
+    secret_buf = (ctypes.c_ubyte * NULLIFIER_SECRET_BYTES).from_buffer(r_nf)
+    output_buf = (ctypes.c_ubyte * NULLIFIER_BYTES)()
+    status = function(
+        namespace_buf, NAMESPACE_ID_BYTES,
+        coin_buf, len(coin_id.data),
+        secret_buf, NULLIFIER_SECRET_BYTES,
+        output_buf, NULLIFIER_BYTES,
+    )
+    if status != 0:
+        raise RuntimeError(f"native nullifier-v2 derivation failed with status {status}")
+    return Nullifier(bytes(output_buf))
+
+
+def verify_nullifier_v2_consistency(
+    nullifier: Nullifier,
+    namespace_id: NamespaceId,
+    coin_id: ScopedCoinId,
+    r_nf: NullifierSecret,
+) -> bool:
+    """Functional V2 consistency check; not a proof-system verifier."""
+    if not isinstance(nullifier, Nullifier):
+        raise TypeError("nullifier must be a Nullifier")
+    return hmac.compare_digest(
+        compute_nullifier_v2(namespace_id, coin_id, r_nf).value,
+        nullifier.value,
+    )
