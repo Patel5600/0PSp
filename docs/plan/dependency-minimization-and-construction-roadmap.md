@@ -5,6 +5,8 @@
 **Status:** Planning and audit only; no cryptographic backend was switched by this plan.  
 **Security decision:** Research only; complete protocol remains **NO-GO**.
 
+**RFC review delta (2026-10-11):** Follow the [evidence-first RFC register](../security/evidence-first-rfc-register.md). RFC-01 is blocked on hidden commitment/value/deposit consistency and a durable ledger; RFC-02 is a relation draft only; RFC-03 has no benchmark result until a backend is pinned; RFC-04 diagnostics are advisory and cannot certify constant-time execution. Do not replace production hashes, add a second spend commitment, or change authorization mode until the matching gates close.
+
 ## Executive decision
 
 Minimize the trusted computing base and runtime link dependencies, but do not replace a reviewed library with unverified hand-written crypto merely to make the dependency list shorter.
