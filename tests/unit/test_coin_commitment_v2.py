@@ -5,6 +5,7 @@ from src.primitives.coin_commitment import (
     COMMITMENT_RANDOMNESS_BYTES,
     CoinCommitment,
     commit_coin_v2,
+    commit_coin_v2_native,
     generate_commitment_salt_v2_native,
     verify_coin_opening_v2,
 )
@@ -95,3 +96,27 @@ def test_native_commitment_salt_generator_fails_closed_and_returns_fixed_size() 
 
     with pytest.raises(RuntimeError, match="cannot load native 0PSP library"):
         generate_commitment_salt_v2_native(library_path="/nonexistent/psp.so")
+
+
+def test_native_commitment_v2_matches_reference_known_answer_and_borrows_secrets() -> None:
+    import os
+    import pytest
+
+    library = os.environ.get("PSP_NULLIFIER_LIBRARY")
+    if not library:
+        pytest.skip("build native library and set PSP_NULLIFIER_LIBRARY for native comparison")
+    ns, pk, value, coin, secret, rho, params = _witness()
+    secret_buf = bytearray(secret.data)
+    salt_buf = bytearray(rho)
+    try:
+        native = commit_coin_v2_native(
+            ns, pk, value, coin, secret_buf, salt_buf, params, library_path=library
+        )
+        reference = commit_coin_v2(ns, pk, value, coin, secret, rho, params)
+        assert native.value == COMMITMENT_VECTOR
+        assert native == reference
+        assert secret_buf == bytearray(secret.data)
+        assert salt_buf == bytearray(rho)
+    finally:
+        secret_buf[:] = bytes(len(secret_buf))
+        salt_buf[:] = bytes(len(salt_buf))
