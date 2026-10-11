@@ -237,7 +237,7 @@ def commit_coin_v2_native(
             f"rho_coin must be a bytearray of exactly {COMMITMENT_RANDOMNESS_BYTES} bytes"
         )
     try:
-        library = ctypes.CDLL(str(Path(library_path)))
+        library = ctypes.PyDLL(str(Path(library_path)))
     except OSError as exc:
         raise RuntimeError(f"cannot load native 0PSP library: {library_path}") from exc
 
@@ -284,7 +284,7 @@ def generate_commitment_salt_v2_native(*, library_path: str | Path) -> bytearray
     proof that the whole caller path is constant-time or copy-free.
     """
     try:
-        library = ctypes.CDLL(str(Path(library_path)))
+        library = ctypes.PyDLL(str(Path(library_path)))
     except OSError as exc:
         raise RuntimeError(f"cannot load native 0PSP library: {library_path}") from exc
     function = library.psp_coin_commitment_v2_generate_salt
