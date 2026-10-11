@@ -1,11 +1,15 @@
-"""0PSP functional nullifier interface and native research boundary.
+"""0PSP nullifier interfaces.
 
-The byte-level candidate is SHAKE256(domain || version || length-prefixed
-coin_id || length-prefixed 288-bit per-coin secret), returning 48 bytes.
-The pure-Python implementation is a functional reference, not a CT path.
-Neither path by itself proves a spend, a commitment opening, QROM security, or
-absence of side channels in the overall system.
+V2 is the active namespace-bound target: SHAKE256-384 over a domain/version,
+48-byte NamespaceId, 32-byte ScopedCoinId and 36-byte per-coin secret. The
+old compute_nullifier API and its 99-byte V1 input remain only for historical
+vectors and must not be used for new scoped spends.
+
+Python routines are functional references, not constant-time paths. Native
+functional agreement does not prove a spend, mint correctness, commitment
+security, QROM security or absence of side channels.
 """
+
 from __future__ import annotations
 
 import ctypes
