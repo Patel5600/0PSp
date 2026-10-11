@@ -5,6 +5,7 @@ from src.primitives.coin_commitment import (
     COMMITMENT_RANDOMNESS_BYTES,
     CoinCommitment,
     commit_coin_v2,
+    generate_commitment_salt_v2_native,
     verify_coin_opening_v2,
 )
 from src.primitives.namespace import NamespaceId, ScopedCoinId
@@ -71,3 +72,26 @@ def test_commitment_v2_type_rejects_bad_output_length() -> None:
 
     with pytest.raises(ValueError, match="exactly 48 bytes"):
         CoinCommitment(b"short")
+
+
+def test_native_commitment_salt_generator_fails_closed_and_returns_fixed_size() -> None:
+    import os
+    import pytest
+
+    from src.primitives.coin_commitment import COMMITMENT_RANDOMNESS_BYTES
+
+    library = os.environ.get("PSP_NULLIFIER_LIBRARY")
+    if not library:
+        pytest.skip("build native library and set PSP_NULLIFIER_LIBRARY for native comparison")
+    first = generate_commitment_salt_v2_native(library_path=library)
+    second = generate_commitment_salt_v2_native(library_path=library)
+    try:
+        assert isinstance(first, bytearray) and isinstance(second, bytearray)
+        assert len(first) == len(second) == COMMITMENT_RANDOMNESS_BYTES
+        assert first != second  # Randomness smoke check only, not an entropy proof.
+    finally:
+        first[:] = bytes(COMMITMENT_RANDOMNESS_BYTES)
+        second[:] = bytes(COMMITMENT_RANDOMNESS_BYTES)
+
+    with pytest.raises(RuntimeError, match="cannot load native 0PSP library"):
+        generate_commitment_salt_v2_native(library_path="/nonexistent/psp.so")
