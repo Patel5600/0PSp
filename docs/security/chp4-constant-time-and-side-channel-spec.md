@@ -5,6 +5,8 @@
 **Security claim:** none. This document does not assert that the current code is constant-time or side-channel resistant.  
 **Production decision:** NO-GO until the construction and the implementation both satisfy their independent security gates.
 
+> **RFC-04 update (2026-10-11):** The optional [native cleansing/disassembly diagnostic](rfc-04-side-channel-diagnostics.md) is advisory, and the current C code's `OPENSSL_cleanse` usage is not whole-process zeroization evidence. No Rust rewrite is mandated. Timing statistics on shared CI are non-blocking diagnostics, not a constant-time certificate. See the [evidence-first NO-GO register](evidence-first-rfc-register.md).
+
 ## 1. Purpose and non-claims
 
 CHP4 establishes a concrete implementation-security contract for any future component that processes 0PSP secrets. It does not implement a proof system, choose missing cryptographic constructions, or discharge Phase 1 cryptographic obligations.
