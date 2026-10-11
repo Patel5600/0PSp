@@ -10,9 +10,11 @@ namespace-scoped coin-ID uniqueness atomically.
 
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import hmac
 from dataclasses import dataclass
+from pathlib import Path
 
 from .nullifier import (
     COIN_ID_BYTES,
@@ -198,3 +200,27 @@ def verify_coin_opening_v2(
         namespace_id, public_key, value, coin_id, r_nf, rho_coin, params_id
     )
     return hmac.compare_digest(commitment.value, expected.value)
+
+
+def generate_commitment_salt_v2_native(*, library_path: str | Path) -> bytearray:
+    """Generate an independent 36-byte commitment salt through the native RNG.
+
+    No Python RNG fallback is used. The caller owns the mutable buffer and
+    should clear it after use. This function is a research/FFI helper, not a
+    proof that the whole caller path is constant-time or copy-free.
+    """
+    try:
+        library = ctypes.CDLL(str(Path(library_path)))
+    except OSError as exc:
+        raise RuntimeError(f"cannot load native 0PSP library: {library_path}") from exc
+    function = library.psp_coin_commitment_v2_generate_salt
+    byte_p = ctypes.POINTER(ctypes.c_ubyte)
+    function.argtypes = [byte_p, ctypes.c_size_t]
+    function.restype = ctypes.c_int
+    salt = bytearray(COMMITMENT_RANDOMNESS_BYTES)
+    out_buf = (ctypes.c_ubyte * COMMITMENT_RANDOMNESS_BYTES).from_buffer(salt)
+    status = function(out_buf, COMMITMENT_RANDOMNESS_BYTES)
+    if status != 0:
+        salt[:] = bytes(COMMITMENT_RANDOMNESS_BYTES)
+        raise RuntimeError(f"native V2 commitment salt generation failed with status {status}")
+    return salt
