@@ -176,6 +176,11 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
         "b2d212876c7eae560b50cc43b69afdda7a5aeeae"
     )
 
+    alternate_bundle = NotePublicKeyBundleV3(
+        auth_scheme_id=AUTH_SCHEME,
+        auth_public_key=b"recipient-pk-alt",
+        nullifier_key_commitment=compute_nullifier_key_commitment_v3(recipient_key),
+    ).encode()
     alternatives = [
         derive_output_identity_v3_candidate(output_index=1, **common),
         derive_output_identity_v3_candidate(
@@ -184,7 +189,7 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
         ),
         derive_output_identity_v3_candidate(
             output_index=0,
-            **{**common, "recipient_key_bundle": recipient_bundle + b"x"},
+            **{**common, "recipient_key_bundle": alternate_bundle},
         ),
         derive_output_identity_v3_candidate(
             output_index=0,
@@ -211,3 +216,24 @@ def test_v3_parent_nullifier_key_is_required_for_transfer_derivation() -> None:
             params_id=PARAMS_ID,
         )
 
+
+
+def test_v3_nullifier_and_identity_reject_noncanonical_bundles() -> None:
+    from src.protocol.output_identity import derive_output_identity_v3_candidate
+
+    with pytest.raises(ValueError, match="trailing bytes"):
+        compute_nullifier_v3(NS, _bundle().encode() + b"x", COIN, R_NF, KEY)
+
+    with pytest.raises(ValueError, match="trailing bytes"):
+        derive_output_identity_v3_candidate(
+            namespace_id=NS,
+            parent_coin_id=COIN,
+            parent_r_nf=R_NF,
+            parent_public_key_bundle=_bundle().encode(),
+            parent_nullifier_key=KEY,
+            spend_key_witness=b"parent-spend-witness",
+            recipient_key_bundle=_bundle().encode() + b"x",
+            transaction_entropy=bytes([0x66]) * 32,
+            output_index=0,
+            params_id=b"v3-test-params",
+        )
