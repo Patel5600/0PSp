@@ -11,7 +11,7 @@ import hmac
 from dataclasses import dataclass
 from typing import Final
 
-from src.primitives.namespace import NAMESPACE_ID_BYTES, NamespaceId, ScopedCoinId
+from src.primitives.namespace import NamespaceId, ScopedCoinId
 from src.primitives.nullifier import NULLIFIER_BYTES, NULLIFIER_SECRET_BYTES, NullifierSecret
 
 NULLIFIER_DERIVING_KEY_V3_BYTES: Final = 48
