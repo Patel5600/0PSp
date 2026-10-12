@@ -1,7 +1,7 @@
 """Canonical V3 note public-key bundle for identity/nullifier binding.
 
-The bundle is supplied as the public_key byte field to the frozen CommitV2
-primitive. This module does not change CommitV2's formula.
+The bundle is supplied to CommitV3 and NullifierV3 only. Never substitute this
+candidate bundle into a V2 transaction while expecting V3 privacy semantics.
 """
 from __future__ import annotations
 
