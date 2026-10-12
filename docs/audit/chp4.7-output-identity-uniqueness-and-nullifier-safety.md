@@ -155,6 +155,43 @@ The complete canonical output list owns one zero-based global output index space
 
 V3 reference functions live in `src/protocol/output_identity.py`. They use SHAKE256 with separate domains for `coin_id` and `r_nf`. They do not check whether the deposit anchor is canonical, prove a witness statement, ensure entropy was sampled correctly, or stop an arbitrary API client from bypassing a future circuit. The proof and ledger must enforce the relation and one-use state.
 
+#### Exact V3 identity-derivation byte contracts
+
+The candidate encodings below reflect the reference functions, not yet a frozen production wire protocol. Integer notation is explicit: `LE16`/`LE32` are unsigned little-endian lengths, and `BE16` is an unsigned big-endian output index. All fields are canonical byte strings; fixed-width fields use the exact widths shown.
+
+For **issuance**, the `coin_id` preimage is:
+
+```text
+"0PSP-ISSUANCE-COIN-ID-v3" || 0x03 ||
+LE16(len(params_id)) || params_id ||
+namespace_id[48] ||
+LE16(len(deposit_id)) || deposit_id ||
+LE32(len(BundleV3)) || BundleV3 ||
+LE16(32) || issuance_entropy[32] ||
+BE16(output_index)
+```
+
+The `r_nf` derivation uses the identical payload but domain `"0PSP-ISSUANCE-RNF-v3"`. `deposit_id` is limited to 1..128 bytes, `params_id` to 1..65535 bytes, entropy is exactly 32 bytes, and output index is 0..65535. The deposit ID must be supplied by a canonical authenticated chain adapter and atomically consumed by ledger state; the helper only validates bounded bytes, not chain canonicality.
+
+For **transfer**, the `coin_id` preimage is:
+
+```text
+"0PSP-OUTPUT-COIN-ID-v3" || 0x03 ||
+LE16(len(params_id)) || params_id ||
+namespace_id[48] ||
+parent_nullifier_v3[48] ||
+LE16(48) || parent_commitment_v3[48] ||
+parent_coin_id[32] || parent_r_nf[36] ||
+LE32(len(spend_key_witness)) || spend_key_witness ||
+LE32(len(BundleV3_recipient)) || BundleV3_recipient ||
+transaction_entropy[32] ||
+BE16(output_index)
+```
+
+The `r_nf` derivation uses the identical payload but domain `"0PSP-OUTPUT-RNF-v3"`. The parent nullifier is recomputed as `NullifierV3(params_id, namespace_id, BundleV3_parent, parent_commitment_v3, parent_coin_id, parent_r_nf, parent_nk)`. The parent commitment must be the exact registered commitment that the proof opens, and the parent key witness must be consistent with the selected authorization public key; the Python helper does not establish either statement. `spend_key_witness` and recipient bundle are bounded, non-empty byte strings; entropy is exactly 32 bytes; output index is a uint16 global slot. The canonical transaction must bind the same global output list/order/index encoding.
+
+Changing any of these domains, widths, field order or index endianness creates a different construction and requires a separately versioned review plus new vectors. These candidates use SHAKE outputs of 32 bytes for `coin_id` and 36 bytes for `r_nf`; neither hash is mathematically injective.
+
 ### 3.5 Why the two mechanisms are both necessary
 
 - **Keyed nullifier without commitment binding:** hides the future nullifier from the creator but leaves V2's same-tuple/different-salt deterministic nullifier reuse risk.
