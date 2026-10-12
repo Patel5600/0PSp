@@ -30,6 +30,8 @@ The present code has fixed Python/native vectors and opening-substitution tests.
 
 This is a **single-commitment candidate**, not evidence of a fully specified blind issuance protocol. No additional `C_spend` layer is added by this RFC. That would add complexity without a demonstrated role.
 
+For the current EVM mapping, the 48-byte namespace field is the output of the direct-hash Namespace V3 construction. “V2” in CommitV2 names the commitment encoding and does not select the namespace-derivation version. A future issuance proof and accepted parameter set must pin Namespace V3 and bind these exact 48 bytes to the authenticated chain/deployment/asset context. A raw 48-byte value or a legacy V2 namespace must not be silently accepted as interchangeable. The reference ledger now requires the typed NamespaceIdV3 at its API boundary, but no cryptographic issuance verifier is integrated.
+
 ## 3. Candidate message flow
 
 ### Wallet

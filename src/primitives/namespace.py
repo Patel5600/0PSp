@@ -8,10 +8,12 @@ coin_id from the issuer during user-committed issuance; direct mint-visible
 uniqueness enforcement on that hidden value is therefore unresolved. See RFC-01
 and the CHp4.2 record before treating the identity invariant as implementable.
 
-No chain-specific address encoding is guessed here. Adapters must convert
-native ledger, deployment and asset identifiers to canonical 32-byte values.
-The EVM adapter in src/adapters/evm_namespace.py implements one versioned,
-manifest-pinned mapping while preserving this core Namespace V2 byte contract.
+Namespace V2 is a frozen compatibility primitive and only accepts already
+canonical 32-byte component IDs. Its formula and known-answer vectors remain
+unchanged. A chain adapter must not independently compress longer identity
+descriptors to 32 bytes and then assume the 48-byte outer digest restores the
+lost quantum collision margin. New adapters should use namespace_v3.py to hash
+the full canonical descriptors directly into one 48-byte namespace ID.
 """
 from __future__ import annotations
 

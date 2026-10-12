@@ -1,9 +1,9 @@
 # CHp4.8 — Namespace V2: canonical EVM mapping and mint-scope binding
 
-**Status:** implementation candidate on branch `namespace-v2-evm-canonical-binding`; not production certification.  
-**Namespace V2 primitive:** unchanged.  
-**Adapter:** EVM JSON-RPC manifest adapter with explicit pinned network, deployment and asset identity.  
-**Ledger integration:** reference model now requires one fixed 48-byte expected namespace.  
+**Status:** historical interim implementation; superseded by [CHp4.9 direct-hash Namespace V3](chp4.9-namespace-v3-direct-hash-remediation.md). Do not use the intermediate-hash namespace mapping described below for new EVM deployments.  
+**Namespace V2 primitive:** unchanged and frozen.  
+**Historical adapter:** mapped larger identities through separate 256-bit component hashes before the final V2 namespace hash. This introduced a lower generic quantum collision-search scale than the 384-bit final digest alone suggests.  
+**Replacement:** CHp4.9 hashes full canonical identity descriptors directly into one Namespace V3 digest.  
 **Production:** **NO-GO**; the reference ledger remains in-memory and all proof verifiers remain injected dependencies.
 
 ## 1. Scope and compatibility

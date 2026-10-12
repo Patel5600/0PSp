@@ -18,7 +18,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
-| Namespace V2 core + EVM adapter | Frozen 48-byte core KAT; EVM mapping KAT; chain ID/genesis + protocol address/epoch + asset identity feed component IDs; checkpoint and runtime-code fingerprints are verified manifest inputs only; adversarial tests | Intended-chain smoke test, trusted RPC/light-client policy, and review of the V2 component-width security bound |
+| Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; Namespace V3 direct-hash KAT and native/Python parity; full canonical chain/deployment/asset descriptors feed one SHAKE256-384 output; typed V3 reference-ledger boundary | Intended-chain smoke test, RPC/consensus policy, durable finality/reorg/deposit adapter, actual proof binding, and independent review |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
@@ -40,9 +40,13 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 [CHp4.1](../audit/chp4.1-reference-state-transitions.md) adds an in-memory, single-process model that requires injected deposit and proof-verifier callbacks. Its tests exercise replay rejection, duplicate commitments/nullifiers, proof-rejection non-mutation, and concurrent duplicate submissions. Test callbacks are deliberately not cryptographic verifiers. This work models a local linearization point; it does not close the durable-ledger gate or establish issuance value-binding, spend soundness, zero knowledge, consensus safety, or reorg/recovery correctness.
 
-## Namespace V2 / CHp4.8 boundary
+## Namespace V3 / CHp4.9 boundary
 
-The EVM adapter at `src/adapters/evm_namespace.py` turns a pinned chain/deployment/asset manifest into the existing Namespace V2 input components and checks RPC responses against pinned chain ID, genesis/checkpoint hashes and runtime-code fingerprints. The reference ledger requires an expected namespace and rejects cross-namespace issuance/spend before invoking the injected proof callbacks. JSON-RPC is not a light client; code-fingerprint checks do not prove consensus or deposit finality. See [CHp4.8](../audit/chp4.8-namespace-v2-evm-adapter.md) for exact encodings and collision caveats.
+Namespace V2 remains frozen, including its known-answer vector. The earlier CHp4.8 EVM adapter independently hashed long descriptors to 256-bit components before the final namespace digest. That composition admitted a lower generic quantum collision-query scale of about 2^85.3 if one intermediate component collided, so that mapping is retained only as historical evidence.
+
+The current adapter at `src/adapters/evm_namespace.py` retains the full canonical ledger, deployment and asset descriptors and hashes their length-prefixed tuple directly with SHAKE256-384 under the Namespace V3 domain/version. No 256-bit intermediate identity digest participates in namespace identity. Under an idealized generic quantum random-oracle collision model, the 384-bit output has BHT-style query scale about 2^128. This remains a computational model/estimate, not injectivity or a complete protocol proof.
+
+The reference ledger now requires a typed `NamespaceIdV3` for its configured namespace, issuance authorization, and spend statement, rejecting a mismatched ID before invoking injected proof callbacks. Runtime-code fingerprints are 48 bytes and checkpoint/code values are validation-only, not identity inputs. JSON-RPC is not a light client; the chain/deposit adapter, consensus/finality and durable ledger remain incomplete. See [CHp4.9](../audit/chp4.9-namespace-v3-direct-hash-remediation.md) for equations, assumptions, tests and remaining release gates.
 
 ## CHp4.2 formal relation and adversarial test boundary
 

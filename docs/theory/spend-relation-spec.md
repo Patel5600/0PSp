@@ -22,6 +22,8 @@ x_spend = (
 )
 ~~~
 
+The namespace-derivation version is distinct from the V2 commitment/spend-relation version. For the current EVM adapter, namespace_id is the exact 48-byte output of typed NamespaceIdV3. The configured params_id/protocol configuration and eventual proof statement must pin this namespace scheme and constrain the exact same namespace_id bytes across commitment opening, nullifier derivation, transaction digest and ledger context. Do not take a V2 namespace ID or any independently hashed 256-bit identity components and relabel them as NamespaceIdV3. The current reference ledger checks the typed NamespaceIdV3 boundary, but there is no instantiated proof backend to constrain this requirement yet.
+
 The private witness is:
 
 ~~~text

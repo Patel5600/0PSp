@@ -10,6 +10,7 @@ from threading import Barrier
 
 import pytest
 
+from src.primitives.namespace_v3 import derive_namespace_id_v3
 from src.protocol.reference_ledger import (
     AcceptedSpend,
     DepositAuthorization,
@@ -24,7 +25,7 @@ from src.protocol.reference_ledger import (
     SpendStatement,
 )
 
-NS = bytes([0x11]) * 48
+NS = derive_namespace_id_v3(b"test-ledger", b"test-deployment", b"test-asset")
 ANCHOR = bytes([0x22]) * 32
 PARAMS = b"v2-test-params"
 PROOF = b"test-proof"
@@ -266,7 +267,7 @@ def test_shape_errors_fail_before_transition() -> None:
 
 def test_wrong_namespace_deposit_is_rejected_before_issuance_verifier() -> None:
     seen = []
-    wrong_namespace = bytes([0x99]) * 48
+    wrong_namespace = derive_namespace_id_v3(b"wrong-ledger", b"test-deployment", b"test-asset")
 
     def wrong_authorizer(_evidence):
         return DepositAuthorization(
@@ -302,7 +303,8 @@ def test_wrong_namespace_spend_is_rejected_before_spend_verifier() -> None:
         verify_issuance_proof=lambda _statement, _proof: True,
         verify_spend_proof=lambda statement, proof: seen.append(statement) or True,
     )
-    wrong_statement = replace(statement(b"N" * 48), namespace_id=bytes([0x99]) * 48)
+    wrong_namespace = derive_namespace_id_v3(b"wrong-ledger", b"test-deployment", b"test-asset")
+    wrong_statement = replace(statement(b"N" * 48), namespace_id=wrong_namespace)
     with pytest.raises(NamespaceMismatch):
         ledger.accept_spend(statement=wrong_statement, proof=PROOF)
     assert seen == []
@@ -318,3 +320,56 @@ def test_reference_ledger_requires_a_canonical_fixed_namespace() -> None:
             verify_issuance_proof=lambda _statement, _proof: True,
             verify_spend_proof=lambda _statement, _proof: True,
         )
+
+
+def test_raw_v2_width_bytes_cannot_be_used_as_expected_namespace_v3() -> None:
+    with pytest.raises(InvalidInput, match="NamespaceIdV3"):
+        ReferenceLedger(
+            expected_namespace_id=NS.data,
+            authorize_deposit=authorization_for,
+            verify_issuance_proof=lambda _statement, _proof: True,
+            verify_spend_proof=lambda _statement, _proof: True,
+        )
+
+
+def test_raw_namespace_bytes_from_deposit_adapter_fail_before_proof() -> None:
+    calls = []
+
+    def legacy_authorizer(_evidence):
+        return DepositAuthorization(
+            namespace_id=NS.data,
+            deposit_id=b"D" * 32,
+            authorized_value=100,
+            finalized_anchor=ANCHOR,
+        )
+
+    ledger = ReferenceLedger(
+        expected_namespace_id=NS,
+        authorize_deposit=legacy_authorizer,
+        verify_issuance_proof=lambda statement, proof: calls.append(statement) or True,
+        verify_spend_proof=lambda _statement, _proof: True,
+    )
+    with pytest.raises(NamespaceMismatch, match="typed NamespaceIdV3"):
+        ledger.issue(deposit_evidence=b"legacy-bytes", commitment=b"C" * 48,
+                     params_id=PARAMS, proof=PROOF)
+    assert calls == []
+    assert ledger.issued_count == 0
+    assert ledger.state_version == 0
+
+
+def test_raw_namespace_bytes_in_spend_statement_fail_before_proof() -> None:
+    calls = []
+    ledger = make_ledger()
+    legacy_statement = replace(statement(b"N" * 48), namespace_id=NS.data)
+    # Swap in an observable verifier to assert rejection precedes proof execution.
+    observed = ReferenceLedger(
+        expected_namespace_id=NS,
+        authorize_deposit=authorization_for,
+        verify_issuance_proof=lambda _statement, _proof: True,
+        verify_spend_proof=lambda value, proof: calls.append(value) or True,
+    )
+    with pytest.raises(InvalidInput, match="NamespaceIdV3"):
+        observed.accept_spend(statement=legacy_statement, proof=PROOF)
+    assert calls == []
+    assert observed.spent_count == 0
+    assert observed.state_version == 0
