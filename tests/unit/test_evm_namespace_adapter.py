@@ -82,21 +82,21 @@ def test_evm_erc20_namespace_known_answer_vector() -> None:
     _, _, adapter = build_adapter()
     binding = adapter.resolve()
     assert binding.ledger_id.hex() == (
-        "909ac6e4c954aee46917c121fb86a1a7"
-        "636fcf602b0b347f78a9d0253881d581"
+        "4e3535fbb20978ffe3403b5e0be07b79"
+        "4c9c24742f06a5b50c33089be1fc584f"
     )
     assert binding.deployment_id.hex() == (
-        "27c51cc534ebcfce3700c4674146f127"
-        "7836c092f17e09bd3ad7f6378a344f28"
+        "2d1497444e98626b3c4825244d27d1d4"
+        "4be6c5bb7f4a78309a1efbc8be9021a8"
     )
     assert binding.asset_id.hex() == (
-        "67a0cb02ca7039c39f0efbf6c3a495b2"
-        "5958a36f31efd2c81ec79017e27f3245"
+        "c2abc6edf7de73f43a5a43adca5e6c9c"
+        "cacb6c33cdf6d654b66270cdad25f3c4"
     )
     assert binding.namespace_id.data.hex() == (
-        "f68fef5d93e74705305e96c56cf4d135"
-        "d9504e869b0b30d59eb1d20c37e9970f"
-        "a65d14666dfb856cea4e5b699c5b9166"
+        "fdb2001b8d8974ce68029111f3864e4c"
+        "741cb9b946bb6935827af4f45f3129c5"
+        "9b9148382ac436587f3ef0c05002763c"
     )
     assert binding.namespace_id.data == adapter.resolve().namespace_id.data
 
@@ -114,6 +114,38 @@ def test_resolver_checks_expected_chain_checkpoint_and_runtime_code() -> None:
     assert result.asset_code_fingerprint == runtime_code_fingerprint(ASSET_CODE)
     assert ("eth_getCode", ["0x" + PROTOCOL_ADDRESS.hex(), "finalized"]) in rpc.calls
     assert ("eth_getCode", ["0x" + ASSET_ADDRESS.hex(), "finalized"]) in rpc.calls
+
+
+
+
+def test_checkpoint_is_verified_but_does_not_split_logical_chain_namespace() -> None:
+    _, _, base_adapter = build_adapter()
+    base = base_adapter.resolve()
+
+    alternate_height = 54_321
+    alternate_checkpoint = b"\x77" * 32
+    alternate_config = EvmNamespaceConfig(
+        chain_id=CHAIN_ID,
+        genesis_hash=GENESIS,
+        checkpoint_block_number=alternate_height,
+        checkpoint_hash=alternate_checkpoint,
+        protocol_address=PROTOCOL_ADDRESS,
+        expected_protocol_code_fingerprint=runtime_code_fingerprint(PROTOCOL_CODE),
+        asset_address=ASSET_ADDRESS,
+        expected_asset_code_fingerprint=runtime_code_fingerprint(ASSET_CODE),
+    )
+    alternate_rpc = FakeRpc(
+        checkpoint_height=alternate_height,
+        checkpoint=alternate_checkpoint,
+        code_by_address={PROTOCOL_ADDRESS: PROTOCOL_CODE, ASSET_ADDRESS: ASSET_CODE},
+    )
+    alternate = EvmNamespaceAdapter(alternate_config, alternate_rpc).resolve()
+
+    assert (base.checkpoint_block_number, base.checkpoint_hash) != (
+        alternate.checkpoint_block_number, alternate.checkpoint_hash
+    )
+    assert alternate.ledger_id == base.ledger_id
+    assert alternate.namespace_id == base.namespace_id
 
 
 def test_native_asset_has_distinct_asset_component_and_no_token_rpc_call() -> None:
