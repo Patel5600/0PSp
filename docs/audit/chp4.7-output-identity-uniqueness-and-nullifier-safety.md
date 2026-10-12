@@ -77,11 +77,12 @@ BundleV3 =
   LE32(len(auth_public_key)) || canonical_auth_public_key ||
   LE16(48) || KeyCommitV3(nk)
 
-NullifierV3(ns, BundleV3, coin_id, r_nf, nk) =
+NullifierV3(params_id, ns, BundleV3, coin_id, r_nf, nk) =
   HMAC-SHA3-384(
     key = nk,
     message =
       "0PSP-NULLIFIER-v3-HMAC-SHA3-384" || 0x03 ||
+      LE16(len(params_id)) || params_id ||
       LE16(48) || ns[48] ||
       LE32(len(BundleV3)) || BundleV3 ||
       LE16(32) || coin_id[32] ||
@@ -89,7 +90,7 @@ NullifierV3(ns, BundleV3, coin_id, r_nf, nk) =
   )
 ```
 
-The recipient needs the private `nk` to compute the nullifier. Knowing the output identity tuple and public bundle is not sufficient to compute it under the HMAC-PRF assumption. The key commitment is not a replacement for key secrecy; it is the value that lets a proof bind the recipient's secret key to the exact canonical bundle inside the note commitment.
+The recipient needs the private `nk` to compute the nullifier. The exact `params_id` is included in the keyed message to prevent accidental nullifier reuse across parameter suites. Knowing the output identity tuple, parameter ID and public bundle is not sufficient to compute it under the HMAC-PRF assumption. The key commitment is not a replacement for key secrecy; it is the value that lets a proof bind the recipient's secret key to the exact canonical bundle inside the note commitment.
 
 This is a new V3 suite, not a change to `NullifierV2`. All existing V1/V2 formulas and known-answer vectors remain byte-for-byte unchanged. The reference API uses distinct `NullifierV3` and `CoinCommitmentV3` result types to prevent accidental version mixing; the durable transaction schema must also carry and enforce the protocol version.
 
@@ -177,7 +178,7 @@ The actual circuit or proof relation must establish a single consistent witness 
 2. **Recipient-address authenticity:** verify a domain-separated recipient signature/authentication token over the exact namespace, params ID and BundleV3 using the selected address-auth suite. The proof must bind this verified statement to the output bundle; signature bytes/encoding and suite must be frozen before implementation.
 3. **Commitment opening:** `C = CommitV3(params_id, BundleV3, v, ns, coin_id, r_nf, rho_C)`.
 4. **Recipient key:** the private 48-byte `nk` hashes to the exact `KeyCommitV3(nk)` inside that same BundleV3.
-5. **Nullifier:** `public_nullifier = NullifierV3(ns, BundleV3, coin_id, r_nf, nk)`.
+5. **Nullifier:** `public_nullifier = NullifierV3(params_id, ns, BundleV3, coin_id, r_nf, nk)`.
 6. **Input membership/eligibility:** the exact input commitment is in the authenticated state/root and is not already spent under the ledger state being proved.
 7. **Transfer output derivation:** every output `coin_id/r_nf` is derived from the exact consumed input V3 nullifier and parent witness, recipient BundleV3, transaction entropy, global output index and params ID.
 8. **Issuance derivation:** every issuance output identity is derived from the canonical authenticated one-use deposit event, recipient BundleV3, output index and params ID.
