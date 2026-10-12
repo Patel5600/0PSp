@@ -1,9 +1,16 @@
-"""CHp4.6/CHp4.7 hidden-witness output-identity derivation candidates.
+"""CHp4.6 transfer and CHp4.7 issuance output-identity candidates.
 
-This deterministic Python reference helper is NOT a zero-knowledge constraint
-system or a production security fix. A future relation must bind the key
-witness to the input public key and constrain these exact derivations for every
-output and its commitment opening. The scheme-specific key encoding is unfrozen.
+These deterministic helpers are reference functions, not circuit constraints.
+The CHp4.6 transfer candidate binds a tuple to parent state and output index,
+but its tuple is known to the creator/prover. Therefore it MUST NOT be paired
+with the unkeyed V2 nullifier when sender-unlinkability is required: the sender
+can compute the recipient's future nullifier. A recipient-keyed nullifier
+candidate is defined separately in src/primitives/nullifier_v3.py.
+
+A production relation must bind each derivation to an authenticated one-use
+anchor, canonical global output index, the corresponding commitment opening,
+the recipient key bundle and the V3 nullifier. None of that is enforced by
+this Python helper. The scheme-specific authorization key codec remains unfrozen.
 """
 from __future__ import annotations
 
