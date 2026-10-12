@@ -75,9 +75,9 @@ def _require_nonzero_address(value: bytes, name: str) -> None:
 
 
 def runtime_code_fingerprint(runtime_code: bytes) -> bytes:
-    """Return the 32-byte manifest fingerprint of canonical EVM runtime bytecode.
+    """Return the 48-byte manifest fingerprint of canonical EVM runtime bytecode.
 
-    The fingerprint is a 256-bit SHAKE256 output over a domain/version and
+    The fingerprint is a 384-bit SHAKE256 output over a domain/version and
     length-prefixed bytecode. Callers should compute the expected value from
     independently obtained, reviewed deployment artifacts and pin it in
     deployment configuration; deriving the expectation from the same RPC
@@ -89,11 +89,11 @@ def runtime_code_fingerprint(runtime_code: bytes) -> bytes:
         raise ValueError("runtime_code exceeds the adapter safety bound")
     preimage = (
         DOMAIN_EVM_CODE_FINGERPRINT
-        + EVM_ADAPTER_ENCODING_VERSION
+        + EVM_CODE_FINGERPRINT_VERSION
         + len(runtime_code).to_bytes(4, "big")
         + runtime_code
     )
-    return hashlib.shake_256(preimage).digest(EVM_HASH_BYTES)
+    return hashlib.shake_256(preimage).digest(EVM_CODE_FINGERPRINT_BYTES)
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +116,7 @@ class EvmNamespaceConfig:
     asset_address: bytes | None = None
     expected_asset_code_fingerprint: bytes | None = None
     deployment_epoch: int = 0
+    asset_epoch: int = 0
     code_block_tag: str = "finalized"
 
     def __post_init__(self) -> None:
@@ -138,7 +139,7 @@ class EvmNamespaceConfig:
         _require_nonzero_address(self.protocol_address, "protocol_address")
         _require_fixed_bytes(
             self.expected_protocol_code_fingerprint,
-            EVM_HASH_BYTES,
+            EVM_CODE_FINGERPRINT_BYTES,
             "expected_protocol_code_fingerprint",
         )
         if self.asset_address is None:
@@ -148,7 +149,7 @@ class EvmNamespaceConfig:
             _require_nonzero_address(self.asset_address, "asset_address")
             _require_fixed_bytes(
                 self.expected_asset_code_fingerprint,
-                EVM_HASH_BYTES,
+                EVM_CODE_FINGERPRINT_BYTES,
                 "expected_asset_code_fingerprint",
             )
         if (
@@ -157,6 +158,12 @@ class EvmNamespaceConfig:
             or not 0 <= self.deployment_epoch <= EVM_BLOCK_NUMBER_MAX
         ):
             raise ValueError("deployment_epoch must be an integer in [0, 2^64-1]")
+        if (
+            isinstance(self.asset_epoch, bool)
+            or not isinstance(self.asset_epoch, int)
+            or not 0 <= self.asset_epoch <= EVM_BLOCK_NUMBER_MAX
+        ):
+            raise ValueError("asset_epoch must be an integer in [0, 2^64-1]")
         if self.code_block_tag not in ("finalized", "safe", "latest"):
             raise ValueError("code_block_tag must be finalized, safe, or latest")
 
