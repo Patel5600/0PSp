@@ -81,7 +81,7 @@ REQUIRED_TOKENS = {
         "NAMESPACE_V2(L, D, A)",
         "checkpoint_hash",
         "not a ZK proof",
-        "Production remains **NO-GO**",
+        "**Production:** **NO-GO**",
     ),
 }
 
