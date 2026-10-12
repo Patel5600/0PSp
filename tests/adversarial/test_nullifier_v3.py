@@ -181,10 +181,10 @@ def test_v3_is_additive_and_does_not_change_frozen_v2_nullifier() -> None:
 
     key_b = NullifierDerivingKeyV3(bytes([0x45]) * 48)
     assert compute_nullifier_v3(NS, PARAMS_ID, _bundle().encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
-        NS, _bundle(key_b).encode(), COIN, R_NF, key_b
+        NS, PARAMS_ID, _bundle(key_b).encode(), COIN, R_NF, key_b
     )
     assert compute_nullifier_v3(NS, PARAMS_ID, _bundle(KEY, b"another-recipient-key").encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
-        NS, _bundle(KEY, AUTH_PK).encode(), COIN, R_NF, KEY
+        NS, PARAMS_ID, _bundle(KEY, AUTH_PK).encode(), COIN, R_NF, KEY
     )
 
 def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
