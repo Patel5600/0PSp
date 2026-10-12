@@ -32,6 +32,7 @@ def _ledger() -> ReferenceLedger:
     # Explicitly a test double. A production verifier must enforce R_mint and
     # prove the hidden opening contains authorized_value without exposing it.
     return ReferenceLedger(
+        expected_namespace_id=NS,
         authorize_deposit=authorize,
         verify_issuance_proof=lambda statement, proof: (
             statement.version == 2 and statement.authorized_value == 10 and proof == b"test-only-proof"
