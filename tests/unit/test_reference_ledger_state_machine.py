@@ -10,6 +10,7 @@ from threading import Barrier
 
 import pytest
 
+from src.primitives.namespace_v3 import derive_namespace_id_v3
 from src.protocol.reference_ledger import (
     AcceptedSpend,
     DepositAuthorization,
@@ -24,7 +25,7 @@ from src.protocol.reference_ledger import (
     SpendStatement,
 )
 
-NS = bytes([0x11]) * 48
+NS = derive_namespace_id_v3(b"test-ledger", b"test-deployment", b"test-asset")
 ANCHOR = bytes([0x22]) * 32
 PARAMS = b"v2-test-params"
 PROOF = b"test-proof"
@@ -266,7 +267,7 @@ def test_shape_errors_fail_before_transition() -> None:
 
 def test_wrong_namespace_deposit_is_rejected_before_issuance_verifier() -> None:
     seen = []
-    wrong_namespace = bytes([0x99]) * 48
+    wrong_namespace = derive_namespace_id_v3(b"wrong-ledger", b"test-deployment", b"test-asset")
 
     def wrong_authorizer(_evidence):
         return DepositAuthorization(
