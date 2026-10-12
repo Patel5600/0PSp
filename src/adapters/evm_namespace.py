@@ -247,9 +247,12 @@ class JsonRpcClient:
         if len(raw) > MAX_RPC_RESPONSE_BYTES:
             raise EvmRpcError(f"JSON-RPC response too large for {method}")
         try:
-            payload = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise EvmRpcError(f"JSON-RPC returned invalid JSON for {method}") from None
+            payload = json.loads(
+                raw.decode("utf-8"),
+                object_pairs_hook=_reject_duplicate_json_keys,
+            )
+        except (UnicodeDecodeError, ValueError, RecursionError):
+            raise EvmRpcError(f"JSON-RPC returned invalid or ambiguous JSON for {method}") from None
         if (
             not isinstance(payload, dict)
             or payload.get("jsonrpc") != "2.0"
@@ -264,6 +267,16 @@ class JsonRpcClient:
         if "result" not in payload:
             raise EvmRpcError(f"JSON-RPC response omitted result for {method}")
         return payload["result"]
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject duplicate object members instead of silently accepting last-wins JSON."""
+    decoded: dict[str, object] = {}
+    for key, value in pairs:
+        if key in decoded:
+            raise ValueError("duplicate JSON object member")
+        decoded[key] = value
+    return decoded
 
 
 def _parse_quantity(value: object, name: str) -> int:
