@@ -61,7 +61,7 @@ def test_v3_key_commitment_and_nullifier_match_hardcoded_vectors() -> None:
         "fabe8a8f35cfa67fee3371e044cd7abc802c655de4ccde8"
     )
     assert verify_nullifier_key_commitment_v3(key_commitment, KEY)
-    assert compute_nullifier_v3(NS, bundle.encode(), COIN, R_NF, KEY).value.hex() == (
+    assert compute_nullifier_v3(NS, PARAMS_ID, bundle.encode(), COIN, R_NF, KEY).value.hex() == (
         "d034a0df5df2e09108c8d04adeb20d723af581db88f78c215c664451b6bce065"
         "c0d426aa92070ec7b9b80cb4cdc36971"
     )
@@ -81,7 +81,7 @@ def test_v2_and_v3_primitive_results_are_type_distinct() -> None:
         "38c96dac07c80e9c3d45e0a1111279d2"
     ))
     nf_v2 = compute_nullifier_v2(ns_v2, ScopedCoinId(bytes(range(32))), NullifierSecret(bytes(range(36))))
-    nf_v3 = compute_nullifier_v3(NS, _bundle().encode(), COIN, R_NF, KEY)
+    nf_v3 = compute_nullifier_v3(NS, PARAMS_ID, _bundle().encode(), COIN, R_NF, KEY)
     cm_v2 = CoinCommitmentV2(bytes([0x11]) * 48)
     cm_v3 = commit_coin_v3(NS, _bundle().encode(), 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID)
 
@@ -95,8 +95,8 @@ def test_v2_and_v3_primitive_results_are_type_distinct() -> None:
 
 def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt() -> None:
     bundle = _bundle().encode()
-    nullifier_a = compute_nullifier_v3(NS, bundle, COIN, R_NF, KEY)
-    nullifier_b = compute_nullifier_v3(NS, bundle, COIN, R_NF, KEY)
+    nullifier_a = compute_nullifier_v3(NS, PARAMS_ID, bundle, COIN, R_NF, KEY)
+    nullifier_b = compute_nullifier_v3(NS, PARAMS_ID, bundle, COIN, R_NF, KEY)
     assert nullifier_a == nullifier_b
 
     # Different commitment salts still produce distinct commitments, but do
@@ -121,8 +121,8 @@ def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt
 def test_same_tuple_with_another_recipient_key_does_not_reuse_nullifier() -> None:
     key_b = NullifierDerivingKeyV3(bytes([0x45]) * 48)
     bundle_b = _bundle(key_b)
-    nullifier_a = compute_nullifier_v3(NS, _bundle().encode(), COIN, R_NF, KEY)
-    nullifier_b = compute_nullifier_v3(NS, bundle_b.encode(), COIN, R_NF, key_b)
+    nullifier_a = compute_nullifier_v3(NS, PARAMS_ID, _bundle().encode(), COIN, R_NF, KEY)
+    nullifier_b = compute_nullifier_v3(NS, PARAMS_ID, bundle_b.encode(), COIN, R_NF, key_b)
     assert bundle_b.nullifier_key_commitment != _bundle().nullifier_key_commitment
     assert nullifier_a != nullifier_b
 
@@ -146,7 +146,7 @@ def test_nullifier_key_commitment_mismatch_fails_closed() -> None:
     other = NullifierDerivingKeyV3(bytes([0x45]) * 48)
     assert not verify_nullifier_key_commitment_v3(commitment, other)
     with pytest.raises(ValueError, match="does not open"):
-        compute_nullifier_v3(NS, _bundle().encode(), COIN, R_NF, other)
+        compute_nullifier_v3(NS, PARAMS_ID, _bundle().encode(), COIN, R_NF, other)
 
 
 def test_v3_commitment_rejects_noncanonical_key_bundle() -> None:
@@ -179,10 +179,10 @@ def test_v3_is_additive_and_does_not_change_frozen_v2_nullifier() -> None:
     )
 
     key_b = NullifierDerivingKeyV3(bytes([0x45]) * 48)
-    assert compute_nullifier_v3(NS, _bundle().encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
+    assert compute_nullifier_v3(NS, PARAMS_ID, _bundle().encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
         NS, _bundle(key_b).encode(), COIN, R_NF, key_b
     )
-    assert compute_nullifier_v3(NS, _bundle(KEY, b"another-recipient-key").encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
+    assert compute_nullifier_v3(NS, PARAMS_ID, _bundle(KEY, b"another-recipient-key").encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
         NS, _bundle(KEY, AUTH_PK).encode(), COIN, R_NF, KEY
     )
 
@@ -232,12 +232,13 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
         **common,
     )
     assert first.coin_id.data.hex() == (
-        "c4fd5a318771c0b56d1f6150b1c411ac"
-        "74de17d3f66f7d3bf5c2787429064b49"
+        "928fac614b02d7ac23cfb07df97a43d1"
+        "910d2b5dd4fb1a5471f7a1028c9aa9c1"
     )
     assert first.r_nf.data.hex() == (
-        "80dc0646e8d7b21883863c90581202c7"
-        "b2d212876c7eae560b50cc43b69afdda7a5aeeae"
+        "473e1b40f66c142e2fa92a4272dcf4bc"
+        "59dba57057f43a428e4c3c5078368c0f"
+        "18054e2e"
     )
 
     alternate_bundle = NotePublicKeyBundleV3(
@@ -298,7 +299,7 @@ def test_v3_nullifier_and_identity_reject_noncanonical_bundles() -> None:
     from src.protocol.output_identity import derive_output_identity_v3_candidate
 
     with pytest.raises(ValueError, match="trailing bytes"):
-        compute_nullifier_v3(NS, _bundle().encode() + b"x", COIN, R_NF, KEY)
+        compute_nullifier_v3(NS, PARAMS_ID, _bundle().encode() + b"x", COIN, R_NF, KEY)
 
     with pytest.raises(ValueError, match="trailing bytes"):
         derive_output_identity_v3_candidate(
