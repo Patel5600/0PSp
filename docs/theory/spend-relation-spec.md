@@ -147,7 +147,7 @@ CHp4.7 therefore specifies a **new V3 suite**, without modifying any V1/V2 formu
 - BundleV3 canonically binds an authorization scheme/public key to a commitment to the recipient-held nullifier key `nk`.
 - The recipient must authenticate the exact domain-separated tuple (namespace, params ID, BundleV3) with the selected address-authorization key. The output proof must verify this signature/authentication token against the exact bundle; otherwise a sender could substitute an unknown key commitment and construct an unspendable output. The address signature codec is blocked on the authorization scheme/codec selection.
 - CommitV3 binds that bundle, value, namespace, tuple and independent commitment salt; V3 uses a separate result type from V2 to prevent accidental type/ledger mixing.
-- NullifierV3 is HMAC-SHA3-384 under `nk`, over a domain/version, namespace, canonical bundle and hidden tuple. The sender learns the bundle and tuple but not `nk`; under the PRF assumption, they cannot calculate the future nullifier from those values alone. V3 uses a separate nullifier type from V2.
+- NullifierV3 is HMAC-SHA3-384 under `nk`, over a domain/version, `params_id`, namespace, canonical bundle and hidden tuple. The sender learns the bundle and tuple but not `nk`; under the PRF assumption, they cannot calculate the future nullifier from those values alone. V3 uses a separate nullifier type from V2.
 - Issuance identity derivation is anchored to an authenticated canonical deposit/event ID and unique global output slot. Transfer identity derivation is anchored to the exact consumed input V3 nullifier, parent witness, recipient bundle and unique global output slot.
 - The proof must constrain the complete derivation, recipient address authentication and output commitment opening over one consistent witness. Durable ledger state must consume the source anchor/nullifier atomically and reject replay.
 
@@ -161,8 +161,15 @@ For each V3 note, require:
 BundleV3 = CanonicalBundle(auth_scheme_id, auth_public_key,
                            KeyCommitV3(nk))
 C3 = CommitV3(params_id, BundleV3, v, ns, coin_id, r_nf, rho_C)
-nu3 = HMAC-SHA3-384(nk,
-                    DomainV3 || ns || BundleV3 || coin_id || r_nf)
+nu3 = HMAC-SHA3-384(
+  key = nk,
+  message = "0PSP-NULLIFIER-v3-HMAC-SHA3-384" || 0x03 ||
+            LE16(len(params_id)) || params_id ||
+            LE16(48) || ns[48] ||
+            LE32(len(BundleV3)) || BundleV3 ||
+            LE16(32) || coin_id[32] ||
+            LE16(36) || r_nf[36]
+)
 ```
 
 The circuit must enforce the recipient address signature over the exact bundle, `KeyCommitV3(nk)` equals the commitment encoded in that bundle, `C3` opens under the same bundle and tuple, and `nu3` equals the public nullifier. Use separate version-typed values for `CoinCommitmentV3` and `NullifierV3`; do not pass V2 objects to V3 APIs or accept a V2 nullifier in a V3 ledger transition. All outputs must be derived from a one-use anchor plus canonical output index and the complete output list must be bound to the transaction digest. Reusing the complete note identity with another commitment salt must fail the output-derivation relation. A nullifier collision across distinct identities remains a computational failure event that consensus prevents from being spent twice, not an impossible event.
