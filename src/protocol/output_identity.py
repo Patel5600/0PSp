@@ -29,6 +29,7 @@ from src.primitives.nullifier_v3 import (
     NullifierDerivingKeyV3,
     compute_nullifier_v3,
 )
+from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
 
 OUTPUT_ID_BYTES = 32
 TRANSACTION_ENTROPY_BYTES = 32
@@ -224,6 +225,7 @@ def derive_output_identity_v3_candidate(
         or len(parent_public_key_bundle) >= (1 << 32)
     ):
         raise ValueError("parent_public_key_bundle must be non-empty canonical bytes")
+    decode_note_public_key_bundle_v3(parent_public_key_bundle)
     if not isinstance(parent_nullifier_key, NullifierDerivingKeyV3):
         raise TypeError("parent_nullifier_key must be a NullifierDerivingKeyV3")
     if (
@@ -232,6 +234,7 @@ def derive_output_identity_v3_candidate(
         or len(recipient_key_bundle) >= (1 << 32)
     ):
         raise ValueError("recipient_key_bundle must be non-empty canonical bytes")
+    decode_note_public_key_bundle_v3(recipient_key_bundle)
     parent_nullifier = compute_nullifier_v3(
         namespace_id, parent_public_key_bundle, parent_coin_id,
         parent_r_nf, parent_nullifier_key,
@@ -289,6 +292,7 @@ def derive_issuance_output_identity_v3_candidate(
         raise ValueError(f"deposit_id must be canonical bytes of length 1..{DEPOSIT_ID_MAX_BYTES}")
     if not isinstance(recipient_key_bundle, bytes) or not recipient_key_bundle or len(recipient_key_bundle) >= (1 << 32):
         raise ValueError("recipient_key_bundle must be non-empty canonical bytes")
+    decode_note_public_key_bundle_v3(recipient_key_bundle)
     if not isinstance(issuance_entropy, bytes) or len(issuance_entropy) != ISSUANCE_ENTROPY_BYTES:
         raise ValueError(f"issuance_entropy must be exactly {ISSUANCE_ENTROPY_BYTES} bytes")
     if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
