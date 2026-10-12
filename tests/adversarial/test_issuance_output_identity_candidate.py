@@ -72,11 +72,16 @@ def test_v3_issuance_identity_matches_hardcoded_vector() -> None:
 
 def test_distinct_anchor_slot_namespace_recipient_or_params_separates_vectors() -> None:
     baseline = _derive()
+    alternate_bundle = NotePublicKeyBundleV3(
+        auth_scheme_id=b"test-auth-scheme-v1",
+        auth_public_key=b"alternate-recipient-public-key",
+        nullifier_key_commitment=compute_nullifier_key_commitment_v3(KEY),
+    ).encode()
     variants = [
         _derive(deposit_id=b"chain-a:tx124:log0"),
         _derive(output_index=1),
         _derive(namespace_id=NamespaceId(bytes([0x12]) * 48)),
-        _derive(recipient_key_bundle=RECIPIENT_KEY_BUNDLE + b"x"),
+        _derive(recipient_key_bundle=alternate_bundle),
         _derive(issuance_entropy=bytes([0x56]) * 32),
         _derive(params_id=b"different-params"),
     ]
