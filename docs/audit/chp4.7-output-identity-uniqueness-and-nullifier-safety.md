@@ -41,7 +41,22 @@ NoteIdentityV3 =
 
 The canonical key bundle binds the authorization scheme and public key to a commitment to the recipient's per-note nullifier-deriving key. This bundle participates in both the V3 commitment opening and V3 nullifier message. Reusing `coin_id` alone is not prohibited and is not proof of a collision. Reusing an accepted source anchor/output slot or reusing the same complete note identity is prohibited by the construction and ledger rules.
 
-**Recipient-address authenticity is also mandatory.** The recipient must create `nk`, verify locally that `KeyCommitV3(nk)` matches the bundle, and authenticate the exact domain-separated bundle with the selected address-authorization key. Every output proof must validate that authentication against the exact bundle committed in the note; the sender must not be able to substitute a new key commitment while retaining the intended recipient's authorization key. Otherwise, the sender could build an output around a key commitment whose opening the recipient does not know, causing an unspendable note without any hash collision. The exact address-signature scheme and canonical signature encoding are blocked on the repository's still-unselected authorization codec; no fake verifier is introduced.
+**Recipient-address authenticity is also mandatory.** The recipient must create `nk), verify locally that `KeyCommitV3(nk)` matches the bundle, and authenticate the exact domain-separated bundle with the selected address-authorization key. Every output proof must validate that authentication against the exact bundle committed in the note; the sender must not be able to substitute a new key commitment while retaining the intended recipient's authorization key. Otherwise, the sender could build an output around a key commitment whose opening the recipient does not know, causing an unspendable note without any hash collision.
+
+The candidate message contract is:
+
+```text
+AddrAuthMsgV3 =
+  "0PSP-RECIPIENT-ADDRESS-AUTH-v3" || 0x03 ||
+  LE16(48) || namespace_id[48] ||
+  LE16(len(params_id)) || params_id ||
+  LE32(len(BundleV3)) || BundleV3
+
+sig_addr = Sign_auth(sk_addr, AddrAuthMsgV3)
+Verify_auth(auth_public_key, AddrAuthMsgV3, sig_addr) = true
+```
+
+The verifier must select the signature scheme from the canonical `auth_scheme_id` in BundleV3. The signature may be carried as authenticated address metadata and supplied as a private witness to the output proof, but the proof must constrain verification over this exact message and bind it to the same bundle used by CommitV3 and NullifierV3. The recipient should only publish an address after checking that it knows the opening `nk) for the key commitment. The exact address-signature scheme and canonical signature encoding are blocked on the repository's still-unselected authorization codec; no fake verifier is introduced.
 
 The V3 identity policy intentionally does not require the issuer to receive or compare hidden `coin_id` values in plaintext. It does not claim all hash outputs are injective.
 
