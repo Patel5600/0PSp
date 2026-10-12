@@ -109,6 +109,16 @@ def test_nullifier_key_commitment_mismatch_fails_closed() -> None:
     commitment = compute_nullifier_key_commitment_v3(KEY)
     other = NullifierDerivingKeyV3(bytes([0x45]) * 48)
     assert not verify_nullifier_key_commitment_v3(commitment, other)
+    with pytest.raises(ValueError, match="does not open"):
+        compute_nullifier_v3(NS, _bundle().encode(), COIN, R_NF, other)
+
+
+def test_v3_commitment_rejects_noncanonical_key_bundle() -> None:
+    with pytest.raises(ValueError, match="trailing bytes"):
+        commit_coin_v3(
+            NS, _bundle().encode() + b"x", 500, COIN, R_NF,
+            bytes([0xA1]) * 36, PARAMS_ID,
+        )
 
 
 @pytest.mark.parametrize("bad_key", [b"", b"x" * 47, b"x" * 49, "not-bytes", None])
