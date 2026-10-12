@@ -103,7 +103,7 @@ def test_evm_erc20_namespace_v3_known_answer_vector() -> None:
     assert binding.protocol_code_fingerprint.hex() == (
         "73a58c6afde792598bb769f615f33917"
         "9436a4b5eb88bdbd8e19468014db81c7"
-        "90035efe9613ebc08421b3dc5bf8d8227"
+        "9035efe9613ebc08421b3dc5bf8d8227"
     )
     assert binding.asset_code_fingerprint.hex() == (
         "4e74d89c3c892fb8809b154da5a6eb74"
