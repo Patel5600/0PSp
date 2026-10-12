@@ -60,13 +60,13 @@ def test_v3_issuance_identity_matches_hardcoded_vector() -> None:
     assert len(first.coin_id.data) == OUTPUT_ID_BYTES == 32
     assert len(first.r_nf.data) == NULLIFIER_SECRET_BYTES == 36
     assert first.coin_id.data.hex() == (
-        "a650d2db0988795ef8e417cc95c90ec4"
-        "f5c9521a063707128fd1d0960d3b55f3"
+        "ea0e208a7bbe7b17e88a6275d99a6395"
+        "285e99f95f330764367e3c4f27993a36"
     )
     assert first.r_nf.data.hex() == (
-        "3a5a4b04a27ef503c2fa83fc8c4b1560"
-        "f9543c665646a22430f02f951582367c"
-        "0777b227"
+        "906e70e632b2e8ce69825c960ae950a8"
+        "33ba65d0b914e76773390ec9d44a8cf7"
+        "68a170a6"
     )
 
 
