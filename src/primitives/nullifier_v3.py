@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from src.primitives.namespace import NAMESPACE_ID_BYTES, NamespaceId, ScopedCoinId
-from src.primitives.nullifier import NULLIFIER_BYTES, NULLIFIER_SECRET_BYTES, Nullifier, NullifierSecret
+from src.primitives.nullifier import NULLIFIER_BYTES, NULLIFIER_SECRET_BYTES, NullifierSecret
 
 NULLIFIER_DERIVING_KEY_V3_BYTES: Final = 48
 NULLIFIER_KEY_COMMITMENT_V3_BYTES: Final = 48
@@ -40,6 +40,20 @@ class NullifierDerivingKeyV3:
 
     def __repr__(self) -> str:
         return "NullifierDerivingKeyV3(<redacted>)"
+
+
+@dataclass(frozen=True, slots=True)
+class NullifierV3:
+    """Version-distinct canonical 48-byte V3 public nullifier."""
+
+    value: bytes
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.value, bytes) or len(self.value) != NULLIFIER_BYTES:
+            raise ValueError(f"V3 nullifier must be exactly {NULLIFIER_BYTES} bytes")
+
+    def __repr__(self) -> str:
+        return f"NullifierV3({self.value.hex()[:16]}…)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,7 +177,7 @@ def compute_nullifier_v3(
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
     nullifier_key: NullifierDerivingKeyV3,
-) -> Nullifier:
+) -> NullifierV3:
     """Compute the recipient-keyed V3 nullifier candidate.
 
     HMAC-SHA3-384 is used as a keyed PRF candidate. Unlike V2, a party who
@@ -180,4 +194,4 @@ def compute_nullifier_v3(
     expected_key_commitment = compute_nullifier_key_commitment_v3(nullifier_key)
     if not hmac.compare_digest(encoded_key_commitment, expected_key_commitment.value):
         raise ValueError("nullifier key does not open the commitment in public_key_bundle")
-    return Nullifier(hmac.new(nullifier_key.data, message, hashlib.sha3_384).digest())
+    return NullifierV3(hmac.new(nullifier_key.data, message, hashlib.sha3_384).digest())
