@@ -99,17 +99,19 @@ Keeping `coin_id` and `r_nf` from the issuer removes the direct nullifier-precom
 
 ## 7. Test plan and what existing tests mean
 
-The isolated test file `tests/unit/test_issuance_commitment_invariants.py` tests the existing primitive/reference layer:
+The primitive-level test file `tests/unit/test_issuance_commitment_invariants.py` checks:
 
 - the same opening verifies for the same commitment;
 - changing `coin_id`, `r_nf`, value, namespace, key bytes, salt, or parameters does not verify as the same opening;
 - the same nullifier inputs produce the same result.
 
-These tests do **not** prove:
+The CHp4.1 file `tests/unit/test_reference_ledger_state_machine.py` checks the in-memory state model with injected test doubles: authenticated-value plumbing, proof-rejection non-mutation, deposit replay, duplicate commitments/nullifiers, and concurrent attempts.
+
+Neither file implements a cryptographic issuance verifier. These tests do **not** prove:
 - issuance value/deposit binding without revealing the opening;
 - absence of a collision across all inputs;
 - a ZK proof rejects alternate witnesses;
-- atomic duplicate-deposit or spent-nullifier prevention;
+- atomic duplicate-deposit or spent-nullifier prevention in a durable/consensus ledger;
 - issuer unlinkability in the full transcript.
 
 ### Required tests before implementation
@@ -123,4 +125,4 @@ These tests do **not** prove:
 
 ## 8. Acceptance and decision
 
-**Accept the RFC as a design/work package, not as an implemented protocol.** Implementation cannot begin until the issuance relation, backend and durable ledger invariants are specified. Production status remains **NO-GO**.
+**Accept the RFC as a design/work package, not as an implemented protocol.** CHp4.1 supplies a testable local state-transition model only. It does not satisfy the issuance-proof, real deposit-adapter, durable ledger, finality/reorg, or independent-review gates. Production status remains **NO-GO**.

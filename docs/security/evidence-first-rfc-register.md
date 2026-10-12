@@ -1,8 +1,8 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
-**Last reviewed:** 2026-10-11  
-**Baseline main commit:** `4b55bcea63a9041ba0a23563ec4f6548032612e1`  
-**Baseline CI:** [Functional checks run 102](https://github.com/Patel5600/PSp/actions/runs/38138830784) passed on the baseline commit. This validates only the commands in that workflow.  
+**Last reviewed:** 2026-10-12  
+**Branch base commit:** `aa4bb8575bf34eeaadf107de3b95bd368bde93af`  
+**CHp4.1 CI:** [review-branch checks](https://github.com/Patel5600/PSp/pull/6/checks); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
 
@@ -24,7 +24,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
 | Authorization | Ringtail adapter contract and research notes | A production adapter, final authorization mode, or signature-verification constraints in an actual ZK backend |
 | ZK proof | Relation targets documented | An instantiated backend, knowledge soundness, zero knowledge, or a complete proof of the composed relation |
-| Mint and ledger | Documentation/test models only | Durable issuance, proof of value binding, duplicate-deposit protection, atomic spent-nullifier uniqueness, fork/reorg recovery |
+| Mint and ledger | CHp4.1 in-memory reference transition model; concurrency/replay tests use injected test doubles | Real deposit adapter, actual issuance/spend proof verification, durable constraints, consensus/finality, crash recovery and fork/reorg safety |
 
 ## Four RFCs
 
@@ -34,6 +34,10 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 | [RFC-02: Spend relation](../theory/spend-relation-spec.md) | **Formal specification draft; NOT PROVEN** | Freeze public statement, witness, common predicates, and authorization alternatives | Select one policy-compatible authorization mode and instantiate a proof backend that proves every predicate over one consistent witness |
 | [RFC-03: Hash circuit comparison](../plan/rfc-03-hash-circuit-benchmark.md) | **Protocol only; NOT RUN** | Prepare reproducible data format and backend adapter boundary | Chosen, pinned backend; validated parameters and equivalent security targets; measured results on a declared machine |
 | [RFC-04: Side-channel diagnostics](rfc-04-side-channel-diagnostics.md) | **Diagnostic plan; NOT CERTIFIED** | Manual non-blocking disassembly and timing diagnostics | Controlled target measurements, whole sensitive-path review, dependency/compiler/target evidence |
+
+## CHp4.1 reference-model boundary
+
+[CHp4.1](../audit/chp4.1-reference-state-transitions.md) adds an in-memory, single-process model that requires injected deposit and proof-verifier callbacks. Its tests exercise replay rejection, duplicate commitments/nullifiers, proof-rejection non-mutation, and concurrent duplicate submissions. Test callbacks are deliberately not cryptographic verifiers. This work models a local linearization point; it does not close the durable-ledger gate or establish issuance value-binding, spend soundness, zero knowledge, consensus safety, or reorg/recovery correctness.
 
 ## P0: issuance privacy and state correctness
 
@@ -49,7 +53,7 @@ Until these conditions are specified and implemented, no live issuance or produc
 
 ## RFC-01 invariant model
 
-The current candidate commitment already includes namespace, public key bytes, value, coin ID, nullifier secret, parameter ID and independent commitment salt. The first regression tests verify primitive-level alternate-opening rejection and nullifier determinism. They are not end-to-end tests of a ZK relation or ledger state machine.
+The current candidate commitment already includes namespace, public key bytes, value, coin ID, nullifier secret, parameter ID and independent commitment salt. The primitive-level regression tests verify alternate-opening rejection and nullifier determinism. CHp4.1 adds state-transition-model tests, but these are still not end-to-end tests of a ZK relation or a durable ledger.
 
 Required eventual protocol tests:
 
@@ -57,7 +61,7 @@ Required eventual protocol tests:
 - A witness with substituted `coin_id` or `r_nf` cannot satisfy the same registered commitment in the spend relation.
 - Ledger value and the value in the opening must be identical; the issuance transition must establish this without revealing the opening.
 - Replaying a deposit cannot mint a second accepted record.
-- Concurrent submissions of one nullifier admit at most one state transition, including documented fork/reorg and recovery rules.
+- Concurrent submissions of one nullifier admit at most one state transition in the local reference model, then in the actual durable/consensus ledger under concurrency, finality, recovery and documented fork/reorg rules.
 - Any signed receipt is bound to the canonical namespace, commitment, value, deposit identifier, protocol version and state transition.
 
 ## RFC-02 acceptance boundary
