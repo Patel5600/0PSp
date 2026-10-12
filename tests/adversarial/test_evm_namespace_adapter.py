@@ -146,6 +146,28 @@ def test_asset_and_deployment_manifest_changes_separate_namespaces() -> None:
     assert baseline != upgraded
     assert baseline != other_asset
 
+def test_asset_epoch_is_required_to_separate_same_address_semantic_upgrade() -> None:
+    rpc = AttackerControlledRpc()
+    original = EvmNamespaceAdapter(make_config(asset_epoch=0), rpc).resolve()
+    upgraded = EvmNamespaceAdapter(make_config(asset_epoch=1), rpc).resolve()
+    assert original.asset_address == upgraded.asset_address
+    assert original.asset_identity != upgraded.asset_identity
+    assert original.namespace_id != upgraded.namespace_id
+
+
+def test_namespace_id_uses_typed_v3_not_plain_bytes() -> None:
+    from src.primitives.namespace import NamespaceId
+
+    binding = EvmNamespaceAdapter(make_config(), AttackerControlledRpc()).resolve()
+    assert binding.namespace_id.__class__.__name__ == "NamespaceIdV3"
+    assert not isinstance(binding.namespace_id, NamespaceId)
+
+
+def test_code_fingerprint_manifest_requires_48_bytes() -> None:
+    with pytest.raises(ValueError, match="expected_protocol_code_fingerprint"):
+        make_config(expected_protocol_code_fingerprint=b"x" * 32)
+
+
 
 class _AlternateAssetRpc:
     def __init__(self, source: AttackerControlledRpc, asset_address: bytes):
