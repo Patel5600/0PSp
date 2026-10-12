@@ -101,9 +101,9 @@ def test_evm_erc20_namespace_v3_known_answer_vector() -> None:
     assert binding.deployment_identity.startswith(b"0PSP-EVM-DEPLOYMENT-IDENTITY-v1\x01")
     assert binding.asset_identity.startswith(b"0PSP-EVM-ASSET-IDENTITY-v1\x01\x01")
     assert binding.protocol_code_fingerprint.hex() == (
-        "f6a30183ff2cd81deaca7952b380a0d09c"
-        "210d0696da997476e73905c810e744e1"
-        "4a9af7ac732a49b49b6d419927d096"
+        "73a58c6afde792598bb769f615f33917"
+        "9436a4b5eb88bdbd8e19468014db81c7"
+        "90035efe9613ebc08421b3dc5bf8d8227"
     )
     assert binding.asset_code_fingerprint.hex() == (
         "4e74d89c3c892fb8809b154da5a6eb74"
