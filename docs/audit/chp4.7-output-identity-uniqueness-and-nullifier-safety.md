@@ -41,6 +41,8 @@ NoteIdentityV3 =
 
 The canonical key bundle binds the authorization scheme and public key to a commitment to the recipient's per-note nullifier-deriving key. This bundle participates in both the V3 commitment opening and V3 nullifier message. Reusing `coin_id` alone is not prohibited and is not proof of a collision. Reusing an accepted source anchor/output slot or reusing the same complete note identity is prohibited by the construction and ledger rules.
 
+**Recipient-address authenticity is also mandatory.** The recipient must create `nk`, verify locally that `KeyCommitV3(nk)` matches the bundle, and authenticate the exact domain-separated bundle with the selected address-authorization key. Every output proof must validate that authentication against the exact bundle committed in the note; the sender must not be able to substitute a new key commitment while retaining the intended recipient's authorization key. Otherwise, the sender could build an output around a key commitment whose opening the recipient does not know, causing an unspendable note without any hash collision. The exact address-signature scheme and canonical signature encoding are blocked on the repository's still-unselected authorization codec; no fake verifier is introduced.
+
 The V3 identity policy intentionally does not require the issuer to receive or compare hidden `coin_id) values in plaintext. It does not claim all hash outputs are injective.
 
 ### 3.2 Recipient-keyed nullifier
@@ -140,7 +142,7 @@ V3 reference functions live in `src/protocol/output_identity.py`. They use SHAKE
 - **Anchor/index only with V2:** helps make repeated derivations difficult to accept, but if the sender sees the output tuple then V2 exposes the future nullifier deterministically to that sender.
 - **V3 keyed nullifier + anchored identity relation + durable one-use ledger:** blocks direct tuple selection/reuse in accepted proofs and stops an output creator from computing the recipient's nullifier from the public output data, conditional on the keyed-PRF and proof-soundness assumptions.
 
-The sender may know the derivation inputs, including the output tuple, and still must not know `nk`. The recipient's `nk` must be generated on the recipient side and delivered to the sender only via the key commitment in BundleV3, never as plaintext. A note protocol still has to bind and encrypt the recovery payload and prevent an adversarial sender from substituting another bundle. Reusing one `nk` across notes could introduce cross-note linkability and is disallowed by this candidate unless a future proof and privacy review explicitly approves it.
+The sender may know the derivation inputs, including the output tuple, and still must not know `nk`. The recipient's `nk` must be generated on the recipient side and delivered to the sender only via the key commitment in BundleV3, never as plaintext. The receiving address must authenticate the exact namespace, params ID, authorization key, and nullifier-key commitment; the output proof must enforce this authentication. A note protocol still has to encrypt the recovery payload and prevent a sender from substituting another bundle. Reusing one `nk` across notes is disallowed by this candidate unless a future proof and privacy review explicitly approves it.
 
 ### 3.6 Same-salt and cross-identity cases
 
@@ -155,17 +157,18 @@ The sender may know the derivation inputs, including the output tuple, and still
 The actual circuit or proof relation must establish a single consistent witness across all of the following. A Python reference check is not an alternative.
 
 1. **Canonical bundle:** the encoded BundleV3 has exactly one valid decode and binds the selected authorization scheme, the canonical authorization public key and the key commitment.
-2. **Commitment opening:** `C = CommitV3(params_id, BundleV3, v, ns, coin_id, r_nf, rho_C)`.
-3. **Recipient key:** the private 48-byte `nk) hashes to the exact `KeyCommitV3(nk)` inside that same BundleV3.
-4. **Nullifier:** `public_nullifier = NullifierV3(ns, BundleV3, coin_id, r_nf, nk)`.
-5. **Input membership/eligibility:** the exact input commitment is in the authenticated state/root and is not already spent under the ledger state being proved.
-6. **Transfer output derivation:** every output `coin_id/r_nf) is derived from the exact consumed input V3 nullifier and parent witness, recipient BundleV3, transaction entropy, global output index and params ID.
-7. **Issuance derivation:** every issuance output identity is derived from the canonical authenticated one-use deposit event, recipient BundleV3, output index and params ID.
-8. **Output binding:** each output tuple, BundleV3, value and salt is bound to exactly one CommitV3; no output may be omitted from the list proved by the transaction digest.
-9. **Authorization and accounting:** the canonical authorization public key approves this transaction; all output values, fee, range/overflow and asset rules satisfy the policy.
-10. **Transaction binding:** the digest is recomputed from the canonical transaction bytes, V3 version, params ID, input nullifier(s), anchors, entropy, output ordering, and every output commitment. The schema must be frozen before implementation.
-11. **No aliasing from alternate encoding:** all lengths and indices are range-checked; no duplicate output indices, duplicate output records or trailing bytes.
-12. **Ledger transition:** the durable ledger atomically consumes each deposit/input anchor and appends the new commitments. Concurrency, process crash, reorg, rollback and recovery preserve exactly the same one-use rules.
+2. **Recipient-address authenticity:** verify a domain-separated recipient signature/authentication token over the exact namespace, params ID and BundleV3 using the selected address-auth suite. The proof must bind this verified statement to the output bundle; signature bytes/encoding and suite must be frozen before implementation.
+3. **Commitment opening:** `C = CommitV3(params_id, BundleV3, v, ns, coin_id, r_nf, rho_C)`.
+4. **Recipient key:** the private 48-byte `nk) hashes to the exact `KeyCommitV3(nk)` inside that same BundleV3.
+5. **Nullifier:** `public_nullifier = NullifierV3(ns, BundleV3, coin_id, r_nf, nk)`.
+6. **Input membership/eligibility:** the exact input commitment is in the authenticated state/root and is not already spent under the ledger state being proved.
+7. **Transfer output derivation:** every output `coin_id/r_nf) is derived from the exact consumed input V3 nullifier and parent witness, recipient BundleV3, transaction entropy, global output index and params ID.
+8. **Issuance derivation:** every issuance output identity is derived from the canonical authenticated one-use deposit event, recipient BundleV3, output index and params ID.
+9. **Output binding:** each output tuple, BundleV3, value and salt is bound to exactly one CommitV3; no output may be omitted from the list proved by the transaction digest.
+10. **Authorization and accounting:** the canonical authorization public key approves this transaction; all output values, fee, range/overflow and asset rules satisfy the policy.
+11. **Transaction binding:** the digest is recomputed from the canonical transaction bytes, V3 version, params ID, input nullifier(s), anchors, entropy, output ordering, and every output commitment. The schema must be frozen before implementation.
+12. **No aliasing from alternate encoding:** all lengths and indices are range-checked; no duplicate output indices, duplicate output records or trailing bytes.
+13. **Ledger transition:** the durable ledger atomically consumes each deposit/input anchor and appends the new commitments. Concurrency, process crash, reorg, rollback and recovery preserve exactly the same one-use rules.
 
 A one-input relation is the only currently scoped transfer candidate; multi-input semantics are not implied. If multiple input/output sections are eventually supported, the protocol needs one canonical global output index and one unambiguous anchor-selection rule.
 
