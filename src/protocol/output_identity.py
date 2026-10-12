@@ -34,6 +34,7 @@ OUTPUT_ID_BYTES = 32
 TRANSACTION_ENTROPY_BYTES = 32
 OUTPUT_INDEX_MAX = (1 << 16) - 1
 OUTPUT_ID_DERIVATION_VERSION = b"\x01"
+OUTPUT_ID_DERIVATION_VERSION_V3 = b"\x03"
 DOMAIN_OUTPUT_COIN_ID = b"0PSP-OUTPUT-COIN-ID-CANDIDATE-v1"
 DOMAIN_OUTPUT_RNF = b"0PSP-OUTPUT-RNF-CANDIDATE-v1"
 
@@ -239,7 +240,7 @@ def derive_output_identity_v3_candidate(
     def encode(domain: bytes) -> bytes:
         return b"".join((
             domain,
-            OUTPUT_ID_DERIVATION_VERSION,
+            OUTPUT_ID_DERIVATION_VERSION_V3,
             len(params_id).to_bytes(2, "little"),
             params_id,
             namespace_id.data,
@@ -298,7 +299,7 @@ def derive_issuance_output_identity_v3_candidate(
     def encode(domain: bytes) -> bytes:
         return b"".join((
             domain,
-            OUTPUT_ID_DERIVATION_VERSION,
+            OUTPUT_ID_DERIVATION_VERSION_V3,
             len(params_id).to_bytes(2, "little"),
             params_id,
             namespace_id.data,
