@@ -29,6 +29,7 @@ from src.primitives.nullifier_v3 import (
     NullifierDerivingKeyV3,
     compute_nullifier_v3,
 )
+from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
 
 OUTPUT_ID_BYTES = 32
@@ -200,7 +201,7 @@ def derive_output_identity_v3_candidate(
     parent_coin_id: ScopedCoinId,
     parent_r_nf: NullifierSecret,
     parent_public_key_bundle: bytes,
-    parent_commitment: bytes,
+    parent_commitment: CoinCommitmentV3,
     parent_nullifier_key: NullifierDerivingKeyV3,
     spend_key_witness: bytes,
     recipient_key_bundle: bytes,
@@ -227,8 +228,8 @@ def derive_output_identity_v3_candidate(
     ):
         raise ValueError("parent_public_key_bundle must be non-empty canonical bytes")
     decode_note_public_key_bundle_v3(parent_public_key_bundle)
-    if not isinstance(parent_commitment, bytes) or len(parent_commitment) != NULLIFIER_BYTES:
-        raise ValueError(f"parent_commitment must be exactly {NULLIFIER_BYTES} bytes")
+    if not isinstance(parent_commitment, CoinCommitmentV3):
+        raise TypeError("parent_commitment must be a CoinCommitmentV3")
     if not isinstance(parent_nullifier_key, NullifierDerivingKeyV3):
         raise TypeError("parent_nullifier_key must be a NullifierDerivingKeyV3")
     if (
@@ -251,8 +252,8 @@ def derive_output_identity_v3_candidate(
             params_id,
             namespace_id.data,
             parent_nullifier,
-            len(parent_commitment).to_bytes(2, "little"),
-            parent_commitment,
+            len(parent_commitment.value).to_bytes(2, "little"),
+            parent_commitment.value,
             parent_coin_id.data,
             parent_r_nf.data,
             len(spend_key_witness).to_bytes(4, "little"),
