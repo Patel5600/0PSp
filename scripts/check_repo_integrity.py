@@ -79,7 +79,7 @@ REQUIRED_TOKENS = {
     ),
     Path("docs/audit/chp4.8-namespace-v2-evm-adapter.md"): (
         "NAMESPACE_V2(L, D, A)",
-        "checkpoint_hash",
+        "checkpoint hash",
         "not a ZK proof",
         "**Production:** **NO-GO**",
     ),
