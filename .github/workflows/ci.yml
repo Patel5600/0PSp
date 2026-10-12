@@ -53,7 +53,7 @@ jobs:
         run: bash scripts/audit_disasm_bzero.sh native/build/libpsp_nullifier.so
 
       - name: Upload wrapper disassembly for review
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nullifier-native-disassembly
           path: native/build/nullifier_native.disasm.txt
