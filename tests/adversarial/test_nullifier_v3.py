@@ -103,7 +103,12 @@ def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt
     # not change the identity-derived nullifier for the same key and tuple.
     cm_a = commit_coin_v3(NS, bundle, 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID)
     cm_b = commit_coin_v3(NS, bundle, 500, COIN, R_NF, bytes([0xA2]) * 36, PARAMS_ID)
+    alternate_bundle = _bundle(KEY, b"another-recipient-auth-key").encode()
+    cm_other_bundle = commit_coin_v3(
+        NS, alternate_bundle, 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID
+    )
     assert cm_a != cm_b
+    assert cm_a != cm_other_bundle
     assert nullifier_a == nullifier_b
     assert verify_coin_opening_v3(
         cm_a, NS, bundle, 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID
@@ -253,6 +258,18 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
         derive_output_identity_v3_candidate(
             output_index=0,
             **{**common, "parent_coin_id": ScopedCoinId(bytes([0x23]) * 32)},
+        ),
+        derive_output_identity_v3_candidate(
+            output_index=0,
+            **{**common, "parent_r_nf": NullifierSecret(bytes([0x34]) * 36)},
+        ),
+        derive_output_identity_v3_candidate(
+            output_index=0,
+            **{**common, "namespace_id": NamespaceId(bytes([0x12]) * 48)},
+        ),
+        derive_output_identity_v3_candidate(
+            output_index=0,
+            **{**common, "params_id": b"other-params"},
         ),
     ]
     assert all(candidate != first for candidate in alternatives)
