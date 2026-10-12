@@ -99,6 +99,10 @@ def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt
     nullifier_a = compute_nullifier_v3(NS, PARAMS_ID, bundle, COIN, R_NF, KEY)
     nullifier_b = compute_nullifier_v3(NS, PARAMS_ID, bundle, COIN, R_NF, KEY)
     assert nullifier_a == nullifier_b
+    # Protocol parameters are part of the V3 nullifier domain.
+    assert compute_nullifier_v3(
+        NS, b"v3-other-suite", bundle, COIN, R_NF, KEY
+    ) != nullifier_a
 
     # Different commitment salts still produce distinct commitments, but do
     # not change the identity-derived nullifier for the same key and tuple.
