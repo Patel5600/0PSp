@@ -1,6 +1,6 @@
 # CHp4.9 — Namespace V3 Direct-Hash Remediation
 
-**Status:** implementation candidate on branch \`namespace-v3-direct-hash\`; production approval is not implied.  
+**Status:** implementation candidate on branch `namespace-v3-direct-hash`; production approval is not implied.  
 **V2 compatibility:** the original Namespace V2 core formula and known-answer test remain frozen.  
 **Current EVM namespace mapping:** direct-hash Namespace V3, not the intermediate-hash mapping in CHp4.8.  
 **Reference ledger:** now requires the typed NamespaceIdV3 value for its configured context and public statements.  
