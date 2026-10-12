@@ -20,9 +20,11 @@ The public namespace is a 48-byte SHAKE256-384 digest of the domain/version and 
 
 The IDs must be canonically mapped from the actual ledger/network instance, deployment instance and asset. No chain-specific adapter or minting contract is implemented yet.
 
-### Coin identity and minting
+### Identity uniqueness and V3 nullifier candidate (CHp4.7)
 
-The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes. The candidate identity is (namespace_id, coin_id), but global hidden-ID uniqueness is under review in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md), not an approved production rule. One-use canonical deposit consumption and duplicate-nullifier rejection are separate obligations. The Python MintRegistryModel is only an in-memory test model.
+The native API still generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes; randomness is not a uniqueness proof. CHp4.7 does not treat `coin_id` alone as a global primary key. It binds output identity to a canonical one-use creation anchor plus a canonical output index, and adds a recipient-keyed V3 nullifier so an output creator who knows `coin_id/r_nf` cannot directly compute the future public nullifier without the recipient-held key.
+
+`src/primitives/nullifier_v3.py` defines the V3 keyed-nullifier and key-commitment reference functions; `src/primitives/coin_commitment_v3.py` defines a separately domain-separated V3 commitment; `src/protocol/note_public_key_bundle_v3.py` defines a strict public-key bundle codec; `src/protocol/output_identity.py` contains issuance/transfer derivation candidates. V2 APIs, formulas and vectors remain unchanged. These references are not a zero-knowledge relation. The circuit must bind `KeyCommitV3(nk)`, BundleV3, the exact commitment opening, the output derivation and public nullifier over one witness. The Python MintRegistryModel remains in-memory and does not enforce production uniqueness.
 
 ### Nullifier V2
 
@@ -72,9 +74,9 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Claim | Evidence | Decision |
 |---|---|---|
 | Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
-| Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; ledger uniqueness open |
-| Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof |
-| Mint-authority privacy | No blind-issuance construction implemented | OPEN: authority that knows coin ID and nullifier secret can match a later public nullifier to its record |
+| Coin-ID generation and output derivation | Native OpenSSL RNG smoke tests plus CHp4.7 issuance/transfer reference vectors | Canonical chain adapter, proof-constrained one-use anchor/global output slot, and joint identity collision analysis remain open |
+| Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof; V3 anchor/nullifier constraints remain unimplemented |
+| Issuer/sender unlinkability | V3 candidate hides future nullifier from creator lacking recipient key; V2 remains unchanged | No end-to-end issuance/privacy proof, recipient key recovery format, or transcript leakage analysis |
 | Nullifier V2 byte agreement | Fixed KAT plus Python/native comparison | Functional checks pass; not a security theorem |
 | Commitment V2 byte agreement | Matching native/Python KAT, native namespace-binding and failure-path tests, opening recomputation and field-substitution tests | Functional checks pass; formal hiding and final binding parameters open |
 | Native source control-flow observations | Fixed widths and public metadata checks | Partial source inspection only |
