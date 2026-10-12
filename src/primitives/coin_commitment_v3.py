@@ -16,6 +16,7 @@ from src.primitives.coin_commitment import (
 )
 from src.primitives.namespace import NAMESPACE_ID_BYTES, SCOPED_COIN_ID_BYTES, NamespaceId, ScopedCoinId
 from src.primitives.nullifier import NULLIFIER_SECRET_BYTES, NullifierSecret
+from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
 
 DOMAIN_COIN_COMMITMENT_V3 = b"0PSP-COIN-COMMIT-v3-SHAKE256"
 COIN_COMMITMENT_V3_VERSION = b"\x03"
@@ -34,6 +35,7 @@ def _encode_commitment_input_v3(
         raise TypeError("namespace_id must be a NamespaceId")
     if not isinstance(public_key_bundle, bytes) or not public_key_bundle:
         raise ValueError("public_key_bundle must be non-empty canonical bytes")
+    decode_note_public_key_bundle_v3(public_key_bundle)
     if len(public_key_bundle) >= (1 << 32):
         raise ValueError("public_key_bundle encoding is too large")
     if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
