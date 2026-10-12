@@ -183,98 +183,13 @@ def verify_output_identity_candidate(
         and hmac.compare_digest(expected.r_nf.data, output_r_nf.data)
     )
 
-# Issuance identity uses the canonical deposit event as its one-use anchor.
-# The deposit ID must come from authenticated chain-adapter evidence; this
-# reference helper cannot establish that the caller supplied a canonical ID.
-DOMAIN_ISSUANCE_COIN_ID = b"0PSP-ISSUANCE-COIN-ID-CANDIDATE-v1"
-DOMAIN_ISSUANCE_RNF = b"0PSP-ISSUANCE-RNF-CANDIDATE-v1"
+# V3 identity derivations are additive candidates; V2/CHp4.6 vectors remain frozen.
 DOMAIN_OUTPUT_COIN_ID_V3 = b"0PSP-OUTPUT-COIN-ID-v3"
 DOMAIN_OUTPUT_RNF_V3 = b"0PSP-OUTPUT-RNF-v3"
 DOMAIN_ISSUANCE_COIN_ID_V3 = b"0PSP-ISSUANCE-COIN-ID-v3"
 DOMAIN_ISSUANCE_RNF_V3 = b"0PSP-ISSUANCE-RNF-v3"
 ISSUANCE_ENTROPY_BYTES = 32
 DEPOSIT_ID_MAX_BYTES = 128
-
-
-def derive_issuance_output_identity_candidate(
-    *,
-    namespace_id: NamespaceId,
-    deposit_id: bytes,
-    recipient_key_bundle: bytes,
-    issuance_entropy: bytes,
-    output_index: int,
-    params_id: bytes,
-) -> OutputIdentityCandidate:
-    """Derive a hidden issuance identity from a one-use deposit anchor.
-
-    The deposit anchor plus canonical output index provides the uniqueness
-    structure. issuance_entropy is private witness material and is not a
-    uniqueness substitute. The issuance proof must bind the exact authenticated
-    deposit ID and each output index to the hidden commitment opening; the
-    ledger must atomically consume the deposit ID.
-
-    This is a reference candidate, not a proof-system constraint or a
-    production minting implementation.
-    """
-    if not isinstance(namespace_id, NamespaceId):
-        raise TypeError("namespace_id must be a NamespaceId")
-    if (
-        not isinstance(deposit_id, bytes)
-        or not 1 <= len(deposit_id) <= DEPOSIT_ID_MAX_BYTES
-    ):
-        raise ValueError(
-            f"deposit_id must be canonical bytes of length 1..{DEPOSIT_ID_MAX_BYTES}"
-        )
-    if (
-        not isinstance(recipient_key_bundle, bytes)
-        or not recipient_key_bundle
-        or len(recipient_key_bundle) >= (1 << 32)
-    ):
-        raise ValueError("recipient_key_bundle must be non-empty canonical bytes")
-    if (
-        not isinstance(issuance_entropy, bytes)
-        or len(issuance_entropy) != ISSUANCE_ENTROPY_BYTES
-    ):
-        raise ValueError(
-            f"issuance_entropy must be exactly {ISSUANCE_ENTROPY_BYTES} bytes"
-        )
-    if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
-        raise ValueError("params_id must be 1..65535 bytes")
-    if (
-        isinstance(output_index, bool)
-        or not isinstance(output_index, int)
-        or not 0 <= output_index <= OUTPUT_INDEX_MAX
-    ):
-        raise ValueError(f"output_index must be an integer in [0, {OUTPUT_INDEX_MAX}]")
-
-    def encode(domain: bytes) -> bytes:
-        return b"".join((
-            domain,
-            OUTPUT_ID_DERIVATION_VERSION,
-            len(params_id).to_bytes(2, "little"),
-            params_id,
-            namespace_id.data,
-            len(deposit_id).to_bytes(2, "little"),
-            deposit_id,
-            len(recipient_key_bundle).to_bytes(4, "little"),
-            recipient_key_bundle,
-            len(issuance_entropy).to_bytes(2, "little"),
-            issuance_entropy,
-            output_index.to_bytes(2, "big"),
-        ))
-
-    coin_id = hashlib.shake_256(
-        encode(DOMAIN_ISSUANCE_COIN_ID)
-    ).digest(OUTPUT_ID_BYTES)
-    r_nf = hashlib.shake_256(
-        encode(DOMAIN_ISSUANCE_RNF)
-    ).digest(NULLIFIER_SECRET_BYTES)
-    assert len(coin_id) == OUTPUT_ID_BYTES
-    assert len(r_nf) == NULLIFIER_SECRET_BYTES
-    return OutputIdentityCandidate(
-        coin_id=ScopedCoinId(coin_id),
-        r_nf=NullifierSecret(r_nf),
-    )
 
 
 def derive_output_identity_v3_candidate(
