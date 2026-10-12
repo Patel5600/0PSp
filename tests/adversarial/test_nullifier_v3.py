@@ -137,6 +137,15 @@ def test_v2_and_v3_primitive_results_are_type_distinct() -> None:
     assert type(cm_v2) is not type(cm_v3)
 
 
+def test_v3_nullifier_rejects_a_v2_commitment_object() -> None:
+    with pytest.raises(TypeError, match="commitment must be a CoinCommitmentV3"):
+        compute_nullifier_v3(
+            NS, PARAMS_ID, _bundle().encode(),
+            CoinCommitmentV2(bytes([0x11]) * 48),  # type: ignore[arg-type]
+            COIN, R_NF, KEY,
+        )
+
+
 def test_different_commitment_salts_produce_different_v3_nullifiers() -> None:
     bundle = _bundle().encode()
     cm_a = _commit(bundle, salt=SALT_A)
@@ -336,6 +345,21 @@ def test_v3_parent_nullifier_key_is_required_for_transfer_derivation() -> None:
 
     bundle = _bundle().encode()
     parent_commitment = _commit(bundle)
+    with pytest.raises(TypeError, match="parent_commitment must be a CoinCommitmentV3"):
+        derive_output_identity_v3_candidate(
+            namespace_id=NS,
+            parent_coin_id=COIN,
+            parent_r_nf=R_NF,
+            parent_public_key_bundle=bundle,
+            parent_commitment=CoinCommitmentV2(bytes([0x11]) * 48),  # type: ignore[arg-type]
+            parent_nullifier_key=KEY,
+            spend_key_witness=b"witness",
+            recipient_key_bundle=bundle,
+            transaction_entropy=bytes(32),
+            output_index=0,
+            params_id=PARAMS_ID,
+        )
+
     with pytest.raises(TypeError, match="parent_nullifier_key"):
         derive_output_identity_v3_candidate(
             namespace_id=NS,
