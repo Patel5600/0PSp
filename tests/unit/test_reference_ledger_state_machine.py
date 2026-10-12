@@ -303,7 +303,8 @@ def test_wrong_namespace_spend_is_rejected_before_spend_verifier() -> None:
         verify_issuance_proof=lambda _statement, _proof: True,
         verify_spend_proof=lambda statement, proof: seen.append(statement) or True,
     )
-    wrong_statement = replace(statement(b"N" * 48), namespace_id=bytes([0x99]) * 48)
+    wrong_namespace = derive_namespace_id_v3(b"wrong-ledger", b"test-deployment", b"test-asset")
+    wrong_statement = replace(statement(b"N" * 48), namespace_id=wrong_namespace)
     with pytest.raises(NamespaceMismatch):
         ledger.accept_spend(statement=wrong_statement, proof=PROOF)
     assert seen == []
