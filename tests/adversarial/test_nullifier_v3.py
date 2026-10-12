@@ -59,6 +59,13 @@ def test_v3_key_commitment_and_nullifier_match_hardcoded_vectors() -> None:
         "d034a0df5df2e09108c8d04adeb20d723af581db88f78c215c664451b6bce065"
         "c0d426aa92070ec7b9b80cb4cdc36971"
     )
+    commitment = commit_coin_v3(
+        NS, bundle.encode(), 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID
+    )
+    assert commitment.value.hex() == (
+        "7c29d710d6a81bed4f3df766421d66fa497072be7513022487eb55c8d4839f82"
+        "a9cf6dd11105ce21602715f0644f99d0"
+    )
 
 
 def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt() -> None:
@@ -132,3 +139,75 @@ def test_v3_is_additive_and_does_not_change_frozen_v2_nullifier() -> None:
     assert compute_nullifier_v3(NS, _bundle(KEY, b"another-recipient-key").encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
         NS, _bundle(KEY, AUTH_PK).encode(), COIN, R_NF, KEY
     )
+
+def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
+    from src.protocol.output_identity import derive_output_identity_v3_candidate
+
+    parent_bundle = NotePublicKeyBundleV3(
+        auth_scheme_id=AUTH_SCHEME,
+        auth_public_key=b"parent-pk",
+        nullifier_key_commitment=compute_nullifier_key_commitment_v3(KEY),
+    ).encode()
+    recipient_key = NullifierDerivingKeyV3(bytes([0x45]) * 48)
+    recipient_bundle = NotePublicKeyBundleV3(
+        auth_scheme_id=AUTH_SCHEME,
+        auth_public_key=b"recipient-pk",
+        nullifier_key_commitment=compute_nullifier_key_commitment_v3(recipient_key),
+    ).encode()
+
+    common = dict(
+        namespace_id=NS,
+        parent_coin_id=COIN,
+        parent_r_nf=R_NF,
+        parent_public_key_bundle=parent_bundle,
+        parent_nullifier_key=KEY,
+        spend_key_witness=b"parent-spend-witness",
+        recipient_key_bundle=recipient_bundle,
+        transaction_entropy=bytes([0x66]) * 32,
+        params_id=b"v3-test-params",
+    )
+    first = derive_output_identity_v3_candidate(output_index=0, **common)
+    assert first.coin_id.data.hex() == (
+        "c4fd5a318771c0b56d1f6150b1c411ac"
+        "74de17d3f66f7d3bf5c2787429064b49"
+    )
+    assert first.r_nf.data.hex() == (
+        "80dc0646e8d7b21883863c90581202c7"
+        "b2d212876c7eae560b50cc43b69afdda7a5aeeae"
+    )
+
+    alternatives = [
+        derive_output_identity_v3_candidate(output_index=1, **common),
+        derive_output_identity_v3_candidate(
+            output_index=0,
+            **{**common, "transaction_entropy": bytes([0x67]) * 32},
+        ),
+        derive_output_identity_v3_candidate(
+            output_index=0,
+            **{**common, "recipient_key_bundle": recipient_bundle + b"x"},
+        ),
+        derive_output_identity_v3_candidate(
+            output_index=0,
+            **{**common, "parent_coin_id": ScopedCoinId(bytes([0x23]) * 32)},
+        ),
+    ]
+    assert all(candidate != first for candidate in alternatives)
+
+
+def test_v3_parent_nullifier_key_is_required_for_transfer_derivation() -> None:
+    from src.protocol.output_identity import derive_output_identity_v3_candidate
+
+    with pytest.raises(TypeError, match="parent_nullifier_key"):
+        derive_output_identity_v3_candidate(
+            namespace_id=NS,
+            parent_coin_id=COIN,
+            parent_r_nf=R_NF,
+            parent_public_key_bundle=_bundle().encode(),
+            parent_nullifier_key=b"not-a-key",  # type: ignore[arg-type]
+            spend_key_witness=b"witness",
+            recipient_key_bundle=_bundle().encode(),
+            transaction_entropy=bytes(32),
+            output_index=0,
+            params_id=PARAMS_ID,
+        )
+
