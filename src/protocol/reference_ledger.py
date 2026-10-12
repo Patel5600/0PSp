@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from threading import RLock
 from typing import Callable
 
+from src.primitives.namespace_v3 import NamespaceIdV3
+
 NAMESPACE_BYTES = 48
 COMMITMENT_BYTES = 48
 NULLIFIER_BYTES = 48
@@ -65,7 +67,7 @@ class DepositAuthorization:
     for the deposit (including any chain-specific output/log index as needed).
     """
 
-    namespace_id: bytes
+    namespace_id: NamespaceIdV3
     deposit_id: bytes
     authorized_value: int
     finalized_anchor: bytes
@@ -157,13 +159,13 @@ class ReferenceLedger:
     def __init__(
         self,
         *,
-        expected_namespace_id: bytes,
+        expected_namespace_id: NamespaceIdV3,
         authorize_deposit: DepositAuthorizer,
         verify_issuance_proof: IssuanceProofVerifier,
         verify_spend_proof: SpendProofVerifier,
     ) -> None:
-        _require_bytes("expected_namespace_id", expected_namespace_id,
-                       min_len=NAMESPACE_BYTES, max_len=NAMESPACE_BYTES)
+        if not isinstance(expected_namespace_id, NamespaceIdV3):
+            raise InvalidInput("expected_namespace_id must be a NamespaceIdV3")
         if not callable(authorize_deposit) or not callable(verify_issuance_proof) or not callable(verify_spend_proof):
             raise TypeError("all authorization and proof-verifier dependencies are required")
         self._expected_namespace_id = expected_namespace_id
@@ -196,8 +198,8 @@ class ReferenceLedger:
         if not isinstance(authorization, DepositAuthorization):
             raise DepositRejected("deposit adapter did not return authenticated deposit facts")
 
-        _require_bytes("authorized namespace_id", authorization.namespace_id,
-                       min_len=NAMESPACE_BYTES, max_len=NAMESPACE_BYTES)
+        if not isinstance(authorization.namespace_id, NamespaceIdV3):
+            raise NamespaceMismatch("deposit authorization must carry a typed NamespaceIdV3")
         if authorization.namespace_id != self._expected_namespace_id:
             raise NamespaceMismatch("authorized deposit belongs to a different configured namespace")
         _require_bytes("authorized deposit_id", authorization.deposit_id, max_len=128)
@@ -220,8 +222,8 @@ class ReferenceLedger:
         if not proof_ok:
             raise ProofRejected("issuance proof rejected")
 
-        deposit_key = (statement.namespace_id, statement.deposit_id)
-        commitment_key = (statement.namespace_id, statement.commitment)
+        deposit_key = (statement.namespace_id.data, statement.deposit_id)
+        commitment_key = (statement.namespace_id.data, statement.commitment)
         with self._lock:
             if deposit_key in self._consumed_deposits:
                 raise DuplicateDeposit("deposit has already been consumed")
@@ -258,8 +260,8 @@ class ReferenceLedger:
         if statement.version != 2:
             raise InvalidInput("only explicitly versioned V2 statements are accepted by this model")
         _require_bytes("params_id", statement.params_id, max_len=65535)
-        _require_bytes("namespace_id", statement.namespace_id,
-                       min_len=NAMESPACE_BYTES, max_len=NAMESPACE_BYTES)
+        if not isinstance(statement.namespace_id, NamespaceIdV3):
+            raise InvalidInput("namespace_id must be a NamespaceIdV3")
         if statement.namespace_id != self._expected_namespace_id:
             raise NamespaceMismatch("spend statement belongs to a different configured namespace")
         _require_bytes("commitment_root", statement.commitment_root, max_len=128)
@@ -285,8 +287,8 @@ class ReferenceLedger:
         if not proof_ok:
             raise ProofRejected("spend proof rejected")
 
-        nullifier_key = (statement.namespace_id, statement.nullifier)
-        output_keys = tuple((statement.namespace_id, item) for item in statement.new_commitments)
+        nullifier_key = (statement.namespace_id.data, statement.nullifier)
+        output_keys = tuple((statement.namespace_id.data, item) for item in statement.new_commitments)
         with self._lock:
             if nullifier_key in self._spent_nullifiers:
                 raise DuplicateNullifier("nullifier has already been accepted")
@@ -307,7 +309,7 @@ class ReferenceLedger:
             return record
 
     @property
-    def expected_namespace_id(self) -> bytes:
+    def expected_namespace_id(self) -> NamespaceIdV3:
         """The fixed 48-byte namespace this reference ledger instance accepts."""
         return self._expected_namespace_id
 
@@ -326,6 +328,8 @@ class ReferenceLedger:
         with self._lock:
             return len(self._spent_nullifiers)
 
-    def contains_commitment(self, namespace_id: bytes, commitment: bytes) -> bool:
+    def contains_commitment(self, namespace_id: NamespaceIdV3, commitment: bytes) -> bool:
+        if not isinstance(namespace_id, NamespaceIdV3):
+            return False
         with self._lock:
-            return (namespace_id, commitment) in self._commitments
+            return (namespace_id.data, commitment) in self._commitments
