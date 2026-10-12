@@ -138,7 +138,7 @@ Candidate relation:
   )
 ```
 
-**Transfer:** the source anchor is the exact V3 public nullifier of the input being consumed. Derivation additionally binds the exact parent tuple, parent bundle, parent key witness, recipient BundleV3, transaction entropy, params ID, and canonical output index.
+**Transfer:** the source anchor is the exact V3 public nullifier of the input being consumed. Derivation additionally binds the exact parent tuple, parent bundle, parent commitment, parent key witness, recipient BundleV3, transaction entropy, params ID, and canonical output index. The supplied parent commitment must be the exact registered commitment whose opening and V3 nullifier are proved by the spend relation.
 
 Candidate relation:
 
@@ -181,9 +181,9 @@ The actual circuit or proof relation must establish a single consistent witness 
 4. **Recipient key:** the private 48-byte `nk` hashes to the exact `KeyCommitV3(nk)` inside that same BundleV3.
 5. **Nullifier:** `public_nullifier = NullifierV3(params_id, ns, BundleV3, C, coin_id, r_nf, nk)`, using the exact `C` opened in predicate 3 and registered under predicate 6.
 6. **Input membership/eligibility:** the exact input commitment is in the authenticated state/root and is not already spent under the ledger state being proved.
-7. **Transfer output derivation:** every output `coin_id/r_nf` is derived from the exact consumed input V3 nullifier and parent witness, recipient BundleV3, transaction entropy, global output index and params ID.
+7. **Transfer output derivation:** every output `coin_id/r_nf` is derived from the exact consumed input V3 nullifier and parent witness, exact parent commitment, recipient BundleV3, transaction entropy, global output index and params ID.
 8. **Issuance derivation:** every issuance output identity is derived from the canonical authenticated one-use deposit event, recipient BundleV3, output index and params ID.
-9. **Output binding:** each output tuple, BundleV3, value and salt is bound to exactly one CommitV3; no output may be omitted from the list proved by the transaction digest.
+9. **Output binding:** each output tuple, BundleV3, value and salt is bound to exactly one CommitV3; the same exact commitment is the input to NullifierV3 when that note is later spent. No output may be omitted from the list proved by the transaction digest.
 10. **Authorization and accounting:** the canonical authorization public key approves this transaction; all output values, fee, range/overflow and asset rules satisfy the policy.
 11. **Transaction binding:** the digest is recomputed from the canonical transaction bytes, V3 version, params ID, input nullifier(s), anchors, entropy, output ordering, and every output commitment. The schema must be frozen before implementation.
 12. **No aliasing from alternate encoding:** all lengths and indices are range-checked; no duplicate output indices, duplicate output records or trailing bytes.
@@ -217,7 +217,7 @@ The intended safety claim is conditional on all of the following:
 - HMAC-SHA3-384 is used as a keyed PRF under an appropriate classical/quantum security model, and SHAKE-based key commitments/identity derivations meet their stated assumptions;
 - V3 public nullifiers are rejected atomically on the canonical ledger, including consensus recovery and reorg handling.
 
-Under these assumptions, changing `rho_C` changes the registered commitment and therefore changes the keyed-nullifier input; a sender who knows the output tuple, commitment and public bundle still lacks `nk` and cannot directly compute the V3 nullifier under the PRF assumption. The output relation separately constrains identity derivation to the one-use anchor and canonical slot. This is not a claim that all distinct hash inputs must yield distinct outputs. It also does not hide transaction amounts, timestamps, network metadata, or public transaction structure on its own.
+Under these assumptions, changing `rho_C` changes the registered commitment and therefore changes the keyed-nullifier input; a sender who knows the output tuple, commitment and public bundle still lacks `nk` and cannot directly compute the V3 nullifier under the PRF assumption. The output relation separately constrains identity derivation to the one-use anchor and canonical slot, and the proof must bind the commitment used for nullifier derivation to the exact commitment membership/opening. This is not a claim that all distinct hash inputs must yield distinct outputs. It also does not hide transaction amounts, timestamps, network metadata, or public transaction structure on its own.
 
 The proof system's actual hash costs matter. HMAC-SHA3-384 may be expensive inside the chosen ZK backend; we have no circuit constraint counts or full prover/verifier measurements. Do not claim feasibility until a pinned backend compiles the relation and benchmarks equivalent security parameters. Alternative keyed PRF candidates can be assessed only as a new versioned design decision, not swapped into this byte contract silently.
 
