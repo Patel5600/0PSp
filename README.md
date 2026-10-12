@@ -35,7 +35,7 @@ The V1 nullifier and commitment helpers remain for historical vectors. They are 
 
 ## Repository integrity and maintenance
 
-The [Repository integrity watch](.github/workflows/repo-integrity-watch.yml) checks local Markdown targets and the deterministic hidden-tuple fixtures on PRs, main pushes and a daily schedule. [Dependabot](.github/dependabot.yml) proposes weekly GitHub Actions and Python dependency updates. These checks are maintenance safeguards, not cryptographic certification.
+The [Repository integrity watch](.github/workflows/repo-integrity-watch.yml) checks local Markdown targets and deterministic hidden-tuple fixtures on PRs, main pushes and a daily schedule. Dependency updates are reviewed deliberately in consolidated maintenance changes rather than spawned automatically as separate PRs. These checks are maintenance safeguards, not cryptographic certification.
 
 Run locally:
 
