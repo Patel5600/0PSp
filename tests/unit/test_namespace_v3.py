@@ -40,6 +40,7 @@ def test_namespace_v2_formula_and_known_type_remain_separate() -> None:
     assert isinstance(v2, NamespaceId)
     assert isinstance(v3, NamespaceIdV3)
     assert v2.data != v3.data
+    assert v2 != NamespaceIdV3(v2.data)
 
 
 @pytest.mark.parametrize("index", [0, 1, 2])
