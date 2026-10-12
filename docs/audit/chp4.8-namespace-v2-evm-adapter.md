@@ -139,6 +139,16 @@ The configured namespace must come from a reviewed/pinned manifest, not a reques
 
 These are deterministic encoding and state-model arguments backed by finite tests, not a mathematical proof that SHAKE256 is injective, not a consensus proof, and not a ZK proof.
 
+### Formal argument and security bounds
+
+**Canonical preimage separation.** Each adapter preimage has a distinct fixed domain tag and version. Its variable semantic choices (native asset vs token asset) use distinct type bytes; all other fields have fixed widths. Therefore, before hashing, changing a field or its type changes the encoded preimage. For the frozen Namespace V2 core, each component is exactly 32 bytes and is preceded by `LE16(32)`, so the tuple-to-preimage encoding is unambiguous. This proves encoding separation only, not digest collision resistance.
+
+**Cross-namespace ledger invariant.** For a ledger instance configured with expected namespace (N^*), `issue()` rejects any authenticated `DepositAuthorization` with namespace other than (N^*) before calling the issuance verifier; `accept_spend()` does the same for the public spend statement before calling the spend verifier. No state mutation occurs on this early rejection. This is a control-flow invariant of the reference model, covered by tests. It does not establish that the callbacks are sound or that an RPC result is true.
+
+**Namespace V2 cannot be mathematically injective.** Its component tuple has (2^{3\cdot256}=2^{768}) possible inputs, while its output is 48 bytes, i.e. at most (2^{384}) distinct values. By the pigeonhole principle, at least one output has at least (2^{384}) distinct component tuples mapping to it. The mapping therefore cannot be injective as a matter of mathematics, regardless of which hash is used. This does not imply that finding a useful collision is easy; that is a computational claim and depends on the valid-input space and attacker control.
+
+**Post-quantum collision-budget caveat.** This adapter maps identity components to 32-byte (256-bit) digests before the frozen 48-byte Namespace V2 function consumes them. Under an idealized generic quantum collision-search model, a 256-bit hash has BHT-style collision-query scale about (2^{256/3}\approx2^{85.3}), rather than the classical birthday scale (2^{128}). This is not a concrete attack estimate for the restricted EVM manifest domain, and it is not a formal reduction for this adapter. It is nevertheless below a nominal 128-bit quantum collision target, so the project must not claim 128-bit post-quantum collision resistance for the whole namespace mapping solely from its 48-byte final output. The frozen V2 input widths cannot be silently widened here; if the threat model requires that stronger bound, a separately versioned wider-component namespace design is required before production.
+
 ### Trust and protocol assumptions
 
 - The manifest (chain ID, genesis/checkpoint, contract addresses, code fingerprints and deployment epoch) was obtained and reviewed independently. Checkpoint and code fingerprints validate what the node serves; they intentionally do not define the namespace, so operators need not choose the same inspection checkpoint to agree on the logical chain.
