@@ -13,6 +13,7 @@ Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs
 - [RFC-02: formal spend relation](docs/theory/spend-relation-spec.md) is a design draft, not an instantiated or proven proof relation.
 - [RFC-03: hash/circuit benchmark](docs/plan/rfc-03-hash-circuit-benchmark.md) has no measured results because the backend is not instantiated.
 - [RFC-04: side-channel diagnostics](docs/security/rfc-04-side-channel-diagnostics.md) is non-blocking evidence collection, not constant-time certification.
+- [CHp4.1: issuance/spend reference state transitions](docs/audit/chp4.1-reference-state-transitions.md) adds a test-only in-memory state model; injected verifier stubs do not implement or prove the cryptographic relations.
 
 ## Active V2 construction target
 

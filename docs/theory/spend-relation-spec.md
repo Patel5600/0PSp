@@ -56,7 +56,7 @@ An accepting proof must establish all common predicates:
 
 1. **Canonical statement:** reject noncanonical encodings, invalid values, inconsistent versions, unknown parameter IDs and malformed state roots.
 2. **Membership:** the selected `C_j` is a valid member of `commitment_root`; the hidden index/path and leaf refer to that same commitment.
-3. **Commitment opening:** recompute the V2 commitment using the exact `namespace_id`, scheme-canonical `pk_j`, value, `coin_id`, `r_nf`, `rho_C`, and `params_id`. The result must equal `C_j).
+3. **Commitment opening:** recompute the V2 commitment using the exact `namespace_id`, scheme-canonical `pk_j`, value, `coin_id`, `r_nf`, `rho_C`, and `params_id`. The result must equal `C_j`.
 4. **Nullifier consistency:** recompute V2 nullifier from the same public namespace, `coin_id`, and `r_nf`; it must equal `public_nullifier`.
 5. **Transaction binding:** constrain all fields that define the transaction, value conservation, fees, recipients/outputs and policy. Recompute or constrain `transaction_digest` to the canonical transaction fields. Adding the digest as an unused public input is not sufficient.
 6. **State/policy eligibility:** the coin satisfies the rules of the authenticated state and spend policy. Membership proof alone does not prove unspent status; the ledger must reject duplicate public nullifiers atomically.
@@ -69,19 +69,19 @@ This relation is a design target. None of these eight predicates has yet been pr
 
 ### Mode A — committee/threshold-signature authorization
 
-Witness includes the committee signature `sigma_th). The relation must establish:
+Witness includes the committee signature `sigma_th`. The relation must establish:
 
 ```text
 Verify_ChosenThresholdScheme(pk_j, transaction_digest, sigma_th) = 1
 ```
 
-The exact scheme, parameters, public-key codec, key-generation model, threshold policy and signature encoding must be pinned. The verification must use the very same `pk_j` committed by `C_j), and it must authenticate the exact canonical transaction digest.
+The exact scheme, parameters, public-key codec, key-generation model, threshold policy and signature encoding must be pinned. The verification must use the very same `pk_j` committed by `C_j`, and it must authenticate the exact canonical transaction digest.
 
 If committee approval is a protocol requirement, this authorization predicate cannot be dropped merely to reduce circuit cost. Verifying a lattice signature inside the selected proof system may be expensive; its actual cost is unknown until the exact circuit/backend is implemented and measured.
 
 ### Mode B — self-spend key-knowledge authorization
 
-A candidate relation proves that the wallet knows a scheme-specific secret-key witness related to `pk_j), while the same proof constrains the exact transaction fields and state transition being authorized.
+A candidate relation proves that the wallet knows a scheme-specific secret-key witness related to `pk_j`, while the same proof constrains the exact transaction fields and state transition being authorized.
 
 The key relation must be defined for the chosen scheme, for example as a relation over valid key-generation/secret-key encodings. It is **not** a generic assertion that an arbitrary byte string is a preimage of `pk_j`.
 
@@ -143,11 +143,11 @@ Listing assumptions is not a composition theorem. No proof backend, formal reduc
 | Submit same deposit twice | Ledger admits at most one issuance transition |
 | Use unversioned/legacy nullifier as V2 | Reject |
 
-The tests for the current hash primitives cover only opening recomputation and deterministic nullifier behavior. End-to-end negative proof and ledger tests cannot pass until those components exist; they must not be replaced with fake/mock “security proof” tests.
+The tests for the current hash primitives cover only opening recomputation and deterministic nullifier behavior. CHp4.1 adds an in-memory reference transition model with injected test doubles; its replay/concurrency tests are not end-to-end negative proof tests and do not establish durable ledger safety. End-to-end negative proof and durable-ledger tests remain blocked until those components exist; they must not be replaced with fake/mock “security proof” tests.
 
 ## 9. Implementation status
 
 Implemented: component hash/encoding functions and native/reference known-answer tests.  
-Not implemented: issuance relation/backend, proof relation, proof backend, selected authorization policy/adapter, durable ledger, and composed proof.
+Not implemented: cryptographic issuance verifier/relation backend, instantiated spend proof relation/backend, selected authorization policy/adapter, durable ledger, and composed proof. The CHp4.1 in-memory reference transition model is not a production ledger.
 
 **Decision: specification work may continue; production implementation remains NO-GO.**
