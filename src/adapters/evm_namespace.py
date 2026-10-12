@@ -16,7 +16,6 @@ import hmac
 import json
 import math
 import re
-import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
@@ -33,8 +32,9 @@ EVM_ADDRESS_BYTES = 20
 EVM_HASH_BYTES = 32
 EVM_CHAIN_ID_MAX = (1 << 256) - 1
 EVM_BLOCK_NUMBER_MAX = (1 << 64) - 1
-MAX_RPC_RESPONSE_BYTES = 1_100_000
 MAX_RUNTIME_CODE_BYTES = 1_000_000
+# Runtime code is returned as hex, which expands each byte to two characters.
+MAX_RPC_RESPONSE_BYTES = (2 * MAX_RUNTIME_CODE_BYTES) + 100_000
 
 DOMAIN_EVM_LEDGER_COMPONENT = b"0PSP-EVM-LEDGER-COMPONENT-v1-SHAKE256"
 DOMAIN_EVM_DEPLOYMENT_COMPONENT = b"0PSP-EVM-DEPLOYMENT-COMPONENT-v1-SHAKE256"
@@ -398,7 +398,8 @@ class EvmNamespaceAdapter:
         else:
             # Type 1 means an ERC-20-like token contract; token symbols/tickers
             # are deliberately not part of identity.
-            assert asset_fingerprint is not None
+            if asset_fingerprint is None:
+                raise EvmNamespaceError("token asset fingerprint was not resolved")
             asset_payload = ledger_id + b"\x01" + config.asset_address + asset_fingerprint
         asset_id = _shake_component(DOMAIN_EVM_ASSET_COMPONENT, asset_payload)
 
