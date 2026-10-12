@@ -200,6 +200,10 @@ class JsonRpcClient:
         if not isinstance(endpoint, str) or not endpoint:
             raise ValueError("endpoint must be a non-empty URL")
         parsed = urlsplit(endpoint)
+        try:
+            parsed.port
+        except ValueError:
+            raise ValueError("endpoint has an invalid port") from None
         if (
             parsed.scheme not in ("https", "http")
             or not parsed.hostname
@@ -245,7 +249,12 @@ class JsonRpcClient:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             raise EvmRpcError(f"JSON-RPC returned invalid JSON for {method}") from None
-        if not isinstance(payload, dict) or payload.get("jsonrpc") != "2.0" or payload.get("id") != 1:
+        if (
+            not isinstance(payload, dict)
+            or payload.get("jsonrpc") != "2.0"
+            or type(payload.get("id")) is not int
+            or payload.get("id") != 1
+        ):
             raise EvmRpcError(f"JSON-RPC envelope mismatch for {method}")
         if "error" in payload:
             error = payload["error"]
