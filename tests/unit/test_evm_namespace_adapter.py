@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import json
-from unittest.mock import patch
 
 import pytest
 
@@ -117,7 +116,6 @@ def test_resolver_checks_expected_chain_checkpoint_and_runtime_code() -> None:
 
 
 
-
 def test_checkpoint_is_verified_but_does_not_split_logical_chain_namespace() -> None:
     _, _, base_adapter = build_adapter()
     base = base_adapter.resolve()
@@ -167,6 +165,53 @@ def test_deployment_epoch_is_explicit_namespace_separation_for_upgrade_governanc
     _, _, first_adapter = build_adapter(deployment_epoch=0)
     _, _, next_adapter = build_adapter(deployment_epoch=1)
     assert first_adapter.resolve().namespace_id != next_adapter.resolve().namespace_id
+
+
+def test_chain_id_is_part_of_ledger_component_identity() -> None:
+    _, _, base_adapter = build_adapter()
+    base = base_adapter.resolve()
+
+    chain_id = 30_000
+    config = EvmNamespaceConfig(
+        chain_id=chain_id,
+        genesis_hash=GENESIS,
+        checkpoint_block_number=CHECKPOINT_HEIGHT,
+        checkpoint_hash=CHECKPOINT_HASH,
+        protocol_address=PROTOCOL_ADDRESS,
+        expected_protocol_code_fingerprint=runtime_code_fingerprint(PROTOCOL_CODE),
+        asset_address=ASSET_ADDRESS,
+        expected_asset_code_fingerprint=runtime_code_fingerprint(ASSET_CODE),
+    )
+    rpc = FakeRpc(
+        chain_id=chain_id,
+        code_by_address={PROTOCOL_ADDRESS: PROTOCOL_CODE, ASSET_ADDRESS: ASSET_CODE},
+    )
+    alternate = EvmNamespaceAdapter(config, rpc).resolve()
+    assert alternate.ledger_id != base.ledger_id
+    assert alternate.namespace_id != base.namespace_id
+
+
+def test_protocol_address_is_part_of_deployment_component_identity() -> None:
+    _, _, base_adapter = build_adapter()
+    base = base_adapter.resolve()
+
+    protocol_address = b"\x44" * 20
+    config = EvmNamespaceConfig(
+        chain_id=CHAIN_ID,
+        genesis_hash=GENESIS,
+        checkpoint_block_number=CHECKPOINT_HEIGHT,
+        checkpoint_hash=CHECKPOINT_HASH,
+        protocol_address=protocol_address,
+        expected_protocol_code_fingerprint=runtime_code_fingerprint(PROTOCOL_CODE),
+        asset_address=ASSET_ADDRESS,
+        expected_asset_code_fingerprint=runtime_code_fingerprint(ASSET_CODE),
+    )
+    rpc = FakeRpc(
+        code_by_address={protocol_address: PROTOCOL_CODE, ASSET_ADDRESS: ASSET_CODE},
+    )
+    alternate = EvmNamespaceAdapter(config, rpc).resolve()
+    assert alternate.deployment_id != base.deployment_id
+    assert alternate.namespace_id != base.namespace_id
 
 
 @pytest.mark.parametrize("kwargs", [
