@@ -25,7 +25,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 | Authorization | Ringtail adapter contract and research notes | A production adapter, final authorization mode, or signature-verification constraints in an actual ZK backend |
 | ZK proof | Relation targets documented | An instantiated backend, knowledge soundness, zero knowledge, or a complete proof of the composed relation |
 | Mint and ledger | CHp4.1 in-memory reference transition model; concurrency/replay tests use injected test doubles | Real deposit adapter, actual issuance/spend proof verification, durable constraints, consensus/finality, crash recovery and fork/reorg safety |
-| Hidden coin-ID uniqueness | Protocol names (namespace, coin_id) as identity while issuer-private minting hides coin_id | Proof/registry mechanism that detects a reused hidden ID without disclosing it, or revised identity semantics |
+| CHp4.7 identity/nullifier policy | New candidate: one-use anchor + canonical output slot; recipient-keyed V3 nullifier and canonical key bundle; V3 commitment and known-answer tests | No proof backend, recipient-key encryption/recovery, durable ledger or measured circuit cost; V3 policy not production-enforced |
 
 ## Four RFCs
 
@@ -40,9 +40,9 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 [CHp4.1](../audit/chp4.1-reference-state-transitions.md) adds an in-memory, single-process model that requires injected deposit and proof-verifier callbacks. Its tests exercise replay rejection, duplicate commitments/nullifiers, proof-rejection non-mutation, and concurrent duplicate submissions. Test callbacks are deliberately not cryptographic verifiers. This work models a local linearization point; it does not close the durable-ledger gate or establish issuance value-binding, spend soundness, zero knowledge, consensus safety, or reorg/recovery correctness.
 
-## CHp4.2 formal relation and adversarial test boundary
+## CHp4.2–CHp4.7 formal relation, identity policy and adversarial boundaries
 
-[CHp4.2](../audit/chp4.2-formal-relations-adversarial-tests.md) records the exact current V2 commitment/nullifier preimages and formal R_mint/R_spend targets. `tests/adversarial/test_v2_witness_substitutions.py` uses real reference primitives for finite-vector substitution cases; `tests/adversarial/test_issuance_replay.py` uses a test-double verifier to check local deposit replay handling. Merkle-path/index tests remain blocked until the tree suite/encoding is frozen, and reorg tests remain blocked until real adapter/finality/recovery semantics exist. A further open decision is global hidden coin-ID uniqueness. CHp4.3 evaluates whether it is necessary for monetary soundness and separately records the same-(coin_id, r_nf) nullifier-collision/unspendability risk. Do not treat this policy as resolved until an approved identity decision and recipient/output analysis exist.
+[CHp4.2](../audit/chp4.2-formal-relations-adversarial-tests.md) records the exact frozen V2 commitment/nullifier preimages and formal R_mint/R_spend targets. `tests/adversarial/test_v2_witness_substitutions.py` uses real reference primitives for finite-vector substitution cases; `tests/adversarial/test_issuance_replay.py` uses a test-double verifier to check local deposit replay handling. [CHp4.7](../audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md) now specifies that `coin_id` alone is not an identity key, adds a recipient-keyed V3 nullifier and one-use-anchor/output-slot candidate, and records the required single-witness proof constraints. This supersedes the prior open policy decision in CHp4.3; however, the policy is not yet circuit- or ledger-enforced. Do not treat a passing reference test as proof-system soundness or global injectivity. Merkle-path/index, transaction digest, reorg, recipient key delivery/recovery, and durable state-transition tests remain blocked on the corresponding canonical schema/backend/adapter implementation.
 
 ## P0: issuance privacy and state correctness
 
