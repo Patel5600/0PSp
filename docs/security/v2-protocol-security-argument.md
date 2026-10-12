@@ -4,9 +4,7 @@
 
 ## 1. Namespace format
 
-A namespace is the tuple (ledger_id, deployment_id, asset_id). Each component is exactly 32 canonical bytes. Chain-specific adapters must define an injective mapping from real identifiers into these byte strings. Do not use display names, token tickers, ambiguous strings, or a chain identifier that fails to distinguish separate ledger instances.
-
-The V2 namespace identifier is 48 bytes:
+Namespace V2 is the frozen compatibility core over the tuple (ledger_id, deployment_id, asset_id). Each input component is exactly 32 bytes. The core formula is:
 
     namespace_id = SHAKE256-384(
       "0PSP-NAMESPACE-v2-SHAKE256" || 0x02 ||
@@ -14,9 +12,13 @@ The V2 namespace identifier is 48 bytes:
       uint16_le(32) || deployment_id[32] ||
       uint16_le(32) || asset_id[32])
 
-The fixed-width input contracts and domain/version prefix make the byte encoding unambiguous. The 48-byte output is intentionally not truncated to 32 bytes. A 384-bit output has generic quantum collision-search cost on the order of 2^128 oracle queries under the usual BHT-style model, not 192-bit quantum collision security. This estimate is conditional on an idealized oracle model, not a proof of SHAKE's concrete security in this protocol.
+Its fixed-width input contract and domain/version prefix make the encoding unambiguous. The core hashes this tuple once to 48 bytes. Under an idealized quantum random-oracle model, a generic collision search against that 384-bit output has BHT-style query scale about 2^128, not 192-bit quantum collision security. This is a conditional generic-model estimate, not a proof of SHAKE's concrete security in this protocol.
 
-**Still open:** the core primitive has no chain-specific adapter or live minting contract. Real ledger/network, deployment and asset identifiers must be canonically mapped to the three inputs above before any production use.
+**Composition warning:** that 2^128 estimate applies to the V2 core when the three 32-byte values are already the canonical components. It does not repair collisions introduced by an adapter that first compresses larger real-world identity descriptors to 256-bit component digests. Such an intermediate 256-bit hash has generic BHT-style collision-query scale about 2^85.3; a collision in a component can then yield the same final namespace while the other descriptors stay fixed. CHp4.8's first EVM adapter used that composition and is now historical/superseded.
+
+The current EVM adapter uses typed Namespace V3 instead. It keeps the full canonical chain/deployment/asset descriptors and hashes the length-prefixed tuple directly to one 48-byte SHAKE256-384 output, with no intermediate 256-bit identity digest. See [CHp4.9](../audit/chp4.9-namespace-v3-direct-hash-remediation.md) for exact encodings and proof assumptions. V2's formula and known-answer tests remain frozen.
+
+**Production remains NO-GO:** JSON-RPC manifest checks do not prove chain consensus; authenticated deposits, a durable consensus ledger, the actual issuance/spend proof binding and finality/reorg behavior remain incomplete.
 
 ## 2. Coin ID and mint-identity policy (under review)
 
