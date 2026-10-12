@@ -83,6 +83,44 @@ def verify_nullifier_key_commitment_v3(
     return hmac.compare_digest(commitment.value, expected.value)
 
 
+def _validate_canonical_bundle_v3(encoded: bytes) -> None:
+    """Validate the V3 bundle wire shape without importing the protocol module.
+
+    The bundle parser lives in the protocol layer and imports this module for
+    key-commitment types; keeping this primitive boundary cycle-free requires a
+    strict local shape check. The circuit must enforce the same canonical codec.
+    """
+    if not isinstance(encoded, bytes):
+        raise TypeError("public_key_bundle must be bytes")
+    prefix = b"0PSP-NOTE-PK-BUNDLE-v3" + b"\x03"
+    if not encoded.startswith(prefix):
+        raise ValueError("invalid V3 note-public-key bundle domain/version")
+    offset = len(prefix)
+
+    def read_length(width: int, field: str) -> int:
+        nonlocal offset
+        if len(encoded) - offset < width:
+            raise ValueError(f"truncated {field} length")
+        value = int.from_bytes(encoded[offset:offset + width], "little")
+        offset += width
+        return value
+
+    def skip(length: int, field: str) -> None:
+        nonlocal offset
+        if length <= 0 or len(encoded) - offset < length:
+            raise ValueError(f"invalid or truncated {field}")
+        offset += length
+
+    skip(read_length(2, "auth_scheme_id"), "auth_scheme_id")
+    skip(read_length(4, "auth_public_key"), "auth_public_key")
+    key_commitment_length = read_length(2, "nullifier_key_commitment")
+    if key_commitment_length != NULLIFIER_KEY_COMMITMENT_V3_BYTES:
+        raise ValueError("nullifier_key_commitment must be exactly 48 bytes")
+    skip(key_commitment_length, "nullifier_key_commitment")
+    if offset != len(encoded):
+        raise ValueError("trailing bytes in V3 note-public-key bundle")
+
+
 def _nullifier_v3_message(
     namespace_id: NamespaceId,
     public_key_bundle: bytes,
@@ -93,6 +131,7 @@ def _nullifier_v3_message(
         raise TypeError("namespace_id must be a NamespaceId")
     if not isinstance(public_key_bundle, bytes) or not public_key_bundle:
         raise ValueError("public_key_bundle must be non-empty canonical bytes")
+    _validate_canonical_bundle_v3(public_key_bundle)
     if len(public_key_bundle) >= (1 << 32):
         raise ValueError("public_key_bundle encoding is too large")
     if not isinstance(coin_id, ScopedCoinId):
