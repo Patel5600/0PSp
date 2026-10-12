@@ -9,15 +9,21 @@ from __future__ import annotations
 import pytest
 
 from src.primitives.namespace import NamespaceId, ScopedCoinId
-from src.primitives.nullifier import NullifierSecret, compute_nullifier_v2
+from src.primitives.nullifier import NullifierSecret, Nullifier as NullifierV2, compute_nullifier_v2
 from src.primitives.nullifier_v3 import (
     NullifierDerivingKeyV3,
     NullifierKeyCommitmentV3,
     compute_nullifier_key_commitment_v3,
     compute_nullifier_v3,
+    NullifierV3,
     verify_nullifier_key_commitment_v3,
 )
-from src.primitives.coin_commitment_v3 import commit_coin_v3
+from src.primitives.coin_commitment import CoinCommitment as CoinCommitmentV2
+from src.primitives.coin_commitment_v3 import (
+    CoinCommitmentV3,
+    commit_coin_v3,
+    verify_coin_opening_v3,
+)
 from src.protocol.note_public_key_bundle_v3 import (
     NotePublicKeyBundleV3,
     decode_note_public_key_bundle_v3,
@@ -68,6 +74,25 @@ def test_v3_key_commitment_and_nullifier_match_hardcoded_vectors() -> None:
     )
 
 
+def test_v2_and_v3_primitive_results_are_type_distinct() -> None:
+    ns_v2 = NamespaceId(bytes.fromhex(
+        "04c0037350b1b2551c5b7f8b19642abd"
+        "e118113083130340a0986aacfaad3d7d"
+        "38c96dac07c80e9c3d45e0a1111279d2"
+    ))
+    nf_v2 = compute_nullifier_v2(ns_v2, ScopedCoinId(bytes(range(32))), NullifierSecret(bytes(range(36))))
+    nf_v3 = compute_nullifier_v3(NS, _bundle().encode(), COIN, R_NF, KEY)
+    cm_v2 = CoinCommitmentV2(bytes([0x11]) * 48)
+    cm_v3 = commit_coin_v3(NS, _bundle().encode(), 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID)
+
+    assert isinstance(nf_v2, NullifierV2)
+    assert isinstance(nf_v3, NullifierV3)
+    assert type(nf_v2) is not type(nf_v3)
+    assert isinstance(cm_v2, CoinCommitmentV2)
+    assert isinstance(cm_v3, CoinCommitmentV3)
+    assert type(cm_v2) is not type(cm_v3)
+
+
 def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt() -> None:
     bundle = _bundle().encode()
     nullifier_a = compute_nullifier_v3(NS, bundle, COIN, R_NF, KEY)
@@ -80,6 +105,12 @@ def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt
     cm_b = commit_coin_v3(NS, bundle, 500, COIN, R_NF, bytes([0xA2]) * 36, PARAMS_ID)
     assert cm_a != cm_b
     assert nullifier_a == nullifier_b
+    assert verify_coin_opening_v3(
+        cm_a, NS, bundle, 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID
+    )
+    assert not verify_coin_opening_v3(
+        cm_a, NS, bundle, 501, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID
+    )
 
 
 def test_same_tuple_with_another_recipient_key_does_not_reuse_nullifier() -> None:
