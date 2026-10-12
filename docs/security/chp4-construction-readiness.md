@@ -76,7 +76,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
 | Coin-ID generation and output derivation | Native OpenSSL RNG smoke tests plus CHp4.7 issuance/transfer reference vectors | Canonical chain adapter, proof-constrained one-use anchor/global output slot, and joint identity collision analysis remain open |
 | Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof; V3 anchor/nullifier constraints remain unimplemented |
-| Issuer/sender unlinkability | V3 candidate hides future nullifier from creator lacking recipient key; V2 remains unchanged | No end-to-end issuance/privacy proof, recipient key recovery format, or transcript leakage analysis |
+| Issuer/sender unlinkability | V3 candidate hides future nullifier from creator lacking recipient key; V2 remains unchanged | No end-to-end issuance/privacy proof, recipient address-auth signature/verification, recipient key recovery format, or transcript leakage analysis |
 | Nullifier V2 byte agreement | Fixed KAT plus Python/native comparison | Functional checks pass; not a security theorem |
 | Commitment V2 byte agreement | Matching native/Python KAT, native namespace-binding and failure-path tests, opening recomputation and field-substitution tests | Functional checks pass; formal hiding and final binding parameters open |
 | Native source control-flow observations | Fixed widths and public metadata checks | Partial source inspection only |
