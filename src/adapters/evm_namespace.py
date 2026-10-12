@@ -323,12 +323,44 @@ def _hex_quantity(value: int) -> str:
     return hex(value)
 
 
-def _shake_component(domain: bytes, payload: bytes) -> bytes:
-    result = hashlib.shake_256(
-        domain + EVM_ADAPTER_ENCODING_VERSION + payload
-    ).digest(NAMESPACE_COMPONENT_BYTES)
-    assert len(result) == NAMESPACE_COMPONENT_BYTES
-    return result
+def _canonical_evm_identities(
+    config: EvmNamespaceConfig,
+    genesis_hash: bytes,
+) -> tuple[bytes, bytes, bytes]:
+    """Encode identity descriptors directly; do not hash any descriptor first."""
+    ledger_identity = (
+        DOMAIN_EVM_LEDGER_IDENTITY
+        + EVM_IDENTITY_ENCODING_VERSION
+        + config.chain_id.to_bytes(32, "big")
+        + genesis_hash
+    )
+    deployment_identity = (
+        DOMAIN_EVM_DEPLOYMENT_IDENTITY
+        + EVM_IDENTITY_ENCODING_VERSION
+        + config.protocol_address
+        + config.deployment_epoch.to_bytes(8, "big")
+    )
+    if config.asset_address is None:
+        asset_type = b"\x00"
+        asset_address = b""
+    else:
+        asset_type = b"\x01"
+        asset_address = config.asset_address
+    asset_identity = (
+        DOMAIN_EVM_ASSET_IDENTITY
+        + EVM_IDENTITY_ENCODING_VERSION
+        + asset_type
+        + asset_address
+        + config.asset_epoch.to_bytes(8, "big")
+    )
+    for name, value in (
+        ("ledger_identity", ledger_identity),
+        ("deployment_identity", deployment_identity),
+        ("asset_identity", asset_identity),
+    ):
+        if not 1 <= len(value) <= NAMESPACE_V3_COMPONENT_MAX_BYTES:
+            raise EvmNamespaceError(f"{name} exceeds the Namespace V3 input bound")
+    return ledger_identity, deployment_identity, asset_identity
 
 
 class EvmNamespaceAdapter:
@@ -408,37 +440,18 @@ class EvmNamespaceAdapter:
             ):
                 raise EvmIdentityMismatch("asset runtime code does not match the pinned fingerprint")
 
-        # The inner component digests are exactly 32 bytes because the frozen
-        # Namespace V2 primitive requires three 32-byte canonical components.
-        # Checkpoint is verification-only: arbitrary operator checkpoints must
-        # not split a single logical chain into different namespace IDs.
-        ledger_payload = config.chain_id.to_bytes(32, "big") + genesis_hash
-        ledger_id = _shake_component(DOMAIN_EVM_LEDGER_COMPONENT, ledger_payload)
-
-        # The independently pinned code fingerprint authenticates the observed
-        # deployment. Semantic upgrades require an explicit epoch change rather
-        # than silently changing namespaces when an operator refreshes a hash.
-        deployment_payload = (
-            ledger_id
-            + config.protocol_address
-            + config.deployment_epoch.to_bytes(8, "big")
+        # Checkpoint and code fingerprints authenticate this RPC view, but
+        # identity is encoded from the full chain/deployment/asset descriptors.
+        # No 256-bit intermediate hash participates in namespace derivation.
+        ledger_identity, deployment_identity, asset_identity = _canonical_evm_identities(
+            config,
+            genesis_hash,
         )
-        deployment_id = _shake_component(DOMAIN_EVM_DEPLOYMENT_COMPONENT, deployment_payload)
-
-        if config.asset_address is None:
-            # Type 0 means this chain's native asset. It is distinct from any
-            # token contract, even if someone gives that token a familiar ticker.
-            asset_payload = ledger_id + b"\x00"
-        else:
-            # Type 1 means an ERC-20-like token contract; token symbols/tickers
-            # are deliberately not part of identity.
-            # Runtime code is verified above but asset identity is the canonical
-            # chain-scoped contract address. Token upgrades do not create a new
-            # asset namespace merely because an operator pins new expected code.
-            asset_payload = ledger_id + b"\x01" + config.asset_address
-        asset_id = _shake_component(DOMAIN_EVM_ASSET_COMPONENT, asset_payload)
-
-        namespace_id = derive_namespace_id(ledger_id, deployment_id, asset_id)
+        namespace_id = derive_namespace_id_v3(
+            ledger_identity,
+            deployment_identity,
+            asset_identity,
+        )
         return EvmNamespaceBinding(
             namespace_id=namespace_id,
             chain_id=config.chain_id,
@@ -450,7 +463,8 @@ class EvmNamespaceAdapter:
             asset_address=config.asset_address,
             asset_code_fingerprint=asset_fingerprint,
             deployment_epoch=config.deployment_epoch,
-            ledger_id=ledger_id,
-            deployment_id=deployment_id,
-            asset_id=asset_id,
+            asset_epoch=config.asset_epoch,
+            ledger_identity=ledger_identity,
+            deployment_identity=deployment_identity,
+            asset_identity=asset_identity,
         )
