@@ -104,7 +104,7 @@ A deterministic fixture at `tests/fixtures/hidden_tuple_reuse.json` and `tests/a
 
 ## Repository maintenance watch
 
-The non-certifying [Repository integrity watch](../../.github/workflows/repo-integrity-watch.yml) runs on pull requests, pushes to `main`, manual dispatch and daily schedule. It checks repository-local Markdown targets, active release-gate markers and invariant fixtures. [Dependabot](../../.github/dependabot.yml) proposes weekly GitHub Actions/Python updates. Review every update; no cryptographic/toolchain changes should be auto-merged. The watch does not verify external URLs or cryptographic claims.
+The non-certifying [Repository integrity watch](../../.github/workflows/repo-integrity-watch.yml) runs on pull requests, pushes to `main`, manual dispatch and daily schedule. It checks repository-local Markdown targets, active release-gate markers and invariant fixtures. Dependency updates are reviewed deliberately in consolidated maintenance changes; automated update-PR generation is disabled to avoid branch/PR churn. No cryptographic or toolchain change is auto-merged. The watch does not verify external URLs or cryptographic claims.
 
 ## Release gate (all mandatory)
 
