@@ -87,7 +87,7 @@ REQUIRED_TOKENS = {
     Path("docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md"): (
         "NAMESPACE_V3(L, D, A)",
         "NamespaceIdV3",
-        "2^128",
+        "2^{128}",
         "Production remains NO-GO",
     ),
 }
