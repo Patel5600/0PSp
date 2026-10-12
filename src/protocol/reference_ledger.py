@@ -36,6 +36,10 @@ class DepositRejected(LedgerRejected):
     """The injected deposit adapter did not authorize a valid deposit."""
 
 
+class NamespaceMismatch(LedgerRejected):
+    """An issuance or spend is scoped to a different configured namespace."""
+
+
 class ProofRejected(LedgerRejected):
     """An injected proof verifier rejected the statement/proof pair."""
 
@@ -140,10 +144,12 @@ def _validate_value(value: int) -> None:
 
 
 class ReferenceLedger:
-    """In-memory, single-process reference model with injected verifiers.
+    """In-memory single-namespace reference model with injected verifiers.
 
     A successful operation is linearized under one lock. This models replay and
     duplicate protection for tests, but is neither persistent nor consensus-safe.
+    The required expected namespace prevents the deposit adapter or spend caller
+    from silently routing an operation into another deployment/asset scope.
     Verifier callbacks run outside the lock; uniqueness is rechecked while the
     lock is held immediately before state changes.
     """
@@ -151,12 +157,16 @@ class ReferenceLedger:
     def __init__(
         self,
         *,
+        expected_namespace_id: bytes,
         authorize_deposit: DepositAuthorizer,
         verify_issuance_proof: IssuanceProofVerifier,
         verify_spend_proof: SpendProofVerifier,
     ) -> None:
+        _require_bytes("expected_namespace_id", expected_namespace_id,
+                       min_len=NAMESPACE_BYTES, max_len=NAMESPACE_BYTES)
         if not callable(authorize_deposit) or not callable(verify_issuance_proof) or not callable(verify_spend_proof):
             raise TypeError("all authorization and proof-verifier dependencies are required")
+        self._expected_namespace_id = expected_namespace_id
         self._authorize_deposit = authorize_deposit
         self._verify_issuance_proof = verify_issuance_proof
         self._verify_spend_proof = verify_spend_proof
@@ -188,6 +198,8 @@ class ReferenceLedger:
 
         _require_bytes("authorized namespace_id", authorization.namespace_id,
                        min_len=NAMESPACE_BYTES, max_len=NAMESPACE_BYTES)
+        if authorization.namespace_id != self._expected_namespace_id:
+            raise NamespaceMismatch("authorized deposit belongs to a different configured namespace")
         _require_bytes("authorized deposit_id", authorization.deposit_id, max_len=128)
         _require_bytes("finalized_anchor", authorization.finalized_anchor, max_len=256)
         _validate_value(authorization.authorized_value)
@@ -248,6 +260,8 @@ class ReferenceLedger:
         _require_bytes("params_id", statement.params_id, max_len=65535)
         _require_bytes("namespace_id", statement.namespace_id,
                        min_len=NAMESPACE_BYTES, max_len=NAMESPACE_BYTES)
+        if statement.namespace_id != self._expected_namespace_id:
+            raise NamespaceMismatch("spend statement belongs to a different configured namespace")
         _require_bytes("commitment_root", statement.commitment_root, max_len=128)
         _require_bytes("nullifier", statement.nullifier,
                        min_len=NULLIFIER_BYTES, max_len=NULLIFIER_BYTES)
@@ -291,6 +305,11 @@ class ReferenceLedger:
             self._commitments.update(output_keys)
             self._state_version = next_version
             return record
+
+    @property
+    def expected_namespace_id(self) -> bytes:
+        """The fixed 48-byte namespace this reference ledger instance accepts."""
+        return self._expected_namespace_id
 
     @property
     def state_version(self) -> int:

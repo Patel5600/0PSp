@@ -18,13 +18,13 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
-| Namespace V2 | Canonical fixed-width encoding, 48-byte output, reference/native tests | Correct real-chain ID mapping or live ledger integration |
+| Namespace V2 core + EVM adapter | Frozen 48-byte core KAT; EVM mapping KAT; chain ID/genesis + protocol address/epoch + asset identity feed component IDs; checkpoint and runtime-code fingerprints are verified manifest inputs only; adversarial tests | Intended-chain smoke test, trusted RPC/light-client policy, and review of the V2 component-width security bound |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
 | Authorization | Ringtail adapter contract and research notes | A production adapter, final authorization mode, or signature-verification constraints in an actual ZK backend |
 | ZK proof | Relation targets documented | An instantiated backend, knowledge soundness, zero knowledge, or a complete proof of the composed relation |
-| Mint and ledger | CHp4.1 in-memory reference transition model; concurrency/replay tests use injected test doubles | Real deposit adapter, actual issuance/spend proof verification, durable constraints, consensus/finality, crash recovery and fork/reorg safety |
+| Mint and ledger | CHp4.1 in-memory reference model; now requires one configured 48-byte namespace, checks issuance authorization and spend statement against it before proof callbacks; replay/concurrency tests use doubles | Real deposit adapter, actual issuance/spend proof verification, durable constraints, consensus/finality, crash recovery and fork/reorg safety |
 | Hidden coin-ID uniqueness | Protocol names (namespace, coin_id) as identity while issuer-private minting hides coin_id | Proof/registry mechanism that detects a reused hidden ID without disclosing it, or revised identity semantics |
 
 ## Four RFCs
@@ -39,6 +39,10 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 ## CHp4.1 reference-model boundary
 
 [CHp4.1](../audit/chp4.1-reference-state-transitions.md) adds an in-memory, single-process model that requires injected deposit and proof-verifier callbacks. Its tests exercise replay rejection, duplicate commitments/nullifiers, proof-rejection non-mutation, and concurrent duplicate submissions. Test callbacks are deliberately not cryptographic verifiers. This work models a local linearization point; it does not close the durable-ledger gate or establish issuance value-binding, spend soundness, zero knowledge, consensus safety, or reorg/recovery correctness.
+
+## Namespace V2 / CHp4.8 boundary
+
+The EVM adapter at `src/adapters/evm_namespace.py` turns a pinned chain/deployment/asset manifest into the existing Namespace V2 input components and checks RPC responses against pinned chain ID, genesis/checkpoint hashes and runtime-code fingerprints. The reference ledger requires an expected namespace and rejects cross-namespace issuance/spend before invoking the injected proof callbacks. JSON-RPC is not a light client; code-fingerprint checks do not prove consensus or deposit finality. See [CHp4.8](../audit/chp4.8-namespace-v2-evm-adapter.md) for exact encodings and collision caveats.
 
 ## CHp4.2 formal relation and adversarial test boundary
 

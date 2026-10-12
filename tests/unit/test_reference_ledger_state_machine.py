@@ -5,6 +5,7 @@ prove the V2 issuance relation, a ZK spend relation, or a production ledger.
 """
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from threading import Barrier
 
 import pytest
@@ -17,6 +18,7 @@ from src.protocol.reference_ledger import (
     DuplicateDeposit,
     DuplicateNullifier,
     InvalidInput,
+    NamespaceMismatch,
     ProofRejected,
     ReferenceLedger,
     SpendStatement,
@@ -49,6 +51,7 @@ def make_ledger(*, issue_ok=True, spend_ok=True, authorizer=authorization_for, i
         return spend_ok and proof == PROOF
 
     return ReferenceLedger(
+        expected_namespace_id=NS,
         authorize_deposit=authorizer,
         verify_issuance_proof=verify_issue,
         verify_spend_proof=verify_spend,
@@ -106,6 +109,7 @@ def test_value_opening_mismatch_is_rejected_by_the_relation_verifier_contract() 
                 opening_value_by_commitment.get(statement.commitment) == statement.authorized_value)
 
     ledger = ReferenceLedger(
+        expected_namespace_id=NS,
         authorize_deposit=authorize,
         verify_issuance_proof=verify_issue,
         verify_spend_proof=lambda _statement, _proof: True,
@@ -258,3 +262,59 @@ def test_shape_errors_fail_before_transition() -> None:
     assert ledger.issued_count == 0
     assert ledger.spent_count == 0
     assert ledger.state_version == 0
+
+
+def test_wrong_namespace_deposit_is_rejected_before_issuance_verifier() -> None:
+    seen = []
+    wrong_namespace = bytes([0x99]) * 48
+
+    def wrong_authorizer(_evidence):
+        return DepositAuthorization(
+            namespace_id=wrong_namespace,
+            deposit_id=b"D" * 32,
+            authorized_value=100,
+            finalized_anchor=ANCHOR,
+        )
+
+    ledger = ReferenceLedger(
+        expected_namespace_id=NS,
+        authorize_deposit=wrong_authorizer,
+        verify_issuance_proof=lambda statement, proof: seen.append(statement) or True,
+        verify_spend_proof=lambda _statement, _proof: True,
+    )
+    with pytest.raises(NamespaceMismatch):
+        ledger.issue(
+            deposit_evidence=b"forged-cross-namespace",
+            commitment=b"C" * 48,
+            params_id=PARAMS,
+            proof=PROOF,
+        )
+    assert seen == []
+    assert ledger.issued_count == 0
+    assert ledger.state_version == 0
+
+
+def test_wrong_namespace_spend_is_rejected_before_spend_verifier() -> None:
+    seen = []
+    ledger = ReferenceLedger(
+        expected_namespace_id=NS,
+        authorize_deposit=authorization_for,
+        verify_issuance_proof=lambda _statement, _proof: True,
+        verify_spend_proof=lambda statement, proof: seen.append(statement) or True,
+    )
+    wrong_statement = replace(statement(b"N" * 48), namespace_id=bytes([0x99]) * 48)
+    with pytest.raises(NamespaceMismatch):
+        ledger.accept_spend(statement=wrong_statement, proof=PROOF)
+    assert seen == []
+    assert ledger.spent_count == 0
+    assert ledger.state_version == 0
+
+
+def test_reference_ledger_requires_a_canonical_fixed_namespace() -> None:
+    with pytest.raises(InvalidInput, match="expected_namespace_id"):
+        ReferenceLedger(
+            expected_namespace_id=b"bad",
+            authorize_deposit=authorization_for,
+            verify_issuance_proof=lambda _statement, _proof: True,
+            verify_spend_proof=lambda _statement, _proof: True,
+        )

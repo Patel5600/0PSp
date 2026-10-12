@@ -18,7 +18,7 @@ The public namespace is a 48-byte SHAKE256-384 digest of the domain/version and 
     uint16_le(32) || deployment_id[32] ||
     uint16_le(32) || asset_id[32]
 
-The IDs must be canonically mapped from the actual ledger/network instance, deployment instance and asset. No chain-specific adapter or minting contract is implemented yet.
+CHp4.8 adds a pinned EVM JSON-RPC manifest adapter and one-namespace reference-ledger binding around the frozen Namespace V2 core. This is code-level identity mapping, not a trustless light client or production minting contract. The actual deposit/event verifier, proof verifier, durable ledger and chain finality/reorg handling remain unimplemented.
 
 ### Coin identity and minting
 

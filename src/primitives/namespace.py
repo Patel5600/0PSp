@@ -10,6 +10,8 @@ and the CHp4.2 record before treating the identity invariant as implementable.
 
 No chain-specific address encoding is guessed here. Adapters must convert
 native ledger, deployment and asset identifiers to canonical 32-byte values.
+The EVM adapter in src/adapters/evm_namespace.py implements one versioned,
+manifest-pinned mapping while preserving this core Namespace V2 byte contract.
 """
 from __future__ import annotations
 
