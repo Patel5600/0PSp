@@ -98,10 +98,11 @@ def runtime_code_fingerprint(runtime_code: bytes) -> bytes:
 class EvmNamespaceConfig:
     """Trusted manifest for one protocol deployment and one asset on an EVM chain.
 
-    The checkpoint is a fixed identity anchor, not a moving "latest" value.
-    Do not refresh it for an already deployed namespace. If a deployment's
-    semantics change while an upgradeable proxy retains its runtime bytecode,
-    increment deployment_epoch under the protocol's reviewed upgrade policy.
+    The checkpoint and runtime-code fingerprints validate the selected RPC
+    view against this manifest; they are NOT namespace inputs. This keeps
+    operators with different valid checkpoints from deriving different IDs.
+    If protocol semantics change behind an upgradeable proxy, increment
+    deployment_epoch under the protocol's reviewed upgrade policy.
     """
 
     chain_id: int
@@ -375,19 +376,18 @@ class EvmNamespaceAdapter:
 
         # The inner component digests are exactly 32 bytes because the frozen
         # Namespace V2 primitive requires three 32-byte canonical components.
-        ledger_payload = (
-            config.chain_id.to_bytes(32, "big")
-            + genesis_hash
-            + config.checkpoint_block_number.to_bytes(8, "big")
-            + checkpoint_hash
-        )
+        # Checkpoint is verification-only: arbitrary operator checkpoints must
+        # not split a single logical chain into different namespace IDs.
+        ledger_payload = config.chain_id.to_bytes(32, "big") + genesis_hash
         ledger_id = _shake_component(DOMAIN_EVM_LEDGER_COMPONENT, ledger_payload)
 
+        # The independently pinned code fingerprint authenticates the observed
+        # deployment. Semantic upgrades require an explicit epoch change rather
+        # than silently changing namespaces when an operator refreshes a hash.
         deployment_payload = (
             ledger_id
             + config.protocol_address
             + config.deployment_epoch.to_bytes(8, "big")
-            + protocol_fingerprint
         )
         deployment_id = _shake_component(DOMAIN_EVM_DEPLOYMENT_COMPONENT, deployment_payload)
 
@@ -398,9 +398,10 @@ class EvmNamespaceAdapter:
         else:
             # Type 1 means an ERC-20-like token contract; token symbols/tickers
             # are deliberately not part of identity.
-            if asset_fingerprint is None:
-                raise EvmNamespaceError("token asset fingerprint was not resolved")
-            asset_payload = ledger_id + b"\x01" + config.asset_address + asset_fingerprint
+            # Runtime code is verified above but asset identity is the canonical
+            # chain-scoped contract address. Token upgrades do not create a new
+            # asset namespace merely because an operator pins new expected code.
+            asset_payload = ledger_id + b"\x01" + config.asset_address
         asset_id = _shake_component(DOMAIN_EVM_ASSET_COMPONENT, asset_payload)
 
         namespace_id = derive_namespace_id(ledger_id, deployment_id, asset_id)
