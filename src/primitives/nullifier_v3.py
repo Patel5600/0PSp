@@ -13,6 +13,7 @@ from typing import Final
 
 from src.primitives.namespace import NamespaceId, ScopedCoinId
 from src.primitives.nullifier import NULLIFIER_BYTES, NULLIFIER_SECRET_BYTES, NullifierSecret
+from src.primitives.note_types_v3 import CoinCommitmentV3
 
 NULLIFIER_DERIVING_KEY_V3_BYTES: Final = 48
 NULLIFIER_KEY_COMMITMENT_V3_BYTES: Final = 48
@@ -143,7 +144,7 @@ def _nullifier_v3_message(
     namespace_id: NamespaceId,
     params_id: bytes,
     public_key_bundle: bytes,
-    commitment: bytes,
+    commitment: CoinCommitmentV3,
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
 ) -> tuple[bytes, bytes]:
@@ -155,8 +156,8 @@ def _nullifier_v3_message(
         raise ValueError("public_key_bundle must be non-empty canonical bytes")
     if len(public_key_bundle) >= (1 << 32):
         raise ValueError("public_key_bundle encoding is too large")
-    if not isinstance(commitment, bytes) or len(commitment) != NULLIFIER_BYTES:
-        raise ValueError(f"commitment must be exactly {NULLIFIER_BYTES} bytes")
+    if not isinstance(commitment, CoinCommitmentV3):
+        raise TypeError("commitment must be a CoinCommitmentV3")
     if not isinstance(coin_id, ScopedCoinId):
         raise TypeError("coin_id must be a ScopedCoinId")
     if not isinstance(r_nf, NullifierSecret):
@@ -171,8 +172,8 @@ def _nullifier_v3_message(
         namespace_id.data,
         len(public_key_bundle).to_bytes(4, "little"),
         public_key_bundle,
-        len(commitment).to_bytes(2, "little"),
-        commitment,
+        len(commitment.value).to_bytes(2, "little"),
+        commitment.value,
         len(coin_id.data).to_bytes(2, "little"),
         coin_id.data,
         len(r_nf.data).to_bytes(2, "little"),
@@ -185,7 +186,7 @@ def compute_nullifier_v3(
     namespace_id: NamespaceId,
     params_id: bytes,
     public_key_bundle: bytes,
-    commitment: bytes,
+    commitment: CoinCommitmentV3,
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
     nullifier_key: NullifierDerivingKeyV3,
