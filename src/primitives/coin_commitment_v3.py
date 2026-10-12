@@ -15,7 +15,7 @@ from src.primitives.coin_commitment import (
     COMMITMENT_RANDOMNESS_BYTES,
 )
 from src.primitives.namespace import NamespaceId, ScopedCoinId
-from src.primitives.nullifier import NULLIFIER_SECRET_BYTES, NullifierSecret
+from src.primitives.nullifier import NullifierSecret
 from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
 
 @dataclass(frozen=True, slots=True)
