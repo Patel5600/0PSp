@@ -183,11 +183,11 @@ The actual circuit or proof relation must establish a single consistent witness 
 6. **Input membership/eligibility:** the exact input commitment is in the authenticated state/root and is not already spent under the ledger state being proved.
 7. **Transfer output derivation:** every output `coin_id/r_nf` is derived from the exact consumed input V3 nullifier and parent witness, exact parent commitment, recipient BundleV3, transaction entropy, global output index and params ID.
 8. **Issuance derivation:** every issuance output identity is derived from the canonical authenticated one-use deposit event, recipient BundleV3, output index and params ID.
-9. **Output binding:** each output tuple, BundleV3, value and salt is bound to exactly one CommitV3; the same exact commitment is the input to NullifierV3 when that note is later spent. No output may be omitted from the list proved by the transaction digest.
+9. **Output binding:** each output tuple, BundleV3, value and salt is bound to exactly one CommitV3; the same exact commitment is the input to NullifierV3 when that note is later spent. The ledger rejects duplicate commitment registration within the transaction and rejects a commitment already registered, unless a separately versioned protocol explicitly permits a reference to an existing note. No output may be omitted from the list proved by the transaction digest.
 10. **Authorization and accounting:** the canonical authorization public key approves this transaction; all output values, fee, range/overflow and asset rules satisfy the policy.
 11. **Transaction binding:** the digest is recomputed from the canonical transaction bytes, V3 version, params ID, input nullifier(s), anchors, entropy, output ordering, and every output commitment. The schema must be frozen before implementation.
 12. **No aliasing from alternate encoding:** all lengths and indices are range-checked; no duplicate output indices, duplicate output records or trailing bytes.
-13. **Ledger transition:** the durable ledger atomically consumes each deposit/input anchor and appends the new commitments. Concurrency, process crash, reorg, rollback and recovery preserve exactly the same one-use rules.
+13. **Ledger transition:** the durable ledger atomically consumes each deposit/input anchor and appends only valid, previously unregistered output commitments while rejecting repeated public nullifiers. Concurrency, process crash, reorg, rollback and recovery preserve exactly the same one-use rules.
 
 A one-input relation is the only currently scoped transfer candidate; multi-input semantics are not implied. If multiple input/output sections are eventually supported, the protocol needs one canonical global output index and one unambiguous anchor-selection rule.
 
