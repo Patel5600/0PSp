@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.primitives.namespace import NamespaceId
+from src.primitives.namespace import NamespaceId, ScopedCoinId
 from src.primitives.nullifier_v3 import (
     NullifierDerivingKeyV3,
     compute_nullifier_key_commitment_v3,
@@ -135,7 +135,7 @@ def test_issuance_identity_predicate_rejects_tuple_anchor_and_slot_substitution(
         params_id=PARAMS_ID,
     )
     assert not verify_issuance_output_identity_v3_candidate(
-        output_coin_id=type(candidate.coin_id)(bytes([0x99]) * 32),
+        output_coin_id=ScopedCoinId(bytes([0x99]) * 32),
         output_r_nf=candidate.r_nf,
         namespace_id=NS,
         deposit_id=DEPOSIT_ID,
