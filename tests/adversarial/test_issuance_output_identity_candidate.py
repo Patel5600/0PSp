@@ -21,6 +21,7 @@ from src.protocol.output_identity import (
     NULLIFIER_SECRET_BYTES,
     ISSUANCE_ENTROPY_BYTES,
     derive_issuance_output_identity_v3_candidate,
+    verify_issuance_output_identity_v3_candidate,
 )
 
 NS = NamespaceId(bytes([0x11]) * 48)
@@ -120,3 +121,47 @@ def test_recipient_bundle_is_bounded_nonempty_bytes(bad_bundle: bytes) -> None:
 def test_empty_parameter_id_is_rejected() -> None:
     with pytest.raises(ValueError):
         _derive(params_id=b"")
+
+def test_issuance_identity_predicate_rejects_tuple_anchor_and_slot_substitution() -> None:
+    candidate = _derive()
+    assert verify_issuance_output_identity_v3_candidate(
+        output_coin_id=candidate.coin_id,
+        output_r_nf=candidate.r_nf,
+        namespace_id=NS,
+        deposit_id=DEPOSIT_ID,
+        recipient_key_bundle=RECIPIENT_KEY_BUNDLE,
+        issuance_entropy=ISSUANCE_ENTROPY,
+        output_index=0,
+        params_id=PARAMS_ID,
+    )
+    assert not verify_issuance_output_identity_v3_candidate(
+        output_coin_id=type(candidate.coin_id)(bytes([0x99]) * 32),
+        output_r_nf=candidate.r_nf,
+        namespace_id=NS,
+        deposit_id=DEPOSIT_ID,
+        recipient_key_bundle=RECIPIENT_KEY_BUNDLE,
+        issuance_entropy=ISSUANCE_ENTROPY,
+        output_index=0,
+        params_id=PARAMS_ID,
+    )
+    assert not verify_issuance_output_identity_v3_candidate(
+        output_coin_id=candidate.coin_id,
+        output_r_nf=candidate.r_nf,
+        namespace_id=NS,
+        deposit_id=b"chain-a:tx124:log0",
+        recipient_key_bundle=RECIPIENT_KEY_BUNDLE,
+        issuance_entropy=ISSUANCE_ENTROPY,
+        output_index=0,
+        params_id=PARAMS_ID,
+    )
+    assert not verify_issuance_output_identity_v3_candidate(
+        output_coin_id=candidate.coin_id,
+        output_r_nf=candidate.r_nf,
+        namespace_id=NS,
+        deposit_id=DEPOSIT_ID,
+        recipient_key_bundle=RECIPIENT_KEY_BUNDLE,
+        issuance_entropy=ISSUANCE_ENTROPY,
+        output_index=1,
+        params_id=PARAMS_ID,
+    )
+
