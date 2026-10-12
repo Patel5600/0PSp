@@ -236,7 +236,7 @@ def derive_output_identity_v3_candidate(
         raise ValueError("recipient_key_bundle must be non-empty canonical bytes")
     decode_note_public_key_bundle_v3(recipient_key_bundle)
     parent_nullifier = compute_nullifier_v3(
-        namespace_id, parent_public_key_bundle, parent_coin_id,
+        namespace_id, params_id, parent_public_key_bundle, parent_coin_id,
         parent_r_nf, parent_nullifier_key,
     ).value
 
