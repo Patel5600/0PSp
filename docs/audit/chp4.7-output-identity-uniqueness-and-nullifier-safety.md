@@ -148,7 +148,7 @@ The sender may know the derivation inputs, including the output tuple, and still
 
 - Same complete V3 note identity, different `rho_C`: `CommitV3` can differ but `NullifierV3` is the same. The proof must reject a second output identity because the source anchor/output slot was already used.
 - Same `coin_id), different `r_nf): not the same identity tuple. This is not inherently a duplicate; the full relation and anchor derivation apply.
-- Same tuple, different `nk) and distinct key-bundle commitments: different V3 nullifier inputs and different note identities. Global `coin_id) uniqueness is not a requirement.
+- Same tuple, different `nk) and distinct key-bundle commitments: different V3 nullifier inputs and different note identities. Global `coin_id` uniqueness is not a requirement.
 - Distinct identity derivation inputs: hashes can still collide. These functions are not mathematically injective. The joint identity collision bound must be analyzed under the actual adversarial and quantum-query model; no combined bit-strength claim is made here.
 - Equal V3 public nullifiers for distinct notes: the ledger must reject the later spend. That finite-output collision may still make the later note unspendable; it is a negligible-probability cryptographic risk only after the concrete construction is analyzed, not an impossible event.
 
@@ -159,10 +159,10 @@ The actual circuit or proof relation must establish a single consistent witness 
 1. **Canonical bundle:** the encoded BundleV3 has exactly one valid decode and binds the selected authorization scheme, the canonical authorization public key and the key commitment.
 2. **Recipient-address authenticity:** verify a domain-separated recipient signature/authentication token over the exact namespace, params ID and BundleV3 using the selected address-auth suite. The proof must bind this verified statement to the output bundle; signature bytes/encoding and suite must be frozen before implementation.
 3. **Commitment opening:** `C = CommitV3(params_id, BundleV3, v, ns, coin_id, r_nf, rho_C)`.
-4. **Recipient key:** the private 48-byte `nk) hashes to the exact `KeyCommitV3(nk)` inside that same BundleV3.
+4. **Recipient key:** the private 48-byte `nk` hashes to the exact `KeyCommitV3(nk)` inside that same BundleV3.
 5. **Nullifier:** `public_nullifier = NullifierV3(ns, BundleV3, coin_id, r_nf, nk)`.
 6. **Input membership/eligibility:** the exact input commitment is in the authenticated state/root and is not already spent under the ledger state being proved.
-7. **Transfer output derivation:** every output `coin_id/r_nf) is derived from the exact consumed input V3 nullifier and parent witness, recipient BundleV3, transaction entropy, global output index and params ID.
+7. **Transfer output derivation:** every output `coin_id/r_nf` is derived from the exact consumed input V3 nullifier and parent witness, recipient BundleV3, transaction entropy, global output index and params ID.
 8. **Issuance derivation:** every issuance output identity is derived from the canonical authenticated one-use deposit event, recipient BundleV3, output index and params ID.
 9. **Output binding:** each output tuple, BundleV3, value and salt is bound to exactly one CommitV3; no output may be omitted from the list proved by the transaction digest.
 10. **Authorization and accounting:** the canonical authorization public key approves this transaction; all output values, fee, range/overflow and asset rules satisfy the policy.
