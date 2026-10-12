@@ -25,6 +25,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 | Authorization | Ringtail adapter contract and research notes | A production adapter, final authorization mode, or signature-verification constraints in an actual ZK backend |
 | ZK proof | Relation targets documented | An instantiated backend, knowledge soundness, zero knowledge, or a complete proof of the composed relation |
 | Mint and ledger | CHp4.1 in-memory reference transition model; concurrency/replay tests use injected test doubles | Real deposit adapter, actual issuance/spend proof verification, durable constraints, consensus/finality, crash recovery and fork/reorg safety |
+| Hidden coin-ID uniqueness | Protocol names (namespace, coin_id) as identity while issuer-private minting hides coin_id | Proof/registry mechanism that detects a reused hidden ID without disclosing it, or revised identity semantics |
 
 ## Four RFCs
 
@@ -39,6 +40,10 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 [CHp4.1](../audit/chp4.1-reference-state-transitions.md) adds an in-memory, single-process model that requires injected deposit and proof-verifier callbacks. Its tests exercise replay rejection, duplicate commitments/nullifiers, proof-rejection non-mutation, and concurrent duplicate submissions. Test callbacks are deliberately not cryptographic verifiers. This work models a local linearization point; it does not close the durable-ledger gate or establish issuance value-binding, spend soundness, zero knowledge, consensus safety, or reorg/recovery correctness.
 
+## CHp4.2 formal relation and adversarial test boundary
+
+[CHp4.2](../audit/chp4.2-formal-relations-adversarial-tests.md) records the exact current V2 commitment/nullifier preimages and formal R_mint/R_spend targets. `tests/adversarial/test_v2_witness_substitutions.py` uses real reference primitives for finite-vector substitution cases; `tests/adversarial/test_issuance_replay.py` uses a test-double verifier to check local deposit replay handling. Merkle-path/index tests remain blocked until the tree suite/encoding is frozen, and reorg tests remain blocked until real adapter/finality/recovery semantics exist. A further release blocker is hidden coin-ID uniqueness: the issuer cannot directly compare an ID it never receives.
+
 ## P0: issuance privacy and state correctness
 
 A wallet-side commitment can keep `coin_id`, `r_nf` and salt out of the mint's view. That is necessary but not sufficient:
@@ -47,7 +52,8 @@ A wallet-side commitment can keep `coin_id`, `r_nf` and salt out of the mint's v
 2. Because it does not know the opening, it cannot independently recompute `C` to check that the opening's hidden value equals `v`.
 3. A receipt signed over `(C, v, deposit_tx)` authenticates the mint's recorded fields. It does not, by itself, prove that the hidden commitment opening contains that same value.
 4. The protocol therefore needs a verified issuance relation/proof (or a different reviewed construction) that binds `C` to the authorized value and deposit without disclosing the private opening. No such backend is implemented here.
-5. The mint state transition must atomically check deposit replay, any coin-ID/commitment uniqueness policy, accepted value, and receipt/state-root update. A future spend transition must atomically reject a previously spent public nullifier.
+5. The mint state transition must atomically check deposit replay, commitment uniqueness, accepted value, and receipt/state-root update. A future spend transition must atomically reject a previously spent public nullifier.
+6. A separate unresolved question is how to enforce uniqueness of the hidden (namespace_id, coin_id) identity without the issuer learning coin_id. Random generation does not address deliberate reuse; the visible-ID MintRegistryModel is not compatible with the private-issuer message flow as-is.
 
 Until these conditions are specified and implemented, no live issuance or production mint claims are allowed.
 
@@ -97,6 +103,7 @@ Production remains **NO-GO** until all of these have affirmative, reviewable evi
 - [ ] Threat model, leakage function and issuer/trustee collusion model frozen.
 - [ ] Canonical real-chain namespace mapping and protocol/parameter versioning specified.
 - [ ] Issuance protocol proves hidden commitment/value/deposit consistency; no issuer learns `coin_id` or `r_nf` in the stated privacy model.
+- [ ] The hidden coin-ID uniqueness invariant is either enforced by a reviewed privacy-preserving mechanism or explicitly revised with an analysis of consequences and leakage.
 - [ ] Commitment hiding and binding claims have formal definitions, concrete bounds and independent review.
 - [ ] A single instantiated proof proves membership, opening, authorization, nullifier and transaction policy over one witness.
 - [ ] Scheme-specific key/authorization relation selected; committee policy is not accidentally dropped.

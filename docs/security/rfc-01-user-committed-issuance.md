@@ -89,7 +89,7 @@ If `v` is intentionally public, the statement may expose it. If value confidenti
 - The nullifier is deterministic for that opening; the durable ledger atomically rejects a repeated public nullifier.
 - Reorg, migration, recovery and concurrent writes must preserve the same invariants.
 
-Whether uniqueness is enforced on `(namespace_id, coin_id)`, commitment, deposit reference, or a combination must be specified against the chosen ledger model. An in-memory set is not a production ledger.
+**Critical unresolved issue:** the intended identity is `(namespace_id, coin_id)`, but the issuer does not learn `coin_id` in the privacy model. A mint that sees only `(C, v, deposit_tx)` cannot directly compare a hidden ID against a registry. The existing `MintRegistryModel` accepts a raw ID and therefore models only a context where the ID is visible; it is not a solution for user-committed issuance. Before claiming hidden-ID uniqueness, choose and review a privacy-preserving duplicate-ID proof/registry with its leakage and state cost, or revise the identity invariant in a separately versioned design. This is separate from deposit replay protection, commitment uniqueness and spent-nullifier uniqueness. An in-memory set is not a production ledger.
 
 ## 6. Privacy claims and limits
 
@@ -107,6 +107,8 @@ The primitive-level test file `tests/unit/test_issuance_commitment_invariants.py
 
 The CHp4.1 file `tests/unit/test_reference_ledger_state_machine.py` checks the in-memory state model with injected test doubles: authenticated-value plumbing, proof-rejection non-mutation, deposit replay, duplicate commitments/nullifiers, and concurrent attempts.
 
+CHp4.2 adds `tests/adversarial/test_v2_witness_substitutions.py` for real Python V2 reference primitive substitutions and `tests/adversarial/test_issuance_replay.py` for the in-memory duplicate-deposit transition. The latter uses a test-double verifier. These are regression tests, not proof verifiers.
+
 Neither file implements a cryptographic issuance verifier. These tests do **not** prove:
 - issuance value/deposit binding without revealing the opening;
 - absence of a collision across all inputs;
@@ -119,7 +121,7 @@ Neither file implements a cryptographic issuance verifier. These tests do **not*
 1. Fixed independent known-answer vectors for the new issuance relation and all canonical encodings.
 2. Negative proof tests for altered value, deposit, namespace, commitment, parameters, coin ID and `r_nf`.
 3. Replay and duplicate-record tests against the actual ledger state machine.
-4. Concurrency test proving at most one successful transition for the same deposit and for the same nullifier.
+4. Concurrency test proving at most one successful transition for the same deposit and for the same nullifier in a local model, followed by durable-ledger tests under the chosen chain's consensus model.
 5. Adversarial issuer/observer unlinkability game with explicit corruption and leakage model.
 6. End-to-end native/reference/proof-backend parity tests.
 
