@@ -111,10 +111,24 @@ def test_v3_nullifier_key_has_exact_fixed_width(bad_key: object) -> None:
 
 
 def test_v3_is_additive_and_does_not_change_frozen_v2_nullifier() -> None:
-    # The old V2 formula remains independent of the V3 key and unchanged.
-    old_v2 = compute_nullifier_v2(NS, COIN, R_NF)
+    # The old V2 formula retains its existing known-answer vector unchanged.
+    ns = NamespaceId(bytes.fromhex(
+        "04c0037350b1b2551c5b7f8b19642abd"
+        "e118113083130340a0986aacfaad3d7d"
+        "38c96dac07c80e9c3d45e0a1111279d2"
+    ))
+    coin = ScopedCoinId(bytes(range(32)))
+    secret = NullifierSecret(bytes(range(36)))
+    assert compute_nullifier_v2(ns, coin, secret).value.hex() == (
+        "059698470b8228712d86c630144b9aae"
+        "0d0815ba1f2038b53c9d22d484af5d46"
+        "60100eb47c8fea686ebb4855cd35159d"
+    )
+
     key_b = NullifierDerivingKeyV3(bytes([0x45]) * 48)
     assert compute_nullifier_v3(NS, _bundle().encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
         NS, _bundle(key_b).encode(), COIN, R_NF, key_b
     )
-    assert old_v2 == compute_nullifier_v2(NS, COIN, R_NF)
+    assert compute_nullifier_v3(NS, _bundle(KEY, b"another-recipient-key").encode(), COIN, R_NF, KEY) != compute_nullifier_v3(
+        NS, _bundle(KEY, AUTH_PK).encode(), COIN, R_NF, KEY
+    )
