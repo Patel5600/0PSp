@@ -8,15 +8,29 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from dataclasses import dataclass
 
 from src.primitives.coin_commitment import (
     COMMITMENT_BYTES,
     COMMITMENT_RANDOMNESS_BYTES,
-    CoinCommitment,
 )
 from src.primitives.namespace import NAMESPACE_ID_BYTES, SCOPED_COIN_ID_BYTES, NamespaceId, ScopedCoinId
 from src.primitives.nullifier import NULLIFIER_SECRET_BYTES, NullifierSecret
 from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
+
+@dataclass(frozen=True, slots=True)
+class CoinCommitmentV3:
+    """Version-distinct canonical 48-byte V3 note commitment."""
+
+    value: bytes
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.value, bytes) or len(self.value) != COMMITMENT_BYTES:
+            raise ValueError(f"V3 commitment must be exactly {COMMITMENT_BYTES} bytes")
+
+    def __repr__(self) -> str:
+        return f"CoinCommitmentV3({self.value.hex()[:16]}…)"
+
 
 DOMAIN_COIN_COMMITMENT_V3 = b"0PSP-COIN-COMMIT-v3-SHAKE256"
 COIN_COMMITMENT_V3_VERSION = b"\x03"
@@ -76,16 +90,16 @@ def commit_coin_v3(
     r_nf: NullifierSecret,
     rho_coin: bytes,
     params_id: bytes,
-) -> CoinCommitment:
+) -> CoinCommitmentV3:
     """Compute the 48-byte V3 commitment candidate over a canonical key bundle."""
     encoded = _encode_commitment_input_v3(
         namespace_id, public_key_bundle, value, coin_id, r_nf, rho_coin, params_id
     )
-    return CoinCommitment(hashlib.shake_256(encoded).digest(COMMITMENT_BYTES))
+    return CoinCommitmentV3(hashlib.shake_256(encoded).digest(COMMITMENT_BYTES))
 
 
 def verify_coin_opening_v3(
-    commitment: CoinCommitment,
+    commitment: CoinCommitmentV3,
     namespace_id: NamespaceId,
     public_key_bundle: bytes,
     value: int,
@@ -95,8 +109,8 @@ def verify_coin_opening_v3(
     params_id: bytes,
 ) -> bool:
     """Recompute the V3 opening for tests; this is not a ZK proof verifier."""
-    if not isinstance(commitment, CoinCommitment):
-        raise TypeError("commitment must be a CoinCommitment")
+    if not isinstance(commitment, CoinCommitmentV3):
+        raise TypeError("commitment must be a CoinCommitmentV3")
     expected = commit_coin_v3(
         namespace_id, public_key_bundle, value, coin_id, r_nf, rho_coin, params_id
     )
