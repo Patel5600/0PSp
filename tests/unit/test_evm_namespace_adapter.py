@@ -312,6 +312,16 @@ def test_json_rpc_client_rejects_wrong_id_without_echoing_endpoint(monkeypatch) 
     assert "secret-token" not in str(error.value)
 
 
+def test_json_rpc_client_rejects_duplicate_json_members(monkeypatch) -> None:
+    response = io.BytesIO(
+        b'{"jsonrpc":"2.0","id":1,"result":"0x1","result":"0x2"}'
+    )
+    monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: response)
+    client = JsonRpcClient("https://rpc.example.test")
+    with pytest.raises(EvmRpcError, match="ambiguous JSON"):
+        client.call("eth_chainId", [])
+
+
 def test_json_rpc_transport_error_fails_closed(monkeypatch) -> None:
     def fail(*_args, **_kwargs):
         raise OSError("secret endpoint credential leaked by transport error")
