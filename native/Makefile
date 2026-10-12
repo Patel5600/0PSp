@@ -12,6 +12,8 @@ TIMING_COMMITMENT_V2_BIN := $(BUILD_DIR)/timing_probe_commitment_v2
 SAN_TEST_V1_BIN := $(BUILD_DIR)/test_nullifier_v1_sanitize
 SAN_TEST_V2_BIN := $(BUILD_DIR)/test_nullifier_v2_sanitize
 V2_TEST_BIN := $(BUILD_DIR)/test_nullifier_v2
+NAMESPACE_V3_TEST_BIN := $(BUILD_DIR)/test_namespace_v3
+SAN_NAMESPACE_V3_BIN := $(BUILD_DIR)/test_namespace_v3_sanitize
 DISASM := $(BUILD_DIR)/nullifier_native.disasm.txt
 
 .PHONY: all test audit timing timing-probe-build timing-v2 timing-v2-probe-build timing-commitment-v2 timing-commitment-v2-probe-build sanitize-test clean
@@ -20,14 +22,17 @@ all: $(LIB)
 $(BUILD_DIR):
 	mkdir -p $@
 
-$(LIB): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
-	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -fPIC -shared -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c -lcrypto -o $@
+$(LIB): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c namespace_v3.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h $(INCLUDE_DIR)/psp_namespace_v3.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -fPIC -shared -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c namespace_v3.c -lcrypto -o $@
 
 $(TEST_BIN): nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c tests/test_nullifier_v1.c -lcrypto -o $@
 
 $(V2_TEST_BIN): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c -lcrypto -o $@
+
+$(NAMESPACE_V3_TEST_BIN): namespace_v3.c tests/test_namespace_v3.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_namespace_v3.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) namespace_v3.c tests/test_namespace_v3.c -lcrypto -o $@
 
 $(TIMING_BIN): nullifier_v1.c tests/timing_probe_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c tests/timing_probe_v1.c -lcrypto -lm -o $@
@@ -53,9 +58,10 @@ timing-commitment-v2-probe-build: $(TIMING_COMMITMENT_V2_BIN)
 timing-commitment-v2: $(TIMING_COMMITMENT_V2_BIN)
 	./$(TIMING_COMMITMENT_V2_BIN)
 
-test: $(LIB) $(TEST_BIN) $(V2_TEST_BIN)
+test: $(LIB) $(TEST_BIN) $(V2_TEST_BIN) $(NAMESPACE_V3_TEST_BIN)
 	./$(TEST_BIN)
 	./$(V2_TEST_BIN)
+	./$(NAMESPACE_V3_TEST_BIN)
 
 SANITIZE_CFLAGS := -O1 -g -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer
 
@@ -65,9 +71,13 @@ $(SAN_TEST_V1_BIN): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/tes
 $(SAN_TEST_V2_BIN): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c tests/test_nullifier_v2.c -lcrypto -o $@
 
-sanitize-test: $(SAN_TEST_V1_BIN) $(SAN_TEST_V2_BIN)
+$(SAN_NAMESPACE_V3_BIN): namespace_v3.c tests/test_namespace_v3.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_namespace_v3.h | $(BUILD_DIR)
+	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) namespace_v3.c tests/test_namespace_v3.c -lcrypto -o $@
+
+sanitize-test: $(SAN_TEST_V1_BIN) $(SAN_TEST_V2_BIN) $(SAN_NAMESPACE_V3_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./$(SAN_TEST_V1_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./$(SAN_TEST_V2_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 ./$(SAN_NAMESPACE_V3_BIN)
 
 audit: $(LIB)
 	$(OBJDUMP) -d -Mintel $(LIB) > $(DISASM)
