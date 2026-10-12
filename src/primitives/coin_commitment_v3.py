@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-from dataclasses import dataclass
 
 from src.primitives.coin_commitment import (
     COMMITMENT_BYTES,
@@ -16,21 +15,8 @@ from src.primitives.coin_commitment import (
 )
 from src.primitives.namespace import NamespaceId, ScopedCoinId
 from src.primitives.nullifier import NullifierSecret
+from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
-
-@dataclass(frozen=True, slots=True)
-class CoinCommitmentV3:
-    """Version-distinct canonical 48-byte V3 note commitment."""
-
-    value: bytes
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.value, bytes) or len(self.value) != COMMITMENT_BYTES:
-            raise ValueError(f"V3 commitment must be exactly {COMMITMENT_BYTES} bytes")
-
-    def __repr__(self) -> str:
-        return f"CoinCommitmentV3({self.value.hex()[:16]}…)"
-
 
 DOMAIN_COIN_COMMITMENT_V3 = b"0PSP-COIN-COMMIT-v3-SHAKE256"
 COIN_COMMITMENT_V3_VERSION = b"\x03"
