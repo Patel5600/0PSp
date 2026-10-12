@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import pytest
 
+from src.primitives.namespace_v3 import derive_namespace_id_v3
 from src.protocol.reference_ledger import (
     DepositAuthorization,
     DuplicateDeposit,
     ReferenceLedger,
 )
 
-NS = bytes([0x51]) * 48
+NS = derive_namespace_id_v3(b"adversarial-ledger", b"test-deployment", b"test-asset")
 ANCHOR = bytes([0x61]) * 32
 PARAMS = b"v2-adversarial-params"
 
