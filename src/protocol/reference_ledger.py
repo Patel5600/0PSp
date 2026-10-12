@@ -78,7 +78,7 @@ class IssuanceStatement:
     """Public statement presented to the issuance-proof verifier."""
 
     version: int
-    namespace_id: bytes
+    namespace_id: NamespaceIdV3
     commitment: bytes
     authorized_value: int
     deposit_id: bytes
@@ -88,7 +88,7 @@ class IssuanceStatement:
 
 @dataclass(frozen=True)
 class IssuedRecord:
-    namespace_id: bytes
+    namespace_id: NamespaceIdV3
     commitment: bytes
     value: int
     deposit_id: bytes
@@ -108,7 +108,7 @@ class SpendStatement:
 
     version: int
     params_id: bytes
-    namespace_id: bytes
+    namespace_id: NamespaceIdV3
     commitment_root: bytes
     nullifier: bytes
     transaction_fields: bytes
@@ -120,7 +120,7 @@ class SpendStatement:
 
 @dataclass(frozen=True)
 class AcceptedSpend:
-    namespace_id: bytes
+    namespace_id: NamespaceIdV3
     nullifier: bytes
     transaction_digest: bytes
     new_commitments: tuple[bytes, ...]
