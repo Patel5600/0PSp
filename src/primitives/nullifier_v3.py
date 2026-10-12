@@ -143,6 +143,7 @@ def _nullifier_v3_message(
     namespace_id: NamespaceId,
     params_id: bytes,
     public_key_bundle: bytes,
+    commitment: bytes,
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
 ) -> tuple[bytes, bytes]:
@@ -154,6 +155,8 @@ def _nullifier_v3_message(
         raise ValueError("public_key_bundle must be non-empty canonical bytes")
     if len(public_key_bundle) >= (1 << 32):
         raise ValueError("public_key_bundle encoding is too large")
+    if not isinstance(commitment, bytes) or len(commitment) != NULLIFIER_BYTES:
+        raise ValueError(f"commitment must be exactly {NULLIFIER_BYTES} bytes")
     if not isinstance(coin_id, ScopedCoinId):
         raise TypeError("coin_id must be a ScopedCoinId")
     if not isinstance(r_nf, NullifierSecret):
@@ -168,6 +171,8 @@ def _nullifier_v3_message(
         namespace_id.data,
         len(public_key_bundle).to_bytes(4, "little"),
         public_key_bundle,
+        len(commitment).to_bytes(2, "little"),
+        commitment,
         len(coin_id.data).to_bytes(2, "little"),
         coin_id.data,
         len(r_nf.data).to_bytes(2, "little"),
@@ -180,22 +185,25 @@ def compute_nullifier_v3(
     namespace_id: NamespaceId,
     params_id: bytes,
     public_key_bundle: bytes,
+    commitment: bytes,
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
     nullifier_key: NullifierDerivingKeyV3,
 ) -> NullifierV3:
     """Compute the recipient-keyed V3 nullifier candidate.
 
-    HMAC-SHA3-384 is used as a keyed PRF candidate. Unlike V2, a party who
-    knows the output tuple and public-key bundle still cannot compute the
-    nullifier without the recipient-held key. The proof relation must also
-    enforce that the key opens the key commitment embedded in this exact
-    public_key_bundle. This reference helper alone proves neither property.
+    HMAC-SHA3-384 is used as a keyed PRF candidate. The input includes the
+    exact 48-byte V3 note commitment, so changing commitment salt changes the
+    keyed input and avoids V2's deterministic same-nullifier behavior for
+    distinct commitments sharing the same hidden tuple. A party who knows the
+    tuple, commitment, parameter ID and bundle still cannot compute the
+    nullifier without the recipient-held key. A circuit must bind all fields
+    to the same note witness; this helper alone proves neither property.
     """
     if not isinstance(nullifier_key, NullifierDerivingKeyV3):
         raise TypeError("nullifier_key must be a NullifierDerivingKeyV3")
     message, encoded_key_commitment = _nullifier_v3_message(
-        namespace_id, params_id, public_key_bundle, coin_id, r_nf
+        namespace_id, params_id, public_key_bundle, commitment, coin_id, r_nf
     )
     expected_key_commitment = compute_nullifier_key_commitment_v3(nullifier_key)
     if not hmac.compare_digest(encoded_key_commitment, expected_key_commitment.value):
