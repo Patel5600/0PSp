@@ -18,7 +18,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
-| Namespace V2 core + EVM adapter | Frozen 48-byte core KAT; pinned EVM chain ID, genesis/checkpoint hashes, addresses and runtime-code fingerprints; end-to-end adapter KAT/adversarial tests | Intended-chain smoke test, trusted RPC/light-client policy, and review of the V2 component-width security bound |
+| Namespace V2 core + EVM adapter | Frozen 48-byte core KAT; EVM mapping KAT; chain ID/genesis + protocol address/epoch + asset identity feed component IDs; checkpoint and runtime-code fingerprints are verified manifest inputs only; adversarial tests | Intended-chain smoke test, trusted RPC/light-client policy, and review of the V2 component-width security bound |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
