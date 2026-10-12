@@ -15,7 +15,7 @@ C2 = CommitV2(params_id, pk, v, ns, coin_id, r_nf, rho_C)
 nu2 = NullifierV2(ns, coin_id, r_nf)
 ```
 
-`C2` binds an independent 36-byte commitment salt `rho_C`; `nu2` does not. Thus the same `(ns, coin_id, r_nf)` and different `rho_C) may produce different commitment bytes but exactly the same public nullifier. It is deterministic identity reuse, not a SHAKE collision. A ledger can reject the second nullifier, but cannot make both notes spendable. The test `tests/adversarial/test_hidden_tuple_reuse.py` records this behavior and must remain in the suite.
+`C2` binds an independent 36-byte commitment salt `rho_C`; `nu2` does not. Thus the same `(ns, coin_id, r_nf)` and different `rho_C` may produce different commitment bytes but exactly the same public nullifier. It is deterministic identity reuse, not a SHAKE collision. A ledger can reject the second nullifier, but cannot make both notes spendable. The test `tests/adversarial/test_hidden_tuple_reuse.py` records this behavior and must remain in the suite.
 
 A 32-byte `coin_id` is also not a globally unique identifier in a mathematical sense. Generic collision search against 256 bits has about a 128-bit classical birthday scale and about a 2^85-query quantum collision-search scale in an idealized oracle model. The protocol must not treat `(namespace, coin_id)` alone as a unique accepted note, and must not transfer the longer nullifier's collision bound to `coin_id`.
 
@@ -43,7 +43,7 @@ The canonical key bundle binds the authorization scheme and public key to a comm
 
 **Recipient-address authenticity is also mandatory.** The recipient must create `nk`, verify locally that `KeyCommitV3(nk)` matches the bundle, and authenticate the exact domain-separated bundle with the selected address-authorization key. Every output proof must validate that authentication against the exact bundle committed in the note; the sender must not be able to substitute a new key commitment while retaining the intended recipient's authorization key. Otherwise, the sender could build an output around a key commitment whose opening the recipient does not know, causing an unspendable note without any hash collision. The exact address-signature scheme and canonical signature encoding are blocked on the repository's still-unselected authorization codec; no fake verifier is introduced.
 
-The V3 identity policy intentionally does not require the issuer to receive or compare hidden `coin_id) values in plaintext. It does not claim all hash outputs are injective.
+The V3 identity policy intentionally does not require the issuer to receive or compare hidden `coin_id` values in plaintext. It does not claim all hash outputs are injective.
 
 ### 3.2 Recipient-keyed nullifier
 
@@ -74,7 +74,7 @@ NullifierV3(ns, BundleV3, coin_id, r_nf, nk) =
   )
 ```
 
-The recipient needs the private `nk) to compute the nullifier. Knowing the output identity tuple and public bundle is not sufficient to compute it under the HMAC-PRF assumption. The key commitment is not a replacement for key secrecy; it is the value that lets a proof bind the recipient's secret key to the exact canonical bundle inside the note commitment.
+The recipient needs the private `nk` to compute the nullifier. Knowing the output identity tuple and public bundle is not sufficient to compute it under the HMAC-PRF assumption. The key commitment is not a replacement for key secrecy; it is the value that lets a proof bind the recipient's secret key to the exact canonical bundle inside the note commitment.
 
 This is a new V3 suite, not a change to `NullifierV2`. All existing V1/V2 formulas and known-answer vectors remain byte-for-byte unchanged.
 
@@ -134,7 +134,7 @@ Candidate relation:
 
 The complete canonical output list owns one zero-based global output index space. Recipient-local indices, caller-selected alternate encodings, duplicate indices and unbound side lists are forbidden. The current candidate uses uint16 indices (0 through 65535), which caps each canonical output list at 65,536 slots. Changing that is a new derivation version.
 
-V3 reference functions live in `src/protocol/output_identity.py`. They use SHAKE256 with separate domains for `coin_id) and `r_nf). They do not check whether the deposit anchor is canonical, prove a witness statement, ensure entropy was sampled correctly, or stop an arbitrary API client from bypassing a future circuit. The proof and ledger must enforce the relation and one-use state.
+V3 reference functions live in `src/protocol/output_identity.py`. They use SHAKE256 with separate domains for `coin_id` and `r_nf`. They do not check whether the deposit anchor is canonical, prove a witness statement, ensure entropy was sampled correctly, or stop an arbitrary API client from bypassing a future circuit. The proof and ledger must enforce the relation and one-use state.
 
 ### 3.5 Why the two mechanisms are both necessary
 
@@ -147,8 +147,8 @@ The sender may know the derivation inputs, including the output tuple, and still
 ### 3.6 Same-salt and cross-identity cases
 
 - Same complete V3 note identity, different `rho_C`: `CommitV3` can differ but `NullifierV3` is the same. The proof must reject a second output identity because the source anchor/output slot was already used.
-- Same `coin_id), different `r_nf): not the same identity tuple. This is not inherently a duplicate; the full relation and anchor derivation apply.
-- Same tuple, different `nk) and distinct key-bundle commitments: different V3 nullifier inputs and different note identities. Global `coin_id` uniqueness is not a requirement.
+- Same `coin_id`, different `r_nf`: not the same identity tuple. This is not inherently a duplicate; the full relation and anchor derivation apply.
+- Same tuple, different `nk` and distinct key-bundle commitments: different V3 nullifier inputs and different note identities. Global `coin_id` uniqueness is not a requirement.
 - Distinct identity derivation inputs: hashes can still collide. These functions are not mathematically injective. The joint identity collision bound must be analyzed under the actual adversarial and quantum-query model; no combined bit-strength claim is made here.
 - Equal V3 public nullifiers for distinct notes: the ledger must reject the later spend. That finite-output collision may still make the later note unspendable; it is a negligible-probability cryptographic risk only after the concrete construction is analyzed, not an impossible event.
 
@@ -177,7 +177,7 @@ A one-input relation is the only currently scoped transfer candidate; multi-inpu
 The branch adds tests for:
 - V3 recipient key commitment, exact BundleV3 encoding and decoding;
 - hardcoded V3 nullifier and V3 commitment vectors;
-- same tuple/same bundle/same key producing one nullifier when `rho_C) changes;
+- same tuple/same bundle/same key producing one nullifier when `rho_C` changes;
 - different recipient key or authorization bundle yielding a different keyed nullifier in selected vectors;
 - strict malformed/truncated/trailing bundle rejection and wrong key rejection;
 - the frozen V2 nullifier known-answer vector (unchanged);
@@ -185,7 +185,7 @@ The branch adds tests for:
 - V3 transfer identity with a fixed vector and variations in parent anchor, recipient bundle, index, entropy and params;
 - the original hidden-tuple-reuse regression.
 
-These are byte-level reference regressions over finite inputs. They do **not** test an actual zero-knowledge circuit, prove HMAC/ SHAKE collision resistance, prove protocol privacy, or establish global uniqueness. A correct production proof must include negative proof tests for substituted `coin_id), `r_nf), `nk), key commitment, public-key bundle, parent nullifier, transaction entropy, index, recipient, value, commitment opening, and digest. Duplicate deposit/input-nullifier and racing transaction tests must use the real durable ledger adapter when it exists.
+These are byte-level reference regressions over finite inputs. They do **not** test an actual zero-knowledge circuit, prove HMAC/ SHAKE collision resistance, prove protocol privacy, or establish global uniqueness. A correct production proof must include negative proof tests for substituted `coin_id`, `r_nf`, `nk`, key commitment, public-key bundle, parent nullifier, transaction entropy, index, recipient, value, commitment opening, and digest. Duplicate deposit/input-nullifier and racing transaction tests must use the real durable ledger adapter when it exists.
 
 ## 6. Conditional security argument
 
@@ -194,11 +194,11 @@ The intended safety claim is conditional on all of the following:
 - an anchor is consumed at most once by consensus state;
 - each output index is unique and bound to the canonical output list;
 - the V3 proof is knowledge-sound and enforces the exact identity derivation, BundleV3/key commitment, commitment opening and keyed nullifier over a single witness;
-- `nk) is high-entropy, recipient-controlled, per-note secret material, never disclosed to the sender/issuer and not recoverable from its commitment;
+- `nk` is high-entropy, recipient-controlled, per-note secret material, never disclosed to the sender/issuer and not recoverable from its commitment;
 - HMAC-SHA3-384 is used as a keyed PRF under an appropriate classical/quantum security model, and SHAKE-based key commitments/identity derivations meet their stated assumptions;
 - V3 public nullifiers are rejected atomically on the canonical ledger, including consensus recovery and reorg handling.
 
-Under these assumptions, changing `rho_C) cannot produce a second accepted note with the same identity/anchor/slot, while a sender who knows the output tuple and key bundle lacks `nk) and cannot directly compute its future V3 nullifier under the PRF assumption. This is not a claim that all distinct hash inputs must yield distinct outputs. It also does not hide transaction amounts, timestamps, network metadata, or public transaction structure on its own.
+Under these assumptions, changing `rho_C` cannot produce a second accepted note with the same identity/anchor/slot, while a sender who knows the output tuple and key bundle lacks `nk` and cannot directly compute its future V3 nullifier under the PRF assumption. This is not a claim that all distinct hash inputs must yield distinct outputs. It also does not hide transaction amounts, timestamps, network metadata, or public transaction structure on its own.
 
 The proof system's actual hash costs matter. HMAC-SHA3-384 may be expensive inside the chosen ZK backend; we have no circuit constraint counts or full prover/verifier measurements. Do not claim feasibility until a pinned backend compiles the relation and benchmarks equivalent security parameters. Alternative keyed PRF candidates can be assessed only as a new versioned design decision, not swapped into this byte contract silently.
 
@@ -207,9 +207,9 @@ The proof system's actual hash costs matter. HMAC-SHA3-384 may be expensive insi
 This decision borrows a property-level architecture from well-reviewed anonymous-payment protocols, not their entire primitives/circuits:
 
 1. **Zcash Orchard Book — Nullifiers:** explains that each note's nullifier must be tied to its hidden note fields and describes the use of a recipient nullifier deriving key: <https://zcash.github.io/orchard/design/nullifiers.html>.
-2. **Zcash Orchard circuit source:** the circuit constrains newly created note `rho) from the consumed input nullifier in its one-spend/one-output action model: <https://github.com/zcash/orchard/blob/main/src/circuit.rs>.
-3. **ZIP 227 — Computation of `rho` for issuance notes:** uses a unique input nullifier plus canonical action and note indices to anchor issued-note `rho): <https://zips.z.cash/zip-0227>.
-4. **Zcash issue #955:** documents an attack against spendability when issued-note `rho) might not be unique and discusses consensus enforcement: <https://github.com/zcash/zips/issues/955>. The issue is a historical discussion, not proof that 0PSp's distinct assumptions are automatically solved.
+2. **Zcash Orchard circuit source:** the circuit constrains newly created note `rho` from the consumed input nullifier in its one-spend/one-output action model: <https://github.com/zcash/orchard/blob/main/src/circuit.rs>.
+3. **ZIP 227 — Computation of `rho` for issuance notes:** uses a unique input nullifier plus canonical action and note indices to anchor issued-note `rho`: <https://zips.z.cash/zip-0227>.
+4. **Zcash issue #955:** documents an attack against spendability when issued-note `rho` might not be unique and discusses consensus enforcement: <https://github.com/zcash/zips/issues/955>. The issue is a historical discussion, not proof that 0PSp's distinct assumptions are automatically solved.
 5. **Sapling protocol specification:** describes recipient-keyed nullifier derivation and the desired unlinkability constraints for notes: <https://zips.z.cash/protocol/sapling.pdf>.
 6. **Formal Zerocash Quint specification:** models vulnerable Faerie Gold and a Sapling-style anchored fix side by side. Its symbolic injective hash abstraction is not a concrete hash collision proof: <https://github.com/informalsystems/Zerocash-spec>.
 7. **Ben-Sasson et al., Zerocash (IEEE S&P 2014):** foundational private decentralized payments protocol and proof relations: <https://eprint.iacr.org/2014/349.pdf>.
@@ -221,7 +221,7 @@ Orchard/Sapling use different curves, PRFs and circuit constructions; do not tra
 
 ## 8. Final status / release gate
 
-**Resolved by this change:** the identity policy ambiguity is replaced by a concrete versioned candidate: do not require uniqueness of `coin_id) alone; use a complete note identity, anchor every output to a one-use creation source and canonical slot, and use recipient-keyed V3 nullifiers so the creator cannot compute the future nullifier from the output tuple.
+**Resolved by this change:** the identity policy ambiguity is replaced by a concrete versioned candidate: do not require uniqueness of `coin_id` alone; use a complete note identity, anchor every output to a one-use creation source and canonical slot, and use recipient-keyed V3 nullifiers so the creator cannot compute the future nullifier from the output tuple.
 
 **Still blocked:** no real proof backend/circuit is integrated, no production issuance/spend verifier exists, no canonical chain adapter or durable consensus ledger exists, no note encryption/recovery payload is specified, the authorization-key codec and HMAC-SHA3-384 circuit feasibility are not selected/measured, native V3 constant-time behavior is not implemented/audited, and no independent cryptographic audit has been performed. V3 reference tests do not prove the relation. V2 code stays unchanged.
 
