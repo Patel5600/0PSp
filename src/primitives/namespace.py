@@ -1,11 +1,12 @@
 """Canonical 0PSP namespace identifiers and per-namespace coin IDs.
 
 This module defines byte-level research primitives, not a minting ledger.
-A namespace is the tuple (ledger, deployment, asset). The SHAKE-derived
-NamespaceId is 48 bytes to retain a 128-bit generic quantum collision target
-under the usual idealized quantum collision-search estimate. The CoinId is a
-fresh 32-byte opaque identifier, unique within that namespace by an atomic
-ledger invariant; it is not a truncated hash output.
+A namespace is the tuple (ledger, deployment, asset). NamespaceId is 48 bytes.
+A 32-byte ScopedCoinId is the current protocol's opaque identifier candidate,
+but generation does not enforce uniqueness. The design also proposes hiding
+coin_id from the issuer during user-committed issuance; direct mint-visible
+uniqueness enforcement on that hidden value is therefore unresolved. See RFC-01
+and the CHp4.2 record before treating the identity invariant as implementable.
 
 No chain-specific address encoding is guessed here. Adapters must convert
 native ledger, deployment and asset identifiers to canonical 32-byte values.
@@ -92,8 +93,9 @@ def generate_scoped_coin_id_native_buffer(*, library_path: str | Path) -> bytear
 
     Prefer this form when the coin ID is still a private witness and will be
     passed directly to the native nullifier/commitment functions. The caller
-    owns the returned buffer and should clear it after use. The actual mint
-    ledger must atomically reject duplicate (namespace_id, coin_id) pairs.
+    owns the returned buffer and should clear it after use. This helper does not
+    establish uniqueness; issuer-private minting must not assume it can compare
+    a hidden coin_id without an additional reviewed protocol mechanism.
     """
     try:
         # Hold the GIL while native code writes into the borrowed bytearray.
@@ -128,10 +130,10 @@ def generate_scoped_coin_id_native(*, library_path: str | Path) -> ScopedCoinId:
 
 
 class MintRegistryModel:
-    """Thread-safe in-memory model of atomic per-namespace mint uniqueness.
-
-    This is a test model only. Production must enforce the same invariant in
-    durable consensus/ledger state, transactionally, including reorg handling.
+    """Thread-safe in-memory model of atomic per-namespace uniqueness when raw coin
+    IDs are visible to this component. This is NOT suitable as-is for the
+    issuer-private flow, because the intended mint never receives the hidden
+    coin_id. It is a local illustrative test model, not production ledger logic.
     """
 
     def __init__(self) -> None:
