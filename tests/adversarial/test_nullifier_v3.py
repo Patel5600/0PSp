@@ -182,7 +182,10 @@ def test_v3_is_additive_and_does_not_change_frozen_v2_nullifier() -> None:
     )
 
 def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
-    from src.protocol.output_identity import derive_output_identity_v3_candidate
+    from src.protocol.output_identity import (
+        derive_output_identity_v3_candidate,
+        verify_output_identity_v3_candidate,
+    )
 
     parent_bundle = NotePublicKeyBundleV3(
         auth_scheme_id=AUTH_SCHEME,
@@ -208,6 +211,21 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
         params_id=b"v3-test-params",
     )
     first = derive_output_identity_v3_candidate(output_index=0, **common)
+    assert verify_output_identity_v3_candidate(
+        output_coin_id=first.coin_id, output_r_nf=first.r_nf, output_index=0, **common
+    )
+    assert not verify_output_identity_v3_candidate(
+        output_coin_id=ScopedCoinId(bytes([0x99]) * 32),
+        output_r_nf=first.r_nf,
+        output_index=0,
+        **common,
+    )
+    assert not verify_output_identity_v3_candidate(
+        output_coin_id=first.coin_id,
+        output_r_nf=first.r_nf,
+        output_index=1,
+        **common,
+    )
     assert first.coin_id.data.hex() == (
         "c4fd5a318771c0b56d1f6150b1c411ac"
         "74de17d3f66f7d3bf5c2787429064b49"
