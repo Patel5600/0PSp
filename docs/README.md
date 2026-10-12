@@ -15,9 +15,10 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 5. [CHp4.3 identity-invariant review](audit/chp4.3-identity-invariant-decision-review.md) — review proposal, not an approved change to identity semantics.
 6. [CHp4.4 deterministic output-ID proposal review](audit/chp4.4-deterministic-output-id-proposal-review.md) — audits the friend's proposal; public nullifier-derived IDs and sample formulas are rejected for now pending privacy/protocol review.
 7. [CHp4.5 hidden-witness output-identity proposal review](audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — audits the revised proposal's field widths, collision bounds, privacy claims and sample tests; it remains unapproved.
-8. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — executable reference candidate and hardcoded regressions; ZK enforcement and proof obligations remain open.
+8. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — transfer reference candidate and hardcoded regressions; ZK enforcement remains open.
+9. [CHp4.7 output-identity uniqueness and nullifier safety](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md) — adopts the complete spend-identity policy and one-use-anchor/canonical-output-slot derivation contract, adds the issuance reference candidate, and states the exact proof/ledger obligations that remain.
 9. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-10. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+11. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 
@@ -36,13 +37,11 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 | `docs/security/` | Security model, games, RFCs and release gate | Register is the canonical gate; approval must be explicit |
 | `.github/workflows/` | CI and scheduled consistency checks | Watch jobs are evidence-producing, not automatic security certification |
 
-## Identity-invariant review: current decision boundary
+## Identity policy: CHp4.7 decision boundary
 
-The global hidden `(namespace_id, coin_id)` uniqueness rule is **under review, not silently removed**. The [CHp4.4 proposal audit](audit/chp4.4-deterministic-output-id-proposal-review.md) finds the proposed public-nullifier-derived ID formula incompatible with the current hidden-ID privacy requirement and the submitted sample formulas incompatible with the frozen V2 byte contracts. A public deposit-derived `coin_id` is not adopted under the current issuer-privacy target. Single issuance per canonical deposit, issuance/value binding, same-witness spend binding and atomic nullifier rejection are separate obligations.
+CHp4.7 supersedes the earlier unresolved policy question in CHp4.3: the protocol does **not** require global uniqueness of `coin_id` alone. The spend identity is the complete tuple `(namespace_id, coin_id, r_nf)`. Two distinct commitments that reuse this exact tuple but differ in commitment salt necessarily share a V2 nullifier; one would become unspendable. Accordingly, every accepted issuance/transfer output must have its complete identity derived and constrained inside the eventual proof from a one-use creation anchor plus a canonical output slot. Issuance uses an authenticated canonical deposit/event anchor; transfer uses the exact consumed input nullifier under the selected single-input relation. The ledger must enforce anchor/nullifier one-use atomically.
 
-A reused `(coin_id, r_nf)` with a different commitment salt can create a different commitment but the same nullifier. A nullifier set prevents a second accepted spend; it cannot make both notes spendable. Recipient safety/output creation must be analyzed before declaring the identity-invariant reduction complete.
-
-See [CHp4.3](audit/chp4.3-identity-invariant-decision-review.md). V2 formulas and KATs remain frozen.
+This is an adopted specification policy and candidate derivation, **not yet enforceable by the repository**, because no ZK backend or durable consensus ledger is integrated. Finite SHAKE outputs are not injective: hash collisions remain probabilistic, and 32-byte `coin_id` must not be mistaken for a mathematical uniqueness guarantee. See [CHp4.7](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md). V2 formulas and KATs remain frozen; production remains **NO-GO**.
 
 ## Continuous maintenance
 
