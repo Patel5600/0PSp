@@ -1,8 +1,9 @@
-"""Canonical EVM-to-0PSP Namespace V2 adapter.
+"""Canonical EVM identity adapter using direct-hash Namespace V3.
 
-This module maps an explicitly pinned EVM network, protocol deployment and
-asset into the existing three 32-byte Namespace V2 component identifiers.
-It does not change the Namespace V2 hash formula or its known-answer vector.
+The adapter retains the full canonical ledger, deployment and asset identity
+descriptors and passes them to one SHAKE256-384 invocation. It does not hash
+each descriptor to 256 bits first. Namespace V2 remains frozen as a separate
+compatibility primitive.
 
 Security boundary: JSON-RPC is an observation interface, not a light client.
 The adapter checks RPC responses against a trusted, out-of-band chain/checkpoint
@@ -104,7 +105,9 @@ class EvmNamespaceConfig:
     view against this manifest; they are NOT namespace inputs. This keeps
     operators with different valid checkpoints from deriving different IDs.
     If protocol semantics change behind an upgradeable proxy, increment
-    deployment_epoch under the protocol's reviewed upgrade policy.
+    deployment_epoch. If the asset's identity semantics change behind an
+    upgradeable token proxy, increment asset_epoch. Both increments require
+    a reviewed protocol/deployment policy decision.
     """
 
     chain_id: int
@@ -364,7 +367,7 @@ def _canonical_evm_identities(
 
 
 class EvmNamespaceAdapter:
-    """Resolve and verify one EVM deployment into an existing Namespace V2 ID."""
+    """Resolve one EVM deployment into a typed, direct-hash Namespace V3 ID."""
 
     def __init__(self, config: EvmNamespaceConfig, rpc: JsonRpcTransport) -> None:
         if not isinstance(config, EvmNamespaceConfig):
@@ -401,7 +404,7 @@ class EvmNamespaceAdapter:
         return code
 
     def resolve(self) -> EvmNamespaceBinding:
-        """Verify the configured chain/deployment and compute the canonical namespace.
+        """Verify the configured chain/deployment and compute Namespace V3.
 
         Raises an adapter error rather than returning a namespace if any identity
         check fails. The caller should persist the returned binding and use the
