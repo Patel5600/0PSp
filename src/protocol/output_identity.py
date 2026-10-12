@@ -341,7 +341,7 @@ def verify_output_identity_v3_candidate(
     parent_coin_id: ScopedCoinId,
     parent_r_nf: NullifierSecret,
     parent_public_key_bundle: bytes,
-    parent_commitment: bytes,
+    parent_commitment: CoinCommitmentV3,
     parent_nullifier_key: NullifierDerivingKeyV3,
     spend_key_witness: bytes,
     recipient_key_bundle: bytes,
