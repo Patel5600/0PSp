@@ -2,7 +2,7 @@
 
 **Checkpoint:** namespace-bound component functions and fixed vectors are implemented. Full 0PSP protocol remains **NO-GO**.
 
-**RFC review update (2026-10-11):** The active work packages and blocking gates are tracked in [the evidence-first RFC register](evidence-first-rfc-register.md). The existing V2 commitment already includes `value`, namespace, `coin_id`, `r_nf`, key bytes, parameter ID and independent salt in its preimage. The identified multi-identity risk is not fixed by adding a second `C_spend`: the eventual spend proof must enforce that the commitment opening and nullifier use the exact same witness. More importantly, no live issuance flow yet proves that the mint's recorded public value equals the hidden value in `C`.
+**RFC review update (2026-10-12):** The active work packages and blocking gates are tracked in [the evidence-first RFC register](evidence-first-rfc-register.md). The existing V2 commitment already includes `value`, namespace, `coin_id`, `r_nf`, key bytes, parameter ID and independent salt in its preimage. The identified multi-identity risk is not fixed by adding a second `C_spend`: the eventual spend proof must enforce that the commitment opening and nullifier use the exact same witness. More importantly, no live issuance flow yet proves that the mint's recorded public value equals the hidden value in `C`.
 
 **Do not infer readiness from component tests:** Python/native equality proves byte-contract agreement only. It does not prove issuer unlinkability, commitment hiding, ZK relation soundness, ledger atomicity or constant-time execution. Authorization mode remains unresolved; see [RFC-02 spend relation](../theory/spend-relation-spec.md).
 
@@ -22,7 +22,7 @@ The IDs must be canonically mapped from the actual ledger/network instance, depl
 
 ### Coin identity and minting
 
-The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes. The complete identity is (namespace_id, coin_id). The live ledger must atomically reject a duplicate pair and register the coin commitment in the same state transition. The Python MintRegistryModel is only an in-memory test model.
+The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes. The candidate identity is (namespace_id, coin_id), but global hidden-ID uniqueness is under review in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md), not an approved production rule. One-use canonical deposit consumption and duplicate-nullifier rejection are separate obligations. The Python MintRegistryModel is only an in-memory test model.
 
 ### Nullifier V2
 

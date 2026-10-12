@@ -1,6 +1,9 @@
-# 0PSP Phase 1 Specification — Active V0 Research Model
+# 0PSP Phase 1 Specification — Historical V0 Research Model
 
 **Status: OPEN.** This is a research target, not a completed primitive or security proof.
+
+> **Non-normative history notice (2026-10-12):** This Phase 1 document preserves an earlier research model. For current release decisions, use [the documentation map](../README.md), [the evidence-first release register](../security/evidence-first-rfc-register.md), [RFC-01](../security/rfc-01-user-committed-issuance.md), [RFC-02](spend-relation-spec.md) and the [CHp4.3 identity review](../audit/chp4.3-identity-invariant-decision-review.md). Older assumptions about global coin-ID uniqueness are not current approved policy. V2 byte formats remain frozen; the overall protocol remains NO-GO.
+
 
 > **RFC-02 clarification (2026-10-11):** The phase-one goal still requires transaction authorization under the same hidden coin/key. The exact authorization semantics have not been frozen: committee threshold authorization and self-spend key-knowledge are different policies, not interchangeable implementations. See [the current relation draft](spend-relation-spec.md).
 

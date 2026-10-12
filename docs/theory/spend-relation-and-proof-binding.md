@@ -2,7 +2,7 @@
 
 **Status: Formal target relation, not an implemented or proven ZK protocol. Production: NO-GO.**
 
-> **RFC-02 status note (2026-10-11):** This page documents the earlier target that placed Ringtail verification inside the same proof. Use [the current spend relation specification](spend-relation-spec.md) as the normative draft. Authorization mode has not been selected: an in-circuit committee signature is a candidate only when policy requires it; scheme-specific self-spend key knowledge is a separate candidate only when committee approval is not a policy requirement. Neither mode is implemented or proven.
+> **RFC-02 / CHp4.3 status note (2026-10-12):** This page documents the earlier target that placed Ringtail verification inside the same proof. Use [the current spend relation specification](spend-relation-spec.md) as the normative draft. Authorization mode has not been selected: an in-circuit committee signature is a candidate only when policy requires it; scheme-specific self-spend key knowledge is a separate candidate only when committee approval is not a policy requirement. Neither mode is implemented or proven.
 
 ## Public statement
 
@@ -21,7 +21,7 @@
 
 Here j is the hidden selected member, coin_id is a 32-byte opaque per-namespace ID, r_nf is an independent 36-byte per-coin secret, rho_C is independent 36-byte commitment randomness, and sigma_th is the Ringtail threshold signature.
 
-The complete coin identity is (namespace_id, coin_id). The durable mint ledger must atomically reject duplicate pairs. The current in-memory registry is not consensus code.
+The candidate coin identity is (namespace_id, coin_id), but global hidden-ID uniqueness is under review in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md). Do not treat duplicate-pair rejection as an approved production rule while the issuer is not given coin_id. The current in-memory registry is not consensus code. Deposit single-use and public nullifier single-use are separate state invariants.
 
 ## Exact V2 predicates
 
@@ -37,7 +37,8 @@ The verifier must not accept a proof in which the commitment uses one key and th
 ## Security targets, not proven results
 
 - **Spend soundness:** accepted proof without a valid witness implies a break of the exact proof system or a predicate's underlying assumption.
-- **Mint uniqueness:** no two accepted mint transitions register the same (namespace_id, coin_id).
+- **Single issuance:** one canonical deposit ID can be consumed by at most one accepted issuance.
+- **Identity policy (OPEN):** approve either a privacy-preserving hidden-ID uniqueness mechanism or a reviewed revision to global coin-ID uniqueness after analyzing same-nullifier output collisions and recipient spendability.
 - **Double-spend resistance:** the valid opening fixes nu, and durable ledger state atomically rejects repeats, including applicable fork/reorg cases.
 - **Commitment binding:** distinct canonical openings with equal commitment output give a SHAKE256-384 collision, provided the canonical encoding is injective.
 - **Commitment hiding:** needs a complete classical-RO or QROM game and concrete query-dependent bound. The 288-bit salt alone is not a proof.

@@ -1,8 +1,8 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
 **Last reviewed:** 2026-10-12  
-**Branch base commit:** `aa4bb8575bf34eeaadf107de3b95bd368bde93af`  
-**CHp4.1 CI:** [review-branch checks](https://github.com/Patel5600/PSp/pull/6/checks); these validate workflow commands only and are not a cryptographic proof.  
+**Main baseline reviewed:** `0225fc35bd4581c64216d18d9923a76a013dc886` (2026-10-12)  
+**CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
 
@@ -42,7 +42,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 ## CHp4.2 formal relation and adversarial test boundary
 
-[CHp4.2](../audit/chp4.2-formal-relations-adversarial-tests.md) records the exact current V2 commitment/nullifier preimages and formal R_mint/R_spend targets. `tests/adversarial/test_v2_witness_substitutions.py` uses real reference primitives for finite-vector substitution cases; `tests/adversarial/test_issuance_replay.py` uses a test-double verifier to check local deposit replay handling. Merkle-path/index tests remain blocked until the tree suite/encoding is frozen, and reorg tests remain blocked until real adapter/finality/recovery semantics exist. A further release blocker is hidden coin-ID uniqueness: the issuer cannot directly compare an ID it never receives.
+[CHp4.2](../audit/chp4.2-formal-relations-adversarial-tests.md) records the exact current V2 commitment/nullifier preimages and formal R_mint/R_spend targets. `tests/adversarial/test_v2_witness_substitutions.py` uses real reference primitives for finite-vector substitution cases; `tests/adversarial/test_issuance_replay.py` uses a test-double verifier to check local deposit replay handling. Merkle-path/index tests remain blocked until the tree suite/encoding is frozen, and reorg tests remain blocked until real adapter/finality/recovery semantics exist. A further open decision is global hidden coin-ID uniqueness. CHp4.3 evaluates whether it is necessary for monetary soundness and separately records the same-(coin_id, r_nf) nullifier-collision/unspendability risk. Do not treat this policy as resolved until an approved identity decision and recipient/output analysis exist.
 
 ## P0: issuance privacy and state correctness
 
@@ -53,7 +53,7 @@ A wallet-side commitment can keep `coin_id`, `r_nf` and salt out of the mint's v
 3. A receipt signed over `(C, v, deposit_tx)` authenticates the mint's recorded fields. It does not, by itself, prove that the hidden commitment opening contains that same value.
 4. The protocol therefore needs a verified issuance relation/proof (or a different reviewed construction) that binds `C` to the authorized value and deposit without disclosing the private opening. No such backend is implemented here.
 5. The mint state transition must atomically check deposit replay, commitment uniqueness, accepted value, and receipt/state-root update. A future spend transition must atomically reject a previously spent public nullifier.
-6. A separate unresolved question is how to enforce uniqueness of the hidden (namespace_id, coin_id) identity without the issuer learning coin_id. Random generation does not address deliberate reuse; the visible-ID MintRegistryModel is not compatible with the private-issuer message flow as-is.
+6. The global hidden (namespace_id, coin_id) uniqueness rule is under review in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md). The visible-ID MintRegistryModel is not compatible with the private-issuer message flow as-is. Do not derive coin_id from public deposit data under the current issuer-privacy target. A proposed removal of global uniqueness must analyze same-nullifier output collisions, recipient spendability, wallet/output relations, leakage and malicious witness construction.
 
 Until these conditions are specified and implemented, no live issuance or production mint claims are allowed.
 
@@ -96,6 +96,16 @@ No C function-pointer API is being introduced before the relation and authorizat
 - A disassembly script may report expected wipe call sites in the built wrapper. It cannot prove that every secret copy is cleared or inspect OpenSSL provider internals.
 - Welch's t-test / dudect-style timing output is a diagnostic for its test distribution, binary and host. `|t| < 4.5` is not proof of constant-time behavior. Shared-runner timing is non-blocking and must not be interpreted as a release certificate.
 
+## CHp4.3 identity-invariant review
+
+[CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md) is a documentation/test proposal only. It does not change V2 formulas, KATs, production APIs, authorization, ledger behavior or default CI gates. The decision being reviewed is whether global hidden coin-ID uniqueness is a necessary monetary-soundness invariant or a separate identity/spendability policy. Single issuance, issuance/value binding and same-witness nullifier binding are necessary but do not by themselves prove recipient safety when distinct outputs share the same (coin_id, r_nf).
+
+A deterministic fixture at `tests/fixtures/hidden_tuple_reuse.json` and `tests/adversarial/test_hidden_tuple_reuse.py` captures the finite-vector behavior. It is regression evidence only; it is not a proof of collision resistance, a ZK theorem or a production-ledger guarantee.
+
+## Repository maintenance watch
+
+The non-certifying [Repository integrity watch](../../.github/workflows/repo-integrity-watch.yml) runs on pull requests, pushes to `main`, manual dispatch and daily schedule. It checks repository-local Markdown targets, active release-gate markers and invariant fixtures. [Dependabot](../../.github/dependabot.yml) proposes weekly GitHub Actions/Python updates. Review every update; no cryptographic/toolchain changes should be auto-merged. The watch does not verify external URLs or cryptographic claims.
+
 ## Release gate (all mandatory)
 
 Production remains **NO-GO** until all of these have affirmative, reviewable evidence:
@@ -115,4 +125,4 @@ Production remains **NO-GO** until all of these have affirmative, reviewable evi
 
 ## Change-control rule
 
-Tests and documentation may be added in an isolated branch. No production API, hash, ledger behavior, authorization mode, or default CI gate changes under these RFCs until its specification is approved and the corresponding test harness exists. Passing CI only confirms executed tests. The base `main` status is unchanged and remains **NO-GO**.
+Tests and documentation may be added in an isolated branch. No production API, hash, ledger behavior, authorization mode, or default CI gate changes under these RFCs until its specification is approved and the corresponding test harness exists. Passing CI only confirms executed tests. The base `main` status is unchanged and remains **NO-GO**. The integrity workflow is not a cryptographic release gate; change-control still requires approved specification and an appropriate harness before production semantics or mandatory gates change.

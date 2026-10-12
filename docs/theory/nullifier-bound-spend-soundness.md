@@ -2,7 +2,7 @@
 
 **Status: Component equation and test models exist. Full spend-soundness theorem remains OPEN.**
 
-> **RFC-02 status note (2026-10-11):** The [current spend relation specification](spend-relation-spec.md) is the normative candidate relation; authorization mode is still unresolved. The proof must not permit the same registered commitment to be opened under a substituted `coin_id` or `r_nf` and then produce a different accepted nullifier. The present component tests check opening recomputation only. They do not establish this property for a ZK proof, nor do they prove atomic ledger double-spend prevention.
+> **RFC-02 / CHp4.3 status note (2026-10-12):** The [current spend relation specification](spend-relation-spec.md) is the normative candidate relation; authorization mode is still unresolved. The proof must not permit the same registered commitment to be opened under a substituted `coin_id` or `r_nf` and then produce a different accepted nullifier. The present component tests check opening recomputation only. They do not establish this property for a ZK proof, nor do they prove atomic ledger double-spend prevention.
 
 ## Objective
 
@@ -13,7 +13,7 @@ Commitment opening, threshold authorization, namespace, coin ID and nullifier mu
     Public = (namespace_id, R_C, nu, M, state, params_id)
     Witness = (j, C_j, pk_j, value, coin_id, r_nf, rho_C, sigma_th)
 
-namespace_id is a 48-byte SHAKE256-384 digest of canonical 32-byte ledger, deployment and asset identifiers. coin_id is a fresh 32-byte opaque identifier. The full identity is (namespace_id, coin_id), and the mint ledger must atomically reject duplicate pairs.
+namespace_id is a 48-byte SHAKE256-384 digest of canonical 32-byte ledger, deployment and asset identifiers. coin_id is a fresh 32-byte opaque identifier. The current candidate identity is (namespace_id, coin_id), but global hidden-ID uniqueness is under review in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md), not an approved requirement to implement blindly.
 
 ## Active V2 relation
 

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "purpose": "Deterministic reference vectors for testing selected hidden tuple reuse behavior. Not production secrets, not a collision proof, and not protocol approval.",
+  "common": {
+    "namespace_id_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
+    "coin_id_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "r_nf_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223",
+    "public_key_utf8": "canonical-threshold-public-key-v1",
+    "params_id_utf8": "ringtail-test-params-v1",
+    "value": 10
+  },
+  "cases": [
+    {
+      "id": "same_tuple_different_salt",
+      "rho_a_hex": "414141414141414141414141414141414141414141414141414141414141414141414141",
+      "rho_b_hex": "424242424242424242424242424242424242424242424242424242424242424242424242",
+      "expected": {
+        "commitments_differ": true,
+        "nullifiers_equal": true
+      }
+    },
+    {
+      "id": "same_coin_id_different_rnf",
+      "rho_hex": "535353535353535353535353535353535353535353535353535353535353535353535353",
+      "other_r_nf_hex": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "expected": {
+        "commitments_differ": true,
+        "nullifiers_differ": true
+      }
+    }
+  ]
+}
