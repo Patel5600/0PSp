@@ -170,9 +170,9 @@ class EvmNamespaceConfig:
 
 @dataclass(frozen=True, slots=True)
 class EvmNamespaceBinding:
-    """Resolved, auditable public identifiers for a configured EVM deployment."""
+    """Resolved, auditable V3 identity descriptors for one EVM deployment."""
 
-    namespace_id: NamespaceId
+    namespace_id: NamespaceIdV3
     chain_id: int
     genesis_hash: bytes
     checkpoint_block_number: int
@@ -182,14 +182,26 @@ class EvmNamespaceBinding:
     asset_address: bytes | None
     asset_code_fingerprint: bytes | None
     deployment_epoch: int
-    ledger_id: bytes
-    deployment_id: bytes
-    asset_id: bytes
+    asset_epoch: int
+    ledger_identity: bytes
+    deployment_identity: bytes
+    asset_identity: bytes
 
     def __post_init__(self) -> None:
-        _require_fixed_bytes(self.ledger_id, NAMESPACE_COMPONENT_BYTES, "ledger_id")
-        _require_fixed_bytes(self.deployment_id, NAMESPACE_COMPONENT_BYTES, "deployment_id")
-        _require_fixed_bytes(self.asset_id, NAMESPACE_COMPONENT_BYTES, "asset_id")
+        if not isinstance(self.namespace_id, NamespaceIdV3):
+            raise TypeError("namespace_id must be a NamespaceIdV3")
+        for name, value in (
+            ("ledger_identity", self.ledger_identity),
+            ("deployment_identity", self.deployment_identity),
+            ("asset_identity", self.asset_identity),
+        ):
+            if not isinstance(value, bytes) or not 1 <= len(value) <= NAMESPACE_V3_COMPONENT_MAX_BYTES:
+                raise ValueError(f"{name} must contain 1..{NAMESPACE_V3_COMPONENT_MAX_BYTES} bytes")
+        _require_fixed_bytes(self.protocol_code_fingerprint, EVM_CODE_FINGERPRINT_BYTES,
+                             "protocol_code_fingerprint")
+        if self.asset_code_fingerprint is not None:
+            _require_fixed_bytes(self.asset_code_fingerprint, EVM_CODE_FINGERPRINT_BYTES,
+                                 "asset_code_fingerprint")
 
 
 class JsonRpcClient:
