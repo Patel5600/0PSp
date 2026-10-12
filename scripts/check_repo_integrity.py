@@ -27,6 +27,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.5-hidden-witness-output-identity-proposal-review.md"),
     Path("docs/audit/chp4.6-output-identity-candidate-and-tests.md"),
     Path("docs/audit/chp4.8-namespace-v2-evm-adapter.md"),
+    Path("docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -82,6 +83,12 @@ REQUIRED_TOKENS = {
         "checkpoint hash",
         "not a ZK proof",
         "**Production:** **NO-GO**",
+    ),
+    Path("docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md"): (
+        "NAMESPACE_V3(L, D, A)",
+        "NamespaceIdV3",
+        "2^128",
+        "Production remains NO-GO",
     ),
 }
 
