@@ -158,12 +158,12 @@ def test_different_commitment_salts_produce_different_v3_nullifiers() -> None:
 def test_v3_nullifier_binds_bundle_tuple_and_parameter_suite() -> None:
     bundle_a = _bundle().encode()
     cm_a = _commit(bundle_a)
-    nf_a = _nf(bundle=bundle_a, commitment=cm_a.value)
+    nf_a = _nf(bundle=bundle_a, commitment=cm_a)
 
     key_b = NullifierDerivingKeyV3(bytes([0x45]) * 48)
     bundle_b = _bundle(key_b).encode()
     cm_b = _commit(bundle_b)
-    nf_b = _nf(key_b, bundle_b, cm_b.value)
+    nf_b = _nf(key_b, bundle_b, cm_b)
     assert nf_a != nf_b
 
     alternate_auth_bundle = _bundle(KEY, b"another-recipient-auth-key").encode()
@@ -174,7 +174,7 @@ def test_v3_nullifier_binds_bundle_tuple_and_parameter_suite() -> None:
     cm_other_params = _commit(bundle_a, params_id=b"v3-other-suite")
     assert _nf(
         bundle=bundle_a,
-        commitment=cm_other_params.value,
+        commitment=cm_other_params,
         params_id=b"v3-other-suite",
     ) != nf_a
 
@@ -202,7 +202,7 @@ def test_nullifier_key_commitment_mismatch_fails_closed() -> None:
     cm = _commit(bundle)
     with pytest.raises(ValueError, match="does not open"):
         compute_nullifier_v3(
-            NS, PARAMS_ID, bundle, cm.value, COIN, R_NF, other
+            NS, PARAMS_ID, bundle, cm, COIN, R_NF, other
         )
 
 
@@ -213,9 +213,11 @@ def test_v3_nullifier_rejects_malformed_bundle_or_commitment() -> None:
         compute_nullifier_v3(
             NS, PARAMS_ID, valid_bundle + b"x", valid_commitment, COIN, R_NF, KEY
         )
-    with pytest.raises(ValueError, match="commitment must be exactly"):
+    with pytest.raises(ValueError, match="V3 commitment must be exactly"):
+        CoinCommitmentV3(b"short")
+    with pytest.raises(TypeError, match="commitment must be a CoinCommitmentV3"):
         compute_nullifier_v3(
-            NS, PARAMS_ID, valid_bundle, b"short", COIN, R_NF, KEY
+            NS, PARAMS_ID, valid_bundle, b"short", COIN, R_NF, KEY  # type: ignore[arg-type]
         )
     with pytest.raises(ValueError, match="params_id"):
         compute_nullifier_v3(
@@ -260,7 +262,7 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
     parent_bundle = _bundle(KEY, b"parent-pk").encode()
     parent_commitment = commit_coin_v3(
         NS, parent_bundle, 700, COIN, R_NF, bytes([0xA0]) * 36, TRANSFER_PARAMS_ID
-    ).value
+    )
     recipient_key = NullifierDerivingKeyV3(bytes([0x45]) * 48)
     recipient_bundle = _bundle(recipient_key, b"recipient-pk").encode()
     common = dict(
