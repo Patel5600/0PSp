@@ -76,7 +76,9 @@ NullifierV3(ns, BundleV3, coin_id, r_nf, nk) =
 
 The recipient needs the private `nk` to compute the nullifier. Knowing the output identity tuple and public bundle is not sufficient to compute it under the HMAC-PRF assumption. The key commitment is not a replacement for key secrecy; it is the value that lets a proof bind the recipient's secret key to the exact canonical bundle inside the note commitment.
 
-This is a new V3 suite, not a change to `NullifierV2`. All existing V1/V2 formulas and known-answer vectors remain byte-for-byte unchanged.
+This is a new V3 suite, not a change to `NullifierV2`. All existing V1/V2 formulas and known-answer vectors remain byte-for-byte unchanged. The reference API uses distinct `NullifierV3` and `CoinCommitmentV3` result types to prevent accidental version mixing; the durable transaction schema must also carry and enforce the protocol version.
+
+**Primitive-selection caveat:** HMAC-SHA3-384 is the current reference candidate, not a final post-quantum PRF certification. NIST SP 800-185 also defines KMAC as a SHA-3-derived MAC that can be used as a PRF. Before freezing a production circuit, compare the selected keyed-hash candidate under the intended classical/quantum security model and measure its actual proof cost. Do not silently swap HMAC for KMAC within a deployed version; primitive changes require a separately reviewed version and new vectors.
 
 ### 3.3 Versioned V3 note commitment
 
