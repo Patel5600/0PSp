@@ -141,12 +141,15 @@ def _validate_canonical_bundle_v3(encoded: bytes) -> bytes:
 
 def _nullifier_v3_message(
     namespace_id: NamespaceId,
+    params_id: bytes,
     public_key_bundle: bytes,
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
 ) -> tuple[bytes, bytes]:
     if not isinstance(namespace_id, NamespaceId):
         raise TypeError("namespace_id must be a NamespaceId")
+    if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
+        raise ValueError("params_id must be 1..65535 bytes")
     if not isinstance(public_key_bundle, bytes) or not public_key_bundle:
         raise ValueError("public_key_bundle must be non-empty canonical bytes")
     if len(public_key_bundle) >= (1 << 32):
@@ -159,6 +162,8 @@ def _nullifier_v3_message(
     message = b"".join((
         DOMAIN_NULLIFIER_V3,
         NULLIFIER_V3_VERSION,
+        len(params_id).to_bytes(2, "little"),
+        params_id,
         len(namespace_id.data).to_bytes(2, "little"),
         namespace_id.data,
         len(public_key_bundle).to_bytes(4, "little"),
@@ -173,6 +178,7 @@ def _nullifier_v3_message(
 
 def compute_nullifier_v3(
     namespace_id: NamespaceId,
+    params_id: bytes,
     public_key_bundle: bytes,
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
@@ -189,7 +195,7 @@ def compute_nullifier_v3(
     if not isinstance(nullifier_key, NullifierDerivingKeyV3):
         raise TypeError("nullifier_key must be a NullifierDerivingKeyV3")
     message, encoded_key_commitment = _nullifier_v3_message(
-        namespace_id, public_key_bundle, coin_id, r_nf
+        namespace_id, params_id, public_key_bundle, coin_id, r_nf
     )
     expected_key_commitment = compute_nullifier_key_commitment_v3(nullifier_key)
     if not hmac.compare_digest(encoded_key_commitment, expected_key_commitment.value):
