@@ -62,7 +62,7 @@ CodeFP(code) =
 
 The adapter rejects empty code and compares the result against the pinned expected fingerprint.
 
-Let `BE256(chain_id)` be the 32-byte big-endian chain ID, `BE64(h)` the 8-byte big-endian checkpoint height, and `E` the 8-byte big-endian deployment epoch. Then:
+Let `BE256(chain_id)` be the 32-byte big-endian chain ID and `E` the 8-byte big-endian deployment epoch. Checkpoint height/hash and runtime-code fingerprints are validated separately and are not inputs to these identity preimages. Then:
 
 ```text
 L = SHAKE256-256(
