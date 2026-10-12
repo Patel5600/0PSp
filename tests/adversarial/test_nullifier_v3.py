@@ -17,7 +17,7 @@ from src.primitives.nullifier_v3 import (
     compute_nullifier_v3,
     verify_nullifier_key_commitment_v3,
 )
-from src.primitives.coin_commitment import commit_coin_v2
+from src.primitives.coin_commitment_v3 import commit_coin_v3
 from src.protocol.note_public_key_bundle_v3 import (
     NotePublicKeyBundleV3,
     decode_note_public_key_bundle_v3,
@@ -69,8 +69,8 @@ def test_same_tuple_and_bundle_have_one_nullifier_independent_of_commitment_salt
 
     # Different commitment salts still produce distinct commitments, but do
     # not change the identity-derived nullifier for the same key and tuple.
-    cm_a = commit_coin_v2(NS, bundle, 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID)
-    cm_b = commit_coin_v2(NS, bundle, 500, COIN, R_NF, bytes([0xA2]) * 36, PARAMS_ID)
+    cm_a = commit_coin_v3(NS, bundle, 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID)
+    cm_b = commit_coin_v3(NS, bundle, 500, COIN, R_NF, bytes([0xA2]) * 36, PARAMS_ID)
     assert cm_a != cm_b
     assert nullifier_a == nullifier_b
 
