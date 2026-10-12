@@ -84,6 +84,18 @@ def test_evm_erc20_namespace_v3_known_answer_vector() -> None:
     assert len(binding.ledger_identity) == 92
     assert len(binding.deployment_identity) == 60
     assert len(binding.asset_identity) == 56
+    assert binding.ledger_identity.hex() == (
+        "305053502d45564d2d4c45444745522d4944454e544954592d7631"
+        "01" + "00" * 31 + "01" + "01" * 32
+    )
+    assert binding.deployment_identity.hex() == (
+        "305053502d45564d2d4445504c4f594d454e542d4944454e544954592d7631"
+        "01" + "11" * 20 + "00" * 8
+    )
+    assert binding.asset_identity.hex() == (
+        "305053502d45564d2d41535345542d4944454e544954592d7631"
+        "01" + "01" + "22" * 20 + "00" * 8
+    )
     # The descriptors are raw canonical bytes, not 256-bit intermediate hashes.
     assert binding.ledger_identity.startswith(b"0PSP-EVM-LEDGER-IDENTITY-v1\x01")
     assert binding.deployment_identity.startswith(b"0PSP-EVM-DEPLOYMENT-IDENTITY-v1\x01")
