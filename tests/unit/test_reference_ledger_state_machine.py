@@ -319,3 +319,56 @@ def test_reference_ledger_requires_a_canonical_fixed_namespace() -> None:
             verify_issuance_proof=lambda _statement, _proof: True,
             verify_spend_proof=lambda _statement, _proof: True,
         )
+
+
+def test_raw_v2_width_bytes_cannot_be_used_as_expected_namespace_v3() -> None:
+    with pytest.raises(InvalidInput, match="NamespaceIdV3"):
+        ReferenceLedger(
+            expected_namespace_id=NS.data,
+            authorize_deposit=authorization_for,
+            verify_issuance_proof=lambda _statement, _proof: True,
+            verify_spend_proof=lambda _statement, _proof: True,
+        )
+
+
+def test_raw_namespace_bytes_from_deposit_adapter_fail_before_proof() -> None:
+    calls = []
+
+    def legacy_authorizer(_evidence):
+        return DepositAuthorization(
+            namespace_id=NS.data,
+            deposit_id=b"D" * 32,
+            authorized_value=100,
+            finalized_anchor=ANCHOR,
+        )
+
+    ledger = ReferenceLedger(
+        expected_namespace_id=NS,
+        authorize_deposit=legacy_authorizer,
+        verify_issuance_proof=lambda statement, proof: calls.append(statement) or True,
+        verify_spend_proof=lambda _statement, _proof: True,
+    )
+    with pytest.raises(NamespaceMismatch, match="typed NamespaceIdV3"):
+        ledger.issue(deposit_evidence=b"legacy-bytes", commitment=b"C" * 48,
+                     params_id=PARAMS, proof=PROOF)
+    assert calls == []
+    assert ledger.issued_count == 0
+    assert ledger.state_version == 0
+
+
+def test_raw_namespace_bytes_in_spend_statement_fail_before_proof() -> None:
+    calls = []
+    ledger = make_ledger()
+    legacy_statement = replace(statement(b"N" * 48), namespace_id=NS.data)
+    # Swap in an observable verifier to assert rejection precedes proof execution.
+    observed = ReferenceLedger(
+        expected_namespace_id=NS,
+        authorize_deposit=authorization_for,
+        verify_issuance_proof=lambda _statement, _proof: True,
+        verify_spend_proof=lambda value, proof: calls.append(value) or True,
+    )
+    with pytest.raises(InvalidInput, match="NamespaceIdV3"):
+        observed.accept_spend(statement=legacy_statement, proof=PROOF)
+    assert calls == []
+    assert observed.spent_count == 0
+    assert observed.state_version == 0
