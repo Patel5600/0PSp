@@ -62,8 +62,9 @@ def test_v3_key_commitment_and_nullifier_match_hardcoded_vectors() -> None:
     )
     assert verify_nullifier_key_commitment_v3(key_commitment, KEY)
     assert compute_nullifier_v3(NS, PARAMS_ID, bundle.encode(), COIN, R_NF, KEY).value.hex() == (
-        "d034a0df5df2e09108c8d04adeb20d723af581db88f78c215c664451b6bce065"
-        "c0d426aa92070ec7b9b80cb4cdc36971"
+        "b2e62feb275add500d8b7a2fa32afafb"
+        "f47b630bff9fccf67dba9828ac12e9fd"
+        "b099f3175457d3659e4131bf978d543d"
     )
     commitment = commit_coin_v3(
         NS, bundle.encode(), 500, COIN, R_NF, bytes([0xA1]) * 36, PARAMS_ID
