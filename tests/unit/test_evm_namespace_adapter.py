@@ -55,7 +55,7 @@ class FakeRpc:
         raise AssertionError(f"unexpected JSON-RPC method: {method}")
 
 
-def build_adapter(*, asset_address=ASSET_ADDRESS, rpc=None, deployment_epoch=0):
+def build_adapter(*, asset_address=ASSET_ADDRESS, rpc=None, deployment_epoch=0, asset_epoch=0):
     code_by_address = {
         PROTOCOL_ADDRESS: PROTOCOL_CODE,
         ASSET_ADDRESS: ASSET_CODE,
@@ -73,29 +73,35 @@ def build_adapter(*, asset_address=ASSET_ADDRESS, rpc=None, deployment_epoch=0):
             runtime_code_fingerprint(ASSET_CODE) if asset_address is not None else None
         ),
         deployment_epoch=deployment_epoch,
+        asset_epoch=asset_epoch,
     )
     return config, rpc, EvmNamespaceAdapter(config, rpc)
 
 
-def test_evm_erc20_namespace_known_answer_vector() -> None:
+def test_evm_erc20_namespace_v3_known_answer_vector() -> None:
     _, _, adapter = build_adapter()
     binding = adapter.resolve()
-    assert binding.ledger_id.hex() == (
-        "4e3535fbb20978ffe3403b5e0be07b79"
-        "4c9c24742f06a5b50c33089be1fc584f"
+    assert len(binding.ledger_identity) == 92
+    assert len(binding.deployment_identity) == 60
+    assert len(binding.asset_identity) == 56
+    # The descriptors are raw canonical bytes, not 256-bit intermediate hashes.
+    assert binding.ledger_identity.startswith(b"0PSP-EVM-LEDGER-IDENTITY-v1\x01")
+    assert binding.deployment_identity.startswith(b"0PSP-EVM-DEPLOYMENT-IDENTITY-v1\x01")
+    assert binding.asset_identity.startswith(b"0PSP-EVM-ASSET-IDENTITY-v1\x01\x01")
+    assert binding.protocol_code_fingerprint.hex() == (
+        "f6a30183ff2cd81deaca7952b380a0d09c"
+        "210d0696da997476e73905c810e744e1"
+        "4a9af7ac732a49b49b6d419927d096"
     )
-    assert binding.deployment_id.hex() == (
-        "2d1497444e98626b3c4825244d27d1d4"
-        "4be6c5bb7f4a78309a1efbc8be9021a8"
-    )
-    assert binding.asset_id.hex() == (
-        "c2abc6edf7de73f43a5a43adca5e6c9c"
-        "cacb6c33cdf6d654b66270cdad25f3c4"
+    assert binding.asset_code_fingerprint.hex() == (
+        "4e74d89c3c892fb8809b154da5a6eb74"
+        "0623db245b53a86280a8d5c964b7261f"
+        "232d04292a7d54779dfeeb887687fbe9"
     )
     assert binding.namespace_id.data.hex() == (
-        "fdb2001b8d8974ce68029111f3864e4c"
-        "741cb9b946bb6935827af4f45f3129c5"
-        "9b9148382ac436587f3ef0c05002763c"
+        "d77ec0ca141c09b8249453a0aaded14b"
+        "9fd3aefe2b90c8aafc1cf568d016bd56"
+        "d063c3fe16f9a766663e686e9d298413"
     )
     assert binding.namespace_id.data == adapter.resolve().namespace_id.data
 
@@ -142,7 +148,7 @@ def test_checkpoint_is_verified_but_does_not_split_logical_chain_namespace() -> 
     assert (base.checkpoint_block_number, base.checkpoint_hash) != (
         alternate.checkpoint_block_number, alternate.checkpoint_hash
     )
-    assert alternate.ledger_id == base.ledger_id
+    assert alternate.ledger_identity == base.ledger_identity
     assert alternate.namespace_id == base.namespace_id
 
 
@@ -153,7 +159,7 @@ def test_native_asset_has_distinct_asset_component_and_no_token_rpc_call() -> No
     native = native_adapter.resolve()
     assert native.asset_address is None
     assert native.asset_code_fingerprint is None
-    assert native.asset_id != erc20.asset_id
+    assert native.asset_identity != erc20.asset_identity
     assert native.namespace_id != erc20.namespace_id
     assert not any(
         method == "eth_getCode" and params[0] == "0x" + ASSET_ADDRESS.hex()
@@ -187,8 +193,17 @@ def test_chain_id_is_part_of_ledger_component_identity() -> None:
         code_by_address={PROTOCOL_ADDRESS: PROTOCOL_CODE, ASSET_ADDRESS: ASSET_CODE},
     )
     alternate = EvmNamespaceAdapter(config, rpc).resolve()
-    assert alternate.ledger_id != base.ledger_id
+    assert alternate.ledger_identity != base.ledger_identity
     assert alternate.namespace_id != base.namespace_id
+
+
+def test_asset_epoch_explicitly_separates_asset_semantics() -> None:
+    _, _, original_adapter = build_adapter(asset_epoch=0)
+    _, _, upgraded_adapter = build_adapter(asset_epoch=1)
+    original = original_adapter.resolve()
+    upgraded = upgraded_adapter.resolve()
+    assert original.asset_identity != upgraded.asset_identity
+    assert original.namespace_id != upgraded.namespace_id
 
 
 def test_protocol_address_is_part_of_deployment_component_identity() -> None:
@@ -210,7 +225,7 @@ def test_protocol_address_is_part_of_deployment_component_identity() -> None:
         code_by_address={protocol_address: PROTOCOL_CODE, ASSET_ADDRESS: ASSET_CODE},
     )
     alternate = EvmNamespaceAdapter(config, rpc).resolve()
-    assert alternate.deployment_id != base.deployment_id
+    assert alternate.deployment_identity != base.deployment_identity
     assert alternate.namespace_id != base.namespace_id
 
 
@@ -225,6 +240,8 @@ def test_protocol_address_is_part_of_deployment_component_identity() -> None:
     {"expected_protocol_code_fingerprint": b"x" * 31},
     {"deployment_epoch": True},
     {"deployment_epoch": -1},
+    {"asset_epoch": True},
+    {"asset_epoch": -1},
     {"code_block_tag": "pending"},
 ])
 def test_manifest_rejects_noncanonical_configuration(kwargs) -> None:
