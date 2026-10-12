@@ -35,11 +35,11 @@ For V3, the candidate note identity is:
 
 ```text
 NoteIdentityV3 =
-    (namespace_id, canonical_note_public_key_bundle,
-     coin_id[32], r_nf[36])
+    (params_id, namespace_id, canonical_note_public_key_bundle,
+     commitment[48], coin_id[32], r_nf[36])
 ```
 
-The canonical key bundle binds the authorization scheme and public key to a commitment to the recipient's per-note nullifier-deriving key. This bundle participates in both the V3 commitment opening and V3 nullifier message. Reusing `coin_id` alone is not prohibited and is not proof of a collision. Reusing an accepted source anchor/output slot or reusing the same complete note identity is prohibited by the construction and ledger rules.
+The canonical key bundle binds the authorization scheme and public key to a commitment to the recipient's per-note nullifier-deriving key. This bundle participates in both the V3 commitment opening and V3 nullifier message. Reusing `coin_id` alone is not prohibited and is not proof of a collision. The public commitment is part of the V3 nullifier message, so two different commitments do not deterministically share a nullifier merely because they reuse the same hidden tuple. Accepted output identities must still be derived from the anchored source/slot relation and enforced by the proof.
 
 **Recipient-address authenticity is also mandatory.** The recipient must create `nk`, verify locally that `KeyCommitV3(nk)` matches the bundle, and authenticate the exact domain-separated bundle with the selected address-authorization key. Every output proof must validate that authentication against the exact bundle committed in the note; the sender must not be able to substitute a new key commitment while retaining the intended recipient's authorization key. Otherwise, the sender could build an output around a key commitment whose opening the recipient does not know, causing an unspendable note without any hash collision.
 
@@ -77,7 +77,7 @@ BundleV3 =
   LE32(len(auth_public_key)) || canonical_auth_public_key ||
   LE16(48) || KeyCommitV3(nk)
 
-NullifierV3(params_id, ns, BundleV3, coin_id, r_nf, nk) =
+NullifierV3(params_id, ns, BundleV3, C, coin_id, r_nf, nk) =
   HMAC-SHA3-384(
     key = nk,
     message =
@@ -85,12 +85,13 @@ NullifierV3(params_id, ns, BundleV3, coin_id, r_nf, nk) =
       LE16(len(params_id)) || params_id ||
       LE16(48) || ns[48] ||
       LE32(len(BundleV3)) || BundleV3 ||
+      LE16(48) || C[48] ||
       LE16(32) || coin_id[32] ||
       LE16(36) || r_nf[36]
   )
 ```
 
-The recipient needs the private `nk` to compute the nullifier. The exact `params_id` is included in the keyed message to prevent accidental nullifier reuse across parameter suites. Knowing the output identity tuple, parameter ID and public bundle is not sufficient to compute it under the HMAC-PRF assumption. The key commitment is not a replacement for key secrecy; it is the value that lets a proof bind the recipient's secret key to the exact canonical bundle inside the note commitment.
+The recipient needs the private `nk` to compute the nullifier. The exact `params_id` and registered V3 commitment `C` are included in the keyed message. This prevents accidental cross-parameter reuse and removes V2's deterministic same-nullifier result for different commitment salts: changing `rho_C` changes `C), hence changes the keyed PRF input, except in the negligible event of an HMAC output collision. Knowing the output tuple, commitment, parameter ID and public bundle is not sufficient to compute the nullifier under the HMAC-PRF assumption. The key commitment is not a replacement for key secrecy; it is the value that lets a proof bind the recipient's secret key to the exact canonical bundle inside the note commitment.
 
 This is a new V3 suite, not a change to `NullifierV2`. All existing V1/V2 formulas and known-answer vectors remain byte-for-byte unchanged. The reference API uses distinct `NullifierV3` and `CoinCommitmentV3` result types to prevent accidental version mixing; the durable transaction schema must also carry and enforce the protocol version.
 
@@ -123,7 +124,7 @@ Reference modules added in this branch:
 
 ### 3.4 One-use anchor and canonical output slot
 
-A recipient-keyed nullifier fixes the creator's ability to calculate the later nullifier; it does not alone prevent a creator from submitting two commitments to the same complete note identity with different commitment salts. Output identity must also be constrained by the actual proof.
+The recipient-keyed nullifier prevents the creator from calculating the later nullifier, and including the exact commitment in its keyed message means different commitment salts do not deterministically produce the same nullifier. Output identity derivation must still be constrained by the actual proof so a malicious prover cannot choose arbitrary identity tuples, bypass canonical output slots, or omit the recipient-bundle binding.
 
 **Issuance:** the source anchor is the authenticated, canonical deposit/event identity, scoped to `namespace_id`. The trusted chain adapter must form that identifier from a ledger/network identity, transaction identifier, event/log or output index, and asset/deployment fields as needed. The adapter, not the requester, supplies the canonical ID. The durable ledger atomically consumes it once. Derivation also binds the recipient's canonical key bundle, private issuance entropy, params ID and a unique zero-based output index.
 
@@ -144,9 +145,9 @@ Candidate relation:
 ```text
 (coin_id_out, r_nf_out) =
   DeriveTransferIdentityV3(
-    namespace_id, parent BundleV3, parent coin_id, parent r_nf,
-    parent nk, parent spend-key witness, recipient BundleV3,
-    transaction_entropy, global_output_index, params_id
+    namespace_id, parent BundleV3, parent commitment C,
+    parent coin_id, parent r_nf, parent nk, parent spend-key witness,
+    recipient BundleV3, transaction_entropy, global_output_index, params_id
   )
 ```
 
@@ -156,15 +157,15 @@ V3 reference functions live in `src/protocol/output_identity.py`. They use SHAKE
 
 ### 3.5 Why the two mechanisms are both necessary
 
-- **Keyed nullifier only:** keeps the future nullifier secret from an output creator but does not prevent the creator from registering duplicate commitments that share the same tuple/key bundle.
+- **Keyed nullifier without commitment binding:** hides the future nullifier from the creator but leaves V2's same-tuple/different-salt deterministic nullifier reuse risk.
 - **Anchor/index only with V2:** helps make repeated derivations difficult to accept, but if the sender sees the output tuple then V2 exposes the future nullifier deterministically to that sender.
-- **V3 keyed nullifier + anchored identity relation + durable one-use ledger:** blocks direct tuple selection/reuse in accepted proofs and stops an output creator from computing the recipient's nullifier from the public output data, conditional on the keyed-PRF and proof-soundness assumptions.
+- **Commitment-bound V3 keyed nullifier + anchored identity relation + durable one-use ledger:** the commitment is part of the keyed input, so changing `rho_C` changes the nullifier input; the recipient key prevents the sender from computing it, and the anchor/index relation prevents arbitrary tuple assignment. The actual proof and ledger must enforce all of these together.
 
 The sender may know the derivation inputs, including the output tuple, and still must not know `nk`. The recipient's `nk` must be generated on the recipient side and delivered to the sender only via the key commitment in BundleV3, never as plaintext. The receiving address must authenticate the exact namespace, params ID, authorization key, and nullifier-key commitment; the output proof must enforce this authentication. A note protocol still has to encrypt the recovery payload and prevent a sender from substituting another bundle. Reusing one `nk` across notes is disallowed by this candidate unless a future proof and privacy review explicitly approves it.
 
 ### 3.6 Same-salt and cross-identity cases
 
-- Same complete V3 note identity, different `rho_C`: `CommitV3` can differ but `NullifierV3` is the same. The proof must reject a second output identity because the source anchor/output slot was already used.
+- Same tuple and bundle, different `rho_C`: `CommitV3` differs and the commitment-bound HMAC input differs, so the public nullifiers are expected to differ under the PRF assumption. This removes the deterministic V2 salt-reuse failure; a finite-output HMAC collision remains probabilistically possible. The output derivation must still bind each note to its source anchor and canonical slot.
 - Same `coin_id`, different `r_nf`: not the same identity tuple. This is not inherently a duplicate; the full relation and anchor derivation apply.
 - Same tuple, different `nk` and distinct key-bundle commitments: different V3 nullifier inputs and different note identities. Global `coin_id` uniqueness is not a requirement.
 - Distinct identity derivation inputs: hashes can still collide. These functions are not mathematically injective. The joint identity collision bound must be analyzed under the actual adversarial and quantum-query model; no combined bit-strength claim is made here.
@@ -178,7 +179,7 @@ The actual circuit or proof relation must establish a single consistent witness 
 2. **Recipient-address authenticity:** verify a domain-separated recipient signature/authentication token over the exact namespace, params ID and BundleV3 using the selected address-auth suite. The proof must bind this verified statement to the output bundle; signature bytes/encoding and suite must be frozen before implementation.
 3. **Commitment opening:** `C = CommitV3(params_id, BundleV3, v, ns, coin_id, r_nf, rho_C)`.
 4. **Recipient key:** the private 48-byte `nk` hashes to the exact `KeyCommitV3(nk)` inside that same BundleV3.
-5. **Nullifier:** `public_nullifier = NullifierV3(params_id, ns, BundleV3, coin_id, r_nf, nk)`.
+5. **Nullifier:** `public_nullifier = NullifierV3(params_id, ns, BundleV3, C, coin_id, r_nf, nk)`, using the exact `C` opened in predicate 3 and registered under predicate 6.
 6. **Input membership/eligibility:** the exact input commitment is in the authenticated state/root and is not already spent under the ledger state being proved.
 7. **Transfer output derivation:** every output `coin_id/r_nf` is derived from the exact consumed input V3 nullifier and parent witness, recipient BundleV3, transaction entropy, global output index and params ID.
 8. **Issuance derivation:** every issuance output identity is derived from the canonical authenticated one-use deposit event, recipient BundleV3, output index and params ID.
@@ -195,7 +196,7 @@ A one-input relation is the only currently scoped transfer candidate; multi-inpu
 The branch adds tests for:
 - V3 recipient key commitment, exact BundleV3 encoding and decoding;
 - hardcoded V3 nullifier and V3 commitment vectors;
-- same tuple/same bundle/same key producing one nullifier when `rho_C` changes;
+- the same tuple/bundle/key with the same commitment producing the same nullifier, and different commitment salts producing different V3 commitments and different nullifier inputs;
 - different recipient key or authorization bundle yielding a different keyed nullifier in selected vectors;
 - strict malformed/truncated/trailing bundle rejection and wrong key rejection;
 - the frozen V2 nullifier known-answer vector (unchanged);
@@ -216,7 +217,7 @@ The intended safety claim is conditional on all of the following:
 - HMAC-SHA3-384 is used as a keyed PRF under an appropriate classical/quantum security model, and SHAKE-based key commitments/identity derivations meet their stated assumptions;
 - V3 public nullifiers are rejected atomically on the canonical ledger, including consensus recovery and reorg handling.
 
-Under these assumptions, changing `rho_C` cannot produce a second accepted note with the same identity/anchor/slot, while a sender who knows the output tuple and key bundle lacks `nk` and cannot directly compute its future V3 nullifier under the PRF assumption. This is not a claim that all distinct hash inputs must yield distinct outputs. It also does not hide transaction amounts, timestamps, network metadata, or public transaction structure on its own.
+Under these assumptions, changing `rho_C` changes the registered commitment and therefore changes the keyed-nullifier input; a sender who knows the output tuple, commitment and public bundle still lacks `nk` and cannot directly compute the V3 nullifier under the PRF assumption. The output relation separately constrains identity derivation to the one-use anchor and canonical slot. This is not a claim that all distinct hash inputs must yield distinct outputs. It also does not hide transaction amounts, timestamps, network metadata, or public transaction structure on its own.
 
 The proof system's actual hash costs matter. HMAC-SHA3-384 may be expensive inside the chosen ZK backend; we have no circuit constraint counts or full prover/verifier measurements. Do not claim feasibility until a pinned backend compiles the relation and benchmarks equivalent security parameters. Alternative keyed PRF candidates can be assessed only as a new versioned design decision, not swapped into this byte contract silently.
 
