@@ -179,3 +179,10 @@ The fake JSON-RPC tests validate the adapter's local decision logic. They do not
 This increment closes the missing **EVM identity mapping contract** and **single-namespace binding in the reference ledger**. It does not close the production ledger, authenticated deposit/event verification, persistent replay constraints, proof backend, recipient/threshold authorization, proxy-upgrade verification, independent cryptographic audit, or end-to-end privacy gates.
 
 **Production remains NO-GO.**
+
+## References
+
+- [Ethereum JSON-RPC API](https://ethereum.org/developers/docs/apis/json-rpc/) — canonical QUANTITY/DATA encodings and the `eth_chainId`, `eth_getBlockByNumber`, and `eth_getCode` interfaces used here.
+- [EIP-1898](https://eips.ethereum.org/EIPS/eip-1898) — block identifiers and block-hash-aware parameters for state queries; this adapter currently pins/checks a block number and expected hash separately rather than claiming atomic block-hash selection.
+- [NIST FIPS 202](https://csrc.nist.gov/pubs/fips/202/final) — SHA-3 and SHAKE definitions.
+- [Brassard, Høyer, and Tapp, Quantum Algorithm for the Collision Problem](https://arxiv.org/abs/quant-ph/9705002) — reference for the generic quantum collision-query scale discussed above.
