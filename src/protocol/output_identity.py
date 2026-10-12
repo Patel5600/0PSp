@@ -327,3 +327,70 @@ def derive_issuance_output_identity_v3_candidate(
         r_nf=NullifierSecret(r_nf),
     )
 
+def verify_output_identity_v3_candidate(
+    *,
+    output_coin_id: ScopedCoinId,
+    output_r_nf: NullifierSecret,
+    namespace_id: NamespaceId,
+    parent_coin_id: ScopedCoinId,
+    parent_r_nf: NullifierSecret,
+    parent_public_key_bundle: bytes,
+    parent_nullifier_key: NullifierDerivingKeyV3,
+    spend_key_witness: bytes,
+    recipient_key_bundle: bytes,
+    transaction_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> bool:
+    """Reference equality predicate for V3 transfer outputs, not a proof verifier."""
+    if not isinstance(output_coin_id, ScopedCoinId):
+        raise TypeError("output_coin_id must be a ScopedCoinId")
+    if not isinstance(output_r_nf, NullifierSecret):
+        raise TypeError("output_r_nf must be a NullifierSecret")
+    expected = derive_output_identity_v3_candidate(
+        namespace_id=namespace_id,
+        parent_coin_id=parent_coin_id,
+        parent_r_nf=parent_r_nf,
+        parent_public_key_bundle=parent_public_key_bundle,
+        parent_nullifier_key=parent_nullifier_key,
+        spend_key_witness=spend_key_witness,
+        recipient_key_bundle=recipient_key_bundle,
+        transaction_entropy=transaction_entropy,
+        output_index=output_index,
+        params_id=params_id,
+    )
+    return (
+        hmac.compare_digest(expected.coin_id.data, output_coin_id.data)
+        and hmac.compare_digest(expected.r_nf.data, output_r_nf.data)
+    )
+
+
+def verify_issuance_output_identity_v3_candidate(
+    *,
+    output_coin_id: ScopedCoinId,
+    output_r_nf: NullifierSecret,
+    namespace_id: NamespaceId,
+    deposit_id: bytes,
+    recipient_key_bundle: bytes,
+    issuance_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> bool:
+    """Reference equality predicate for V3 issuance outputs, not a proof verifier."""
+    if not isinstance(output_coin_id, ScopedCoinId):
+        raise TypeError("output_coin_id must be a ScopedCoinId")
+    if not isinstance(output_r_nf, NullifierSecret):
+        raise TypeError("output_r_nf must be a NullifierSecret")
+    expected = derive_issuance_output_identity_v3_candidate(
+        namespace_id=namespace_id,
+        deposit_id=deposit_id,
+        recipient_key_bundle=recipient_key_bundle,
+        issuance_entropy=issuance_entropy,
+        output_index=output_index,
+        params_id=params_id,
+    )
+    return (
+        hmac.compare_digest(expected.coin_id.data, output_coin_id.data)
+        and hmac.compare_digest(expected.r_nf.data, output_r_nf.data)
+    )
+
