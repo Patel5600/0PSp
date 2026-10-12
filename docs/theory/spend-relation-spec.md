@@ -137,19 +137,36 @@ The adapter's verified namespace, value and finalized anchor must match the publ
 
 A signed receipt over (C, v_deposit, deposit ID) alone does not establish R_mint.
 
-## 5. Identity-invariant review: global hidden coin-ID uniqueness
+## 5. CHp4.7 identity-policy decision
 
-The current draft names the coin identity as `(namespace_id, coin_id)`, while the issuer-private flow keeps `coin_id` hidden from the issuer. An issuer that sees only a commitment and authenticated deposit facts cannot perform a plaintext equality check on the hidden ID.
+CHp4.7 adopts this policy for the V3 candidate: global uniqueness of the 32-byte `coin_id` alone is **not** a protocol invariant. The complete V3 note identity includes the namespace, canonical recipient key bundle, `coin_id` and `r_nf`. An issuer-private design must not expose the hidden tuple to an issuer merely to populate a plaintext uniqueness registry.
 
-[CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md) records a decision proposal, not an approved semantic change. The protocol must choose one of two paths:
-1. retain global hidden-ID uniqueness and instantiate/review a privacy-preserving mechanism with explicit leakage, state, concurrency and security analysis; or
-2. formally revise that invariant after showing which monetary-soundness properties remain, and analyze identity aliasing, recipient spendability and output creation.
+The V2 reuse issue remains true: distinct commitments with the same tuple and different `rho_C` deterministically share a V2 nullifier. The other defect is privacy: a sender who knows the tuple can compute the unkeyed `NullifierV2` and later identify the spend. CHp4.6's sender-known derivation must not be deployed with V2 when sender-unlinkability is required.
 
-Single accepted issuance per canonical deposit, hidden commitment/value/deposit consistency, same-witness spend binding, and atomic rejection of repeated nullifiers are distinct obligations. Their conjunction may be enough to remove global hidden `coin_id` uniqueness as a monetary-soundness invariant, but that implication is not yet proven and does not settle recipient safety.
+CHp4.7 therefore specifies a **new V3 suite**, without modifying any V1/V2 formula or KAT:
+- BundleV3 canonically binds an authorization scheme/public key to a commitment to the recipient-held nullifier key `nk`.
+- CommitV3 binds that bundle, value, namespace, tuple and independent commitment salt.
+- NullifierV3 is HMAC-SHA3-384 under `nk`, over a domain/version, namespace, canonical bundle and hidden tuple. The sender learns the bundle and tuple but not `nk`; under the PRF assumption, they cannot calculate the future nullifier from those values alone.
+- Issuance identity derivation is anchored to an authenticated canonical deposit/event ID and unique global output slot. Transfer identity derivation is anchored to the exact consumed input V3 nullifier, parent witness, recipient bundle and unique global output slot.
+- The proof must constrain the complete derivation and output commitment opening over one consistent witness. Durable ledger state must consume the source anchor/nullifier atomically and reject replay.
 
-In particular, if two different commitments share the same `(namespace_id, coin_id, r_nf)` but use different `rho_C`, their commitments may differ while the V2 nullifier is identical. A nullifier set prevents two accepted spends; it cannot make both notes spendable. Ordinary transfer outputs need not each correspond to a new external deposit, so deposit replay protection alone does not resolve this case. The actual output relation and malicious-witness threat model are not instantiated.
+The detailed encodings, conditional argument, reference code and adversarial vectors are in [CHp4.7](../audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md). Hash outputs remain finite: no global mathematical injectivity or zero-collision guarantee is claimed.
 
-Do not derive `coin_id` from a public deposit identifier under the current issuer-privacy target. Keep the frozen V2 formulas and KATs unchanged. Until the identity decision is approved and the required proof/ledger evidence exists, the global uniqueness question remains a release blocker and production remains **NO-GO**.
+## 5.1 V3 reference relation target
+
+For each V3 note, require:
+
+```text
+BundleV3 = CanonicalBundle(auth_scheme_id, auth_public_key,
+                           KeyCommitV3(nk))
+C3 = CommitV3(params_id, BundleV3, v, ns, coin_id, r_nf, rho_C)
+nu3 = HMAC-SHA3-384(nk,
+                    DomainV3 || ns || BundleV3 || coin_id || r_nf)
+```
+
+The circuit must enforce `KeyCommitV3(nk)` equals the commitment encoded in that exact bundle, `C3` opens under the same bundle and tuple, and `nu3` equals the public nullifier. All outputs must be derived from a one-use anchor plus canonical output index and the complete output list must be bound to the transaction digest. Reusing the complete note identity with another commitment salt must fail the output-derivation relation. A nullifier collision across distinct identities remains a computational failure event that consensus prevents from being spent twice, not an impossible event.
+
+This is a formal target and Python reference, not an implemented circuit. The proof backend, canonical transaction schema, authenticated chain adapter, encrypted note recovery, durable ledger, native V3 implementation, circuit-cost measurements and independent review remain open. Production remains **NO-GO**.
 
 ## 6. Test status and adversarial boundaries
 
