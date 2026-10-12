@@ -17,7 +17,7 @@ The two byte-level equations are in RFC-02, Section 2. Commitment V2 retains val
 
 The stated coin identity is (namespace_id, coin_id), but coin_id must remain hidden from the issuer. Reusing the same coin_id with a different r_nf or salt yields another candidate opening, commitment and nullifier. A mint that never sees coin_id cannot directly reject duplicate hidden IDs using a raw equality check.
 
-The current MintRegistryModel can deduplicate raw IDs only because it receives them in plaintext. It must not be mistaken for a component of the intended issuer-private flow. A privacy-preserving hidden-ID uniqueness proof/registry or a separately reviewed change to the identity invariant is still needed. No format change is made in CHp4.2.
+The current MintRegistryModel can deduplicate raw IDs only because it receives them in plaintext. It must not be mistaken for a component of the intended issuer-private flow. CHp4.3 now reviews two alternatives: a privacy-preserving hidden-ID uniqueness mechanism, or an explicit revision of that invariant after analyzing monetary soundness, output creation and recipient spendability. Neither option is approved by this historical checkpoint. No format change is made in CHp4.2.
 
 ## Why two requested tests are not fabricated
 
@@ -26,7 +26,7 @@ The current MintRegistryModel can deduplicate raw IDs only because it receives t
 - **Transaction digest/output tamper:** blocked until the canonical transaction schema and digest encoding are frozen.
 - **Privacy-preserving duplicate hidden coin ID:** blocked by the open issue above.
 
-The tests are finite reference regressions, not a collision proof, ZK proof, durable-ledger guarantee, reorg simulation or unlinkability game. Test names use “witness substitution” rather than “unlinkability”: changing an input and observing a different hash is not a privacy proof.
+The tests are finite reference regressions, not a collision proof, ZK proof, durable-ledger guarantee, reorg simulation or unlinkability game. The follow-up same-hidden-tuple fixture is maintained in `tests/fixtures/hidden_tuple_reuse.json` and exercised by `tests/adversarial/test_hidden_tuple_reuse.py`. Test names use “witness substitution” rather than “unlinkability”: changing an input and observing a different hash is not a privacy proof.
 
 ## Validation target
 

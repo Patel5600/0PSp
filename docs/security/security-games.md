@@ -20,7 +20,7 @@ The challenger chooses one of two eligible commitments in a left/right game. The
 A valid coin has a deterministic nullifier fixed by committed data. The adversary wins by having a spend accepted with an inconsistent nullifier or by spending the same coin twice with distinct accepted nullifiers. The ledger's atomic duplicate-nullifier rule is part of the experiment.
 
 ### Collision safety
-Distinct valid coins producing the same nullifier is a separate event. Analyze it under the chosen hash model, encoding and minting-uniqueness rules; do not confuse it with replay rejection.
+Distinct valid commitments producing the same nullifier must be analyzed separately from replay rejection. In particular, when two commitments share the same (namespace_id, coin_id, r_nf) but use different commitment salts, their V2 nullifier is deterministically equal even if the commitments differ. This is not a hash collision. Atomic NullifierSet rejection prevents two accepted spends but may leave one note unspendable. The game must account for malicious output creation and recipient harm; see [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md).
 
 ### Full composition
 A completed theorem must account for commitment binding/hiding, threshold unforgeability, hidden-member anonymity, knowledge soundness of the single proof, application-level zero knowledge, QROM/hash assumptions, state validity and public leakage. Security of individual ingredients does not automatically prove composition.

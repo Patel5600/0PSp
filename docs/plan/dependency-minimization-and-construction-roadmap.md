@@ -5,7 +5,7 @@
 **Status:** Planning and audit only; no cryptographic backend was switched by this plan.  
 **Security decision:** Research only; complete protocol remains **NO-GO**.
 
-**RFC review delta (2026-10-11):** Follow the [evidence-first RFC register](../security/evidence-first-rfc-register.md). RFC-01 is blocked on hidden commitment/value/deposit consistency and a durable ledger; RFC-02 is a relation draft only; RFC-03 has no benchmark result until a backend is pinned; RFC-04 diagnostics are advisory and cannot certify constant-time execution. Do not replace production hashes, add a second spend commitment, or change authorization mode until the matching gates close.
+**RFC review delta (2026-10-12):** Follow the [evidence-first RFC register](../security/evidence-first-rfc-register.md). RFC-01 is blocked on hidden commitment/value/deposit consistency and a durable ledger; RFC-02 is a relation draft only; RFC-03 has no benchmark result until a backend is pinned; RFC-04 diagnostics are advisory and cannot certify constant-time execution. Do not replace production hashes, add a second spend commitment, or change authorization mode until the matching gates close.
 
 ## Executive decision
 
@@ -97,12 +97,14 @@ Reasons not to trust it as a drop-in replacement today:
 
 ### Phase 3 — Canonical minting and asset/deployment isolation
 
-- Specify one canonical coin-ID derivation using an explicit domain and unambiguous encoding of the ledger/network, deployment, asset, and unique mint serial/nonce.
-- Define duplicate prevention, migration rules, and what happens when two deployments reuse IDs.
-- Make minting and ledger validation enforce the same invariant. If needed, revise the nullifier statement/preimage to include the namespace explicitly; changing this requires a protocol version bump and new vectors.
-- Prove inside the spend relation that the hidden coin ID belongs to the selected coin commitment and is consistent with the namespace rule.
+- Freeze a canonical source-deposit event identifier from authenticated chain/network, deployment/bridge/asset scope where needed, transaction identifier, and event/log or output index. The source event value must be authenticated separately; caller-supplied values cannot define their own replay key.
+- Specify source finality, deep-reorg handling, recovery and the durable atomic transaction that consumes one deposit and records the issuance.
+- Do **not** derive `coin_id` from a public deposit identifier under the current issuer-privacy target. V2 keeps `coin_id`, `r_nf` and `rho_C` in the hidden opening.
+- Review global hidden `(namespace_id, coin_id)` uniqueness using [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md). Choose either a privacy-preserving mechanism or a formally revised identity invariant only after analyzing output creation, same-nullifier collisions, recipient spendability, leakage and malicious witnesses.
+- Prove issuance/value/deposit consistency without revealing the opening. A signed receipt or public equality check on `(C, v, deposit_id)` is insufficient.
+- Keep V2 commitment/nullifier byte formats and KATs unchanged unless a separately versioned protocol proposal is approved and its complete test harness exists.
 
-**Gate:** cross-chain/cross-deployment/cross-asset collision and replay tests pass, with a specification and invariant proof. Documentation alone is not enforcement.
+**Gate:** canonical adapter and replay semantics, approved identity policy, reviewed issuance relation, adversarial fixtures, and a test harness. Documentation and a local in-memory model do not enforce a real ledger invariant.
 
 ### Phase 4 — Freeze and prove the commitment contract
 

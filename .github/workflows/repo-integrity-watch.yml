@@ -1,0 +1,39 @@
+name: Repository integrity watch
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-integrity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  documentation-and-fixtures:
+    name: Documentation and invariant fixtures (informational)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install research and test dependencies
+        run: python -m pip install -e ".[dev]"
+
+      - name: Check local documentation links and release-gate markers
+        run: python scripts/check_repo_integrity.py
+
+      - name: Run hidden tuple reuse fixtures
+        run: python -m pytest tests/adversarial/test_hidden_tuple_reuse.py -q

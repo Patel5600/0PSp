@@ -28,3 +28,7 @@
 | Is Layer 2 a zero-knowledge STARK? | Not implemented | Build actual AIR/backend and verify complete protocol ZK |
 | Does composition guarantee same hidden witness? | Conditional only | Prove binding commitment and compatible extractors |
 | Is the full system 128-bit post-quantum secure? | No claim allowed | Reproduce estimator/attack analysis for every component and full composition |
+
+## Additional CHp4.3 adversarial case
+
+12. **Same-nullifier output griefing:** create distinct output commitments that share the hidden tuple `(namespace_id, coin_id, r_nf)` but use different commitment salts. The commitments can differ while their nullifier is identical; first-spend-wins can make another note unspendable. Do not assume only the attacker is harmed. Analyze transaction output construction, recipient control and witness constraints in the actual proof relation. This risk is distinct from a hash collision and is tracked in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md).

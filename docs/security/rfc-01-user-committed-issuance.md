@@ -89,7 +89,13 @@ If `v` is intentionally public, the statement may expose it. If value confidenti
 - The nullifier is deterministic for that opening; the durable ledger atomically rejects a repeated public nullifier.
 - Reorg, migration, recovery and concurrent writes must preserve the same invariants.
 
-**Critical unresolved issue:** the intended identity is `(namespace_id, coin_id)`, but the issuer does not learn `coin_id` in the privacy model. A mint that sees only `(C, v, deposit_tx)` cannot directly compare a hidden ID against a registry. The existing `MintRegistryModel` accepts a raw ID and therefore models only a context where the ID is visible; it is not a solution for user-committed issuance. Before claiming hidden-ID uniqueness, choose and review a privacy-preserving duplicate-ID proof/registry with its leakage and state cost, or revise the identity invariant in a separately versioned design. This is separate from deposit replay protection, commitment uniqueness and spent-nullifier uniqueness. An in-memory set is not a production ledger.
+**Critical unresolved identity-policy decision (CHp4.3):** the issuer cannot directly compare a hidden `coin_id` against a plaintext registry without learning it. Global uniqueness therefore remains either (a) a requirement to satisfy through a reviewed privacy-preserving mechanism, or (b) an invariant to revise through an explicit, reviewed policy decision. The second option is not approved by this RFC. See [CHp4.3 identity-invariant review](../audit/chp4.3-identity-invariant-decision-review.md).
+
+Deposit replay protection and hidden-ID uniqueness are different properties. Enforcing one accepted issuance per canonical deposit does not imply global uniqueness of hidden IDs, because valid transfer transactions can create multiple outputs without each output representing a new external deposit.
+
+A further risk must be analyzed: two distinct commitments may use the same hidden `(namespace_id, coin_id, r_nf)` but different commitment salts. The commitments can differ while the deterministic V2 nullifier is the same. The nullifier set can reject a second spend, but then one of the distinct notes may be unspendable. It is not valid to assert that an attacker necessarily harms only themself; outputs can be created for recipients. The wallet/output relation, recipient threat model, and malicious-witness constraints must address this before any global-uniqueness reduction is accepted.
+
+Do not derive `coin_id` from public deposit identifiers under the current issuer-private target. Keep the existing V2 commitment and nullifier byte contracts frozen. This document does not decide the identity policy, and production remains **NO-GO**.
 
 ## 6. Privacy claims and limits
 

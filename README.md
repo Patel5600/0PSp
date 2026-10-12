@@ -4,7 +4,7 @@
 
 0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and one post-quantum zero-knowledge proof over the complete spend relation. This repository currently implements hash/encoding components and test models. It does **not** yet implement a live minting ledger, a Ringtail adapter, or the end-to-end proof.
 
-## Current security gate (2026-10-11)
+## Current security gate (reviewed 2026-10-12)
 
 **Complete protocol: NO-GO.** The current branch documents a research plan; it does not activate minting, select an authorization mode, integrate a ZK backend, or certify side-channel resistance.
 
@@ -14,12 +14,16 @@ Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs
 - [RFC-03: hash/circuit benchmark](docs/plan/rfc-03-hash-circuit-benchmark.md) has no measured results because the backend is not instantiated.
 - [RFC-04: side-channel diagnostics](docs/security/rfc-04-side-channel-diagnostics.md) is non-blocking evidence collection, not constant-time certification.
 - [CHp4.1: issuance/spend reference state transitions](docs/audit/chp4.1-reference-state-transitions.md) adds a test-only in-memory state model; injected verifier stubs do not implement or prove the cryptographic relations.
-- [CHp4.2: formal relations and adversarial tests](docs/audit/chp4.2-formal-relations-adversarial-tests.md) records exact V2 component equations and executable primitive regressions; Merkle/transaction encoding, hidden-ID uniqueness and reorg tests remain blocked.
+- [CHp4.2: formal relations and adversarial tests](docs/audit/chp4.2-formal-relations-adversarial-tests.md) records exact V2 component equations and finite primitive regressions; the ZK backend, canonical Merkle/transaction encodings, real-ledger/reorg behavior and independent review remain open.
+- [CHp4.3: hidden identity-invariant review](docs/audit/chp4.3-identity-invariant-decision-review.md) evaluates whether global hidden coin-ID uniqueness is needed for monetary soundness and records the separate same-nullifier/unspendability risk. This is a review proposal, not an approved protocol change.
+- [CHp4.4: deterministic output-ID proposal review](docs/audit/chp4.4-deterministic-output-id-proposal-review.md) audits the suggested circuit-derived ID rule. The finding is useful, but the proposed fix is not accepted as-is because it publicly derives hidden IDs and the sample formulas do not match frozen V2.
+- [CHp4.5: hidden-witness output-identity proposal review](docs/audit/chp4.5-hidden-witness-output-identity-proposal-review.md) reviews the friend's revised design. It is a research direction, not a verified fix: V2 field widths, collision claims, privacy proof and sample tests are still inconsistent or unsupported.
+- [Documentation map and maintenance policy](docs/README.md) is the entry point for active specifications, research history, invariant fixtures and repository checks.
 
 ## Active V2 construction target
 
 - **Namespace identity:** 48-byte SHAKE256-384 digest over canonical 32-byte ledger, deployment and asset identifiers. Chain-specific identifier mapping still needs to be specified and implemented.
-- **Coin identity:** the current design describes the pair `(namespace_id, coin_id)` as the coin identity, but `coin_id` is hidden from an issuer-private mint. The mint therefore cannot directly deduplicate raw IDs from `(C, v, deposit_tx)` alone. Privacy-preserving duplicate-ID enforcement or a separately reviewed identity-policy change remains a release blocker; CSPRNG collision bounds do not address maliciously chosen IDs.
+- **Coin identity:** global uniqueness of hidden `(namespace_id, coin_id)` is under explicit review in CHp4.3 and is not silently removed or approved. The issuer cannot directly deduplicate an ID it never receives. Do not derive `coin_id` from public deposit data under the current issuer-privacy target. Deposit replay, issuance/value binding, same-witness spend binding, and recipient spendability are separate obligations.
 - **Issuance privacy:** the wallet can keep `coin_id`, `r_nf` and commitment salt private, but the complete issuance flow is not implemented. The mint cannot verify that hidden `C` opens to the recorded public value `v` merely by receiving `(C, v, deposit_tx)`; RFC-01 requires a sound issuance proof or another reviewed mechanism. The mint must never learn `coin_id`/`r_nf` in the intended issuer-unlinkability model.
 - **Coin commitment candidate:** 48-byte SHAKE256 output over a canonical, domain-separated encoding of the parameter ID, public key, value, namespace, coin ID, nullifier secret and independent 36-byte salt. Both Python reference and native OpenSSL implementations now have the same fixed known-answer vector.
 - **Nullifier V2:** 48-byte SHAKE256 output over a separate domain, V2 version, 48-byte namespace ID, 32-byte coin ID and 36-byte per-coin secret. The preimage is 149 bytes and crosses a SHAKE256 rate boundary.
@@ -29,12 +33,21 @@ Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs
 
 The V1 nullifier and commitment helpers remain for historical vectors. They are not the active scoped-spend target and must not be silently mixed with V2.
 
+## Repository integrity and maintenance
+
+The [Repository integrity watch](.github/workflows/repo-integrity-watch.yml) checks local Markdown targets and the deterministic hidden-tuple fixtures on PRs, main pushes and a daily schedule. [Dependabot](.github/dependabot.yml) proposes weekly GitHub Actions and Python dependency updates. These checks are maintenance safeguards, not cryptographic certification.
+
+Run locally:
+
+    python scripts/check_repo_integrity.py
+    python -m pytest tests/adversarial/test_hidden_tuple_reuse.py -q
+
 ## Status
 
 | Component | Evidence | Remaining gate |
 |---|---|---|
 | Namespace V2 | Python/native known-answer vector and component binding tests | Real-chain canonical ID adapter; namespace integration into mint ledger |
-| Coin ID generation | Native OS-backed RNG API and tests | Privacy-preserving duplicate hidden-ID policy; random generation alone does not reject deliberate reuse |
+| Coin ID generation | Native OS-backed RNG API and tests | Identity policy under review; random generation alone does not reject deliberate reuse or prevent same-nullifier output collisions |
 | Nullifier V2 | Python reference, OpenSSL native implementation, fixed KAT, native parity | Provider/binary review and platform leakage testing |
 | Commitment V2 | Python/native fixed vector, native error-path checks, separate OS-backed salt generation and opening substitution tests | Canonical Ringtail key codec; formal hiding and binding theorem |
 | Ringtail threshold signature | Target selected | Pinned reviewed adapter, test vectors and proof-relation integration |
