@@ -25,6 +25,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.3-identity-invariant-decision-review.md"),
     Path("docs/audit/chp4.4-deterministic-output-id-proposal-review.md"),
     Path("docs/audit/chp4.5-hidden-witness-output-identity-proposal-review.md"),
+    Path("docs/audit/chp4.6-output-identity-candidate-and-tests.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -66,6 +67,13 @@ REQUIRED_TOKENS = {
         "128 bits",
         "36 bytes",
         "not yet a privacy proof",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.6-output-identity-candidate-and-tests.md"): (
+        "reference candidate implemented",
+        "not a privacy proof",
+        "namespace",
+        "36 bytes",
         "NO-GO",
     ),
 }

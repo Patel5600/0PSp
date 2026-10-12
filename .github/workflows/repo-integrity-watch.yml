@@ -36,4 +36,4 @@ jobs:
         run: python scripts/check_repo_integrity.py
 
       - name: Run hidden tuple reuse fixtures
-        run: python -m pytest tests/adversarial/test_hidden_tuple_reuse.py -q
+        run: python -m pytest tests/adversarial/test_hidden_tuple_reuse.py tests/adversarial/test_output_identity_candidate.py -q

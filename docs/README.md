@@ -15,8 +15,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 5. [CHp4.3 identity-invariant review](audit/chp4.3-identity-invariant-decision-review.md) — review proposal, not an approved change to identity semantics.
 6. [CHp4.4 deterministic output-ID proposal review](audit/chp4.4-deterministic-output-id-proposal-review.md) — audits the friend's proposal; public nullifier-derived IDs and sample formulas are rejected for now pending privacy/protocol review.
 7. [CHp4.5 hidden-witness output-identity proposal review](audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — audits the revised proposal's field widths, collision bounds, privacy claims and sample tests; it remains unapproved.
-8. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-9. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+8. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — executable reference candidate and hardcoded regressions; ZK enforcement and proof obligations remain open.
+9. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+10. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 
