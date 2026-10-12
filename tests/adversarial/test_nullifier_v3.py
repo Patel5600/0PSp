@@ -73,16 +73,16 @@ def _commit(
 def _nf(
     key: NullifierDerivingKeyV3 = KEY,
     bundle: bytes | None = None,
-    commitment: bytes | None = None,
+    commitment: CoinCommitmentV3 | None = None,
     *,
     params_id: bytes = PARAMS_ID,
     coin_id: ScopedCoinId = COIN,
     r_nf: NullifierSecret = R_NF,
 ):
     canonical_bundle = _bundle(key).encode() if bundle is None else bundle
-    commitment_bytes = _commit(canonical_bundle, params_id=params_id).value if commitment is None else commitment
+    commitment_value = _commit(canonical_bundle, params_id=params_id) if commitment is None else commitment
     return compute_nullifier_v3(
-        NS, params_id, canonical_bundle, commitment_bytes,
+        NS, params_id, canonical_bundle, commitment_value,
         coin_id, r_nf, key,
     )
 
@@ -110,7 +110,7 @@ def test_v3_bundle_key_commitment_note_commitment_and_nullifier_vectors() -> Non
         "7c29d710d6a81bed4f3df766421d66fa497072be7513022487eb55c8d4839f82"
         "a9cf6dd11105ce21602715f0644f99d0"
     )
-    assert _nf(bundle=encoded_bundle, commitment=commitment.value).value.hex() == (
+    assert _nf(bundle=encoded_bundle, commitment=commitment).value.hex() == (
         "5309bdb17ad1527c06763ae96dfd806520132899bbdbc6519070883abb568a1"
         "af3bc2a43c3a965325df2ba084bcf6f93"
     )
@@ -141,12 +141,12 @@ def test_different_commitment_salts_produce_different_v3_nullifiers() -> None:
     bundle = _bundle().encode()
     cm_a = _commit(bundle, salt=SALT_A)
     cm_b = _commit(bundle, salt=SALT_B)
-    nf_a = _nf(bundle=bundle, commitment=cm_a.value)
-    nf_b = _nf(bundle=bundle, commitment=cm_b.value)
+    nf_a = _nf(bundle=bundle, commitment=cm_a)
+    nf_b = _nf(bundle=bundle, commitment=cm_b)
 
     assert cm_a != cm_b
     assert nf_a != nf_b
-    assert _nf(bundle=bundle, commitment=cm_a.value) == nf_a
+    assert _nf(bundle=bundle, commitment=cm_a) == nf_a
     assert verify_coin_opening_v3(
         cm_a, NS, bundle, 500, COIN, R_NF, SALT_A, PARAMS_ID
     )
@@ -169,7 +169,7 @@ def test_v3_nullifier_binds_bundle_tuple_and_parameter_suite() -> None:
     alternate_auth_bundle = _bundle(KEY, b"another-recipient-auth-key").encode()
     cm_other_auth = _commit(alternate_auth_bundle)
     assert cm_other_auth != cm_a
-    assert _nf(bundle=alternate_auth_bundle, commitment=cm_other_auth.value) != nf_a
+    assert _nf(bundle=alternate_auth_bundle, commitment=cm_other_auth) != nf_a
 
     cm_other_params = _commit(bundle_a, params_id=b"v3-other-suite")
     assert _nf(
@@ -208,7 +208,7 @@ def test_nullifier_key_commitment_mismatch_fails_closed() -> None:
 
 def test_v3_nullifier_rejects_malformed_bundle_or_commitment() -> None:
     valid_bundle = _bundle().encode()
-    valid_commitment = _commit(valid_bundle).value
+    valid_commitment = _commit(valid_bundle)
     with pytest.raises(ValueError, match="trailing bytes"):
         compute_nullifier_v3(
             NS, PARAMS_ID, valid_bundle + b"x", valid_commitment, COIN, R_NF, KEY
@@ -323,7 +323,7 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
             output_index=0, **{**common, "params_id": b"other-params"}
         ),
         derive_output_identity_v3_candidate(
-            output_index=0, **{**common, "parent_commitment": bytes([0x98]) * 48}
+            output_index=0, **{**common, "parent_commitment": CoinCommitmentV3(bytes([0x98]) * 48)}
         ),
     ]
     assert all(candidate != first for candidate in alternatives)
@@ -333,7 +333,7 @@ def test_v3_parent_nullifier_key_is_required_for_transfer_derivation() -> None:
     from src.protocol.output_identity import derive_output_identity_v3_candidate
 
     bundle = _bundle().encode()
-    parent_commitment = _commit(bundle).value
+    parent_commitment = _commit(bundle)
     with pytest.raises(TypeError, match="parent_nullifier_key"):
         derive_output_identity_v3_candidate(
             namespace_id=NS,
@@ -354,7 +354,7 @@ def test_v3_nullifier_and_identity_reject_noncanonical_bundles() -> None:
     from src.protocol.output_identity import derive_output_identity_v3_candidate
 
     bundle = _bundle().encode()
-    commitment = _commit(bundle).value
+    commitment = _commit(bundle)
     with pytest.raises(ValueError, match="trailing bytes"):
         compute_nullifier_v3(
             NS, PARAMS_ID, bundle + b"x", commitment, COIN, R_NF, KEY
