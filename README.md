@@ -48,7 +48,7 @@ Run locally:
 
 | Component | Evidence | Remaining gate |
 |---|---|---|
-| Namespace V2 | Python/native known-answer vector and component binding tests | Real-chain canonical ID adapter; namespace integration into mint ledger |
+| Namespace V2 core + EVM adapter | Existing core KAT unchanged; new EVM mapping KAT and adversarial RPC/manifest tests | Real-chain production smoke test, authenticated consensus/deposit adapter, and the frozen V2 component-width collision-risk decision |
 | Coin ID generation | Native OS-backed RNG API and tests | Identity policy under review; random generation alone does not reject deliberate reuse or prevent same-nullifier output collisions |
 | Nullifier V2 | Python reference, OpenSSL native implementation, fixed KAT, native parity | Provider/binary review and platform leakage testing |
 | Commitment V2 | Python/native fixed vector, native error-path checks, separate OS-backed salt generation and opening substitution tests | Canonical Ringtail key codec; formal hiding and binding theorem |
