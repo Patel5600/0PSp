@@ -17,7 +17,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 7. [CHp4.5 hidden-witness output-identity proposal review](audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — audits the revised proposal's field widths, collision bounds, privacy claims and sample tests; it remains unapproved.
 8. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — transfer reference candidate and hardcoded regressions; ZK enforcement remains open.
 9. [CHp4.7 output-identity uniqueness and nullifier safety](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md) — adopts the complete spend-identity policy and one-use-anchor/canonical-output-slot derivation contract, adds the issuance reference candidate, and states the exact proof/ledger obligations that remain.
-9. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+10. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
 11. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
@@ -39,9 +39,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 
 ## Identity policy: CHp4.7 decision boundary
 
-CHp4.7 supersedes the earlier unresolved policy question in CHp4.3: the protocol does **not** require global uniqueness of `coin_id` alone. The spend identity is the complete tuple `(namespace_id, coin_id, r_nf)`. Two distinct commitments that reuse this exact tuple but differ in commitment salt necessarily share a V2 nullifier; one would become unspendable. Accordingly, every accepted issuance/transfer output must have its complete identity derived and constrained inside the eventual proof from a one-use creation anchor plus a canonical output slot. Issuance uses an authenticated canonical deposit/event anchor; transfer uses the exact consumed input nullifier under the selected single-input relation. The ledger must enforce anchor/nullifier one-use atomically.
+CHp4.7 replaces the formerly open policy with a versioned candidate: `coin_id` alone is not a uniqueness key, and each accepted output identity is bound to a one-use creation anchor and canonical global output slot. Issuance uses a canonical authenticated deposit/event anchor; transfer derives from the exact consumed V3 nullifier and parent witness. The canonical recipient key bundle includes a commitment to a recipient-held per-note nullifier key. `CommitV3` binds that bundle to the note, while `NullifierV3` uses HMAC-SHA3-384 keyed by the recipient secret, so knowing an output tuple and bundle alone does not let the sender directly compute its future nullifier under the PRF assumption.
 
-This is an adopted specification policy and candidate derivation, **not yet enforceable by the repository**, because no ZK backend or durable consensus ledger is integrated. Finite SHAKE outputs are not injective: hash collisions remain probabilistic, and 32-byte `coin_id` must not be mistaken for a mathematical uniqueness guarantee. See [CHp4.7](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md). V2 formulas and KATs remain frozen; production remains **NO-GO**.
+The CHp4.6 transfer candidate must not be paired with unkeyed V2 nullifiers when sender-unlinkability is required. V1/V2 formulas and vectors remain unchanged; V3 is additive. The spec and Python candidates do **not** enforce a ZK circuit or durable ledger. Hash outputs are finite, circuit feasibility is unmeasured, and the full protocol remains **NO-GO**. See [CHp4.7](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md).
 
 ## Continuous maintenance
 
