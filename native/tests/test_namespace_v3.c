@@ -39,8 +39,6 @@ static size_t build_evm_descriptors(
     uint8_t protocol_address[20];
     uint8_t asset_address[20];
     size_t offset;
-
-    (void)asset_epoch;
     if (ledger_capacity != sizeof(DOMAIN_LEDGER) - 1u + 1u + 32u + 32u ||
         deployment_capacity != sizeof(DOMAIN_DEPLOYMENT) - 1u + 1u + 20u + 8u ||
         asset_capacity != sizeof(DOMAIN_ASSET) - 1u + 1u + 1u + 20u + 8u) {
@@ -68,7 +66,7 @@ static size_t build_evm_descriptors(
     memcpy(deployment + offset, protocol_address, sizeof(protocol_address));
     offset += sizeof(protocol_address);
     memset(deployment + offset, 0, 8u);
-    deployment[offset] = deployment_epoch;
+    deployment[offset + 7u] = deployment_epoch;
 
     offset = 0u;
     memcpy(asset + offset, DOMAIN_ASSET, sizeof(DOMAIN_ASSET) - 1u);
@@ -78,7 +76,7 @@ static size_t build_evm_descriptors(
     memcpy(asset + offset, asset_address, sizeof(asset_address));
     offset += sizeof(asset_address);
     memset(asset + offset, 0, 8u);
-    asset[offset] = asset_epoch;
+    asset[offset + 7u] = asset_epoch;
 
     OPENSSL_cleanse(chain_id, sizeof(chain_id));
     OPENSSL_cleanse(genesis_hash, sizeof(genesis_hash));
@@ -97,8 +95,6 @@ int main(void) {
         "d77ec0ca141c09b8249453a0aaded14b"
         "9fd3aefe2b90c8aafc1cf568d016bd56"
         "d063c3fe16f9a766663e686e9d298413";
-    size_t i;
-
     if (build_evm_descriptors(
             ledger, sizeof(ledger), deployment, sizeof(deployment),
             asset, sizeof(asset), 0u, 0u) != 1u) {
@@ -150,9 +146,6 @@ int main(void) {
         return 1;
     }
 
-    for (i = 0u; i < sizeof(ledger); ++i) {
-        ledger[i] = ledger[i];
-    }
     OPENSSL_cleanse(out, sizeof(out));
     OPENSSL_cleanse(changed, sizeof(changed));
     puts("PASS: Namespace V3 direct SHAKE256-384 vector, deterministic mapping, deployment separation and fail-closed bounds");
