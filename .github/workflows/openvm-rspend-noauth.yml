@@ -55,7 +55,7 @@ jobs:
           binary="$(find "$RUNNER_TEMP/cargo-openvm-unpacked" -type f -name cargo-openvm -print -quit)"
           test -n "$binary"
           install -m 0755 "$binary" "$HOME/.cargo/bin/cargo-openvm"
-          cargo-openvm --version
+          cargo +1.91.1 openvm --help > /dev/null
 
       - name: Build guest for OpenVM
         run: cargo +1.91.1 openvm build
@@ -66,4 +66,4 @@ jobs:
           rustc +1.91.1 --version
           cargo +1.91.1 --version
           cargo +1.91.1 openvm --version || true
-          gcc-riscv64-unknown-elf --version | head -n 1
+          riscv64-unknown-elf-gcc --version | head -n 1
