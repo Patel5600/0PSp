@@ -41,7 +41,7 @@ w_spend = (
 )
 ~~~
 
-The exact public-key codec, tree suite/path encoding, transaction serialization/digest and authorization policy are not frozen. The relation below names these predicates explicitly; it does not pretend an unspecified component is implemented.
+The exact public-key codec, transaction serialization/digest and authorization policy are not frozen. The CHp4.16 tree reference encoding is specified, but remains unbound in any ZK circuit. The relation below names these predicates explicitly; it does not pretend an unspecified component is implemented.
 
 ## 2. Frozen V2 component equations
 
@@ -85,7 +85,7 @@ Define R_spend(x_spend, w_spend) = 1 iff every predicate below holds.
 
 1. **Canonical encoding and range.** The protocol version is exactly 2; params_id and public-key encodings are valid for the selected suite; namespace, commitment, coin ID, r_nf and rho_C have the specified lengths; v is an unsigned 64-bit integer; all public fields have their canonical encoding.
 2. **Commitment opening.** C equals CommitV2(params_id, pk, v, namespace_id, coin_id, r_nf, rho_C), with no substituted field and no second opening supplied to another predicate.
-3. **Membership.** MerkleMember(merkle_suite_id, commitment_root, C, j, membership_path) = 1. The tree hash, leaf/node domain separation, empty-tree rule, index endianness and path encoding remain **UNSPECIFIED**. This predicate is not implementation-ready until that suite is frozen.
+3. **Membership.** MerkleMemberV1(params_id, namespace_id, commitment_root, C, j, membership_path) = 1. CHp4.16 freezes the candidate tree as a depth-63 append-only tree: H is SHAKE256-384; Z[0] = H(EMPTY_LEAF_DOMAIN || 0x01 || namespace_id); L(j,C) = H(LEAF_DOMAIN || 0x01 || namespace_id || BE64(j) || C[48]); N(l,a,b) = H(NODE_DOMAIN || 0x01 || BE32(l) || namespace_id || a[48] || b[48]); Z[l+1] = N(l,Z[l],Z[l]); and the membership path is exactly 63 bottom-up siblings. Index bit l selects left/right ordering. Issuance appends one commitment; spend outputs append in canonical transaction order. Indices are in [0, 2^63-1]. params_id must pin this exact suite and implementation version. Python tree/path tests define the reference behavior, but the proof backend must constrain these exact equations. The current ledger computes a root; the ZK circuit still does not exist.
 4. **Nullifier binding.** NullifierV2(namespace_id, coin_id, r_nf) equals public_nullifier. The exact same coin_id and r_nf values from predicate 2 must be used here.
 5. **Transaction binding.** TxDigestV2(params_id, namespace_id, public_nullifier, canonical_transaction_fields, authenticated_ledger_state, authorization_policy_id) equals transaction_digest. The canonical transaction field schema and TxDigestV2 encoding remain **UNSPECIFIED** and are release blockers; a caller-supplied digest that is not recomputed/constrained is invalid.
 6. **Value conservation and output consistency.** The input value v equals the sum of all authorized output values plus the fee, under the selected asset/rounding policy. Every output value must be bound to the corresponding output commitment using output witnesses or an explicitly public value. Range, overflow, fee and asset rules must be enforced. No output-opening relation is instantiated yet.
@@ -138,7 +138,7 @@ DepositVerify(authenticated_ledger_state, canonical_deposit_id)
   = (namespace_id, v_deposit, finalized_deposit_anchor, beneficiary_address)
 ~~~
 
-The adapter's verified namespace, value, finalized anchor and beneficiary must match the public statement exactly. The beneficiary is not decorative event metadata: the selected issuance policy must prove that the claimant is authorized for that address, and the proof verifier must bind it into the public statement. The mint atomically checks that the canonical deposit ID has not been consumed and that the commitment has not already been registered. CHp4.11's EVM reader only creates a provider-quorum observation, not a DepositVerify result: it does not yet verify transaction/receipt trie inclusion or authenticate the execution header through consensus. The actual proof verifier, authenticated deposit adapter, durable transaction and finality/reorg recovery remain unimplemented.
+The adapter's verified namespace, value, finalized anchor and beneficiary must match the public statement exactly. The beneficiary is not decorative event metadata: the selected issuance policy must prove that the claimant is authorized for that address, and the proof verifier must bind it into the public statement. The mint atomically checks that the canonical deposit ID has not been consumed and that the commitment has not already been registered. CHp4.11's EVM reader only creates a provider-quorum observation, not a DepositVerify result: it does not yet verify transaction/receipt trie inclusion or authenticate the execution header through consensus. The actual proof verifier and policy-specific authenticated deposit-to-custody adapter remain unimplemented. CHp4.16 adds a durable single-node SQLite ledger with an append-only commitment tree; multi-node consensus, production backup/restore and power-loss recovery tests remain unimplemented.
 
 A signed receipt over (C, v_deposit, deposit ID) alone does not establish R_mint.
 
