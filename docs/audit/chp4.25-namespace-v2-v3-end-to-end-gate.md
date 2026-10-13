@@ -64,12 +64,12 @@ For token mode, the same exact-height state proof is required for the token acco
 
 ## CI evidence for the code commit
 
-The code and tests at exact commit `3646c25fa17e85747ea8ce9a9753ecad82ce6119` completed both repository workflows successfully on 2026-10-13:
+The implementation and test suite at exact commit `465bdead0dfea01238d9b9459739322ae1715538` completed both repository workflows successfully on 2026-10-13:
 
-- [Functional checks](https://github.com/Patel5600/0PSp/actions/runs/38368842230): **success**. The job completed native build/tests, ASan/UBSan checks, probe builds, diagnostics, and the repository's unit/property test command.
-- [Repository integrity watch](https://github.com/Patel5600/0PSp/actions/runs/38368842102): **success**.
+- [Functional checks](https://github.com/Patel5600/0PSp/actions/runs/38369177561): **success**. The job completed native build/tests, ASan/UBSan checks, probe builds, diagnostics, and the repository's unit/property test command, including the namespace smoke harness's negative-path regressions.
+- [Repository integrity watch](https://github.com/Patel5600/0PSp/actions/runs/38369177527): **success**.
 
-These checks are regression evidence for that exact code commit. They are not evidence that a live Mainnet deployment smoke passed, that RPC operators are operationally independent, that Helios is independently security-reviewed, that the complete proof relation exists, or that any external audit occurred. Subsequent documentation-only commits must be checked separately by CI as well.
+These checks are regression evidence for that exact implementation/test commit. They are not evidence that a live Mainnet deployment smoke passed, that RPC operators are operationally independent, that Helios is independently security-reviewed, that the complete proof relation exists, or that any external audit occurred. The next documentation commit also requires CI verification.
 
 ## Why the gate cannot honestly be marked GO yet
 
