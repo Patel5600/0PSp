@@ -6,6 +6,8 @@
 **New scope:** fail-closed read-only RPC majority policy, SQLite-backed finalized-header ancestry journal, and startup wiring that requires the quorum plus durable journal.  
 **Production:** **NO-GO** pending the intended-chain smoke test, authenticated consensus/light-client strategy, chain-specific deposit-event verification, actual proof-relation binding, and independent review.
 
+This startup hardening is **not a light client** and does not establish cryptographic consensus.
+
 ## 1. What changed
 
 CHp4.9 fixed the namespace identity derivation itself: full canonical chain, deployment and asset descriptors are length-prefixed and fed directly into one SHAKE256-384 digest. CHp4.10 hardens the surrounding trust boundary without changing any identity bytes or the frozen V2 core.
