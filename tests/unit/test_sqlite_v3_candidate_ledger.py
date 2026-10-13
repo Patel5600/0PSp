@@ -337,8 +337,8 @@ def test_audit_rejects_orphaned_spend_row_without_event(tmp_path) -> None:
 @pytest.mark.parametrize(
     ("column", "tampered"),
     [
-        ("commit_root_after", b"\\xE1" * 48),
-        ("state_head_after", b"\\xE2" * 48),
+        ("commit_root_after", bytes([0xE1]) * 48),
+        ("state_head_after", bytes([0xE2]) * 48),
     ],
 )
 def test_audit_rejects_persisted_post_state_root_or_head_substitution(
