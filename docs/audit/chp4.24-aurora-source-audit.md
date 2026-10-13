@@ -33,7 +33,19 @@ Both functions then return the stream without encoding or decoding the transcrip
 
 **Gate: NO-GO** until a canonical, bounded, versioned serializer/deserializer is implemented for this pairing and round-trip tests verify that it preserves the transcript and rejects truncation, trailing bytes, oversized lengths, malformed elements, and malformed Merkle paths. The encoding must be unambiguous and must not rely on assertions for hostile input.
 
-### F2. Existing Aurora SNARK test is a smoke test, not a concrete post-quantum or adversarial-security demonstration
+### F2. Even the implemented prime-field serializer omits verifier-critical proof-of-work data
+
+The transcript type declares a `proof_of_work_` member, and the BCS verifier uses that value in `verify_pow` when checking transcript validity. However, the pinned generic prime-field serializer writes the prover messages, Merkle roots, query positions, query responses, Merkle leaf positions, and Merkle membership proofs, but does not write `proof_of_work_`; its matching deserializer likewise does not restore it. Compare:
+
+- Transcript member and public serialize/deserialize methods: https://github.com/scipr-lab/libiop/blob/a2ed2ec2f3e85f29b6035951553b02cb737c817a/libiop/bcs/bcs_common.hpp
+- Implemented serializer fields: https://github.com/scipr-lab/libiop/blob/a2ed2ec2f3e85f29b6035951553b02cb737c817a/libiop/bcs/bcs_common.tcc#L309-L389
+- Verifier proof-of-work check: https://github.com/scipr-lab/libiop/blob/a2ed2ec2f3e85f29b6035951553b02cb737c817a/libiop/bcs/bcs_verifier.tcc
+
+**Impact:** the serialization round trip omits a field used by verification, even on the prime-field path where a serializer implementation exists. The existing test calls `serialize`, `deserialize`, then verifies, but source inspection alone cannot establish whether its chosen test parameters expose this defect on every run. No upstream executable run was performed here.
+
+**Gate: NO-GO** until the canonical transcript format includes the proof-of-work value, checks canonical lengths/encodings, and has deterministic round-trip and malformed-input tests that exercise a nontrivial proof-of-work setting. Treat the existing test as insufficient until it is run and shown to exercise this condition.
+
+### F3. Existing Aurora SNARK test is a smoke test, not a concrete post-quantum or adversarial-security demonstration
 
 The pinned `test_aurora_snark.cpp` constructs an R1CS example with 8,192 constraints and 8,191 variables, selects `gf64`, requests a nominal security parameter of 128, sets LDT reducer soundness to `optimistic_heuristic` and FRI soundness to `heuristic`, and tests both `make_zk=false` and `make_zk=true`. It then checks that the generated proof verifies. It does not serialize the proof, mutate the witness/public input/proof, or establish a concrete quantum security bound. Immutable source: https://github.com/scipr-lab/libiop/blob/a2ed2ec2f3e85f29b6035951553b02cb737c817a/libiop/tests/snark/test_aurora_snark.cpp.
 
@@ -43,7 +55,7 @@ The adjacent `test_serialization.cpp` exercises transcript serialization using `
 
 **Gate: NO-GO** pending a real build, binary-field/ZK proof round-trip tests, adversarial negative tests, and a separately derived concrete security worksheet.
 
-### F3. The `make_zk` flag has a visible path into protocol parameters and Merkle leaf masking, but that is not a complete ZK proof
+### F4. The `make_zk` flag has a visible path into protocol parameters and Merkle leaf masking, but that is not a complete ZK proof
 
 In the pinned source, `aurora_snark_parameters` passes `make_zk` to `aurora_iop_parameters`; the latter adjusts systematic dimensions and configures degree/LDT/FRI parameters. BCS constructs a ZK Merkle tree when at least one oracle in the tree is registered as ZK, and `merkle_tree.tcc` samples per-leaf randomness and calls the ZK leaf-hash path.
 
