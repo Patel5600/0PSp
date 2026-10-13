@@ -180,6 +180,55 @@ def test_different_commitment_salts_produce_different_v3_nullifiers() -> None:
     )
 
 
+def test_v3_nullifier_binds_namespace_and_hidden_tuple_fields() -> None:
+    """Valid alternate note openings must not reuse a baseline nullifier.
+
+    This exercises the host reference only. It does not establish that a ZK
+    circuit binds the same fields to one witness.
+    """
+    bundle = _bundle().encode()
+    baseline_commitment = _commit(bundle)
+    baseline_nullifier = compute_nullifier_v3(
+        NS, PARAMS_ID, bundle, baseline_commitment, COIN, R_NF, KEY
+    )
+    assert verify_coin_opening_v3(
+        baseline_commitment, NS, bundle, 500, COIN, R_NF, SALT_A, PARAMS_ID
+    )
+
+    alternate_namespace = NamespaceIdV3(bytes([0x12]) * 48)
+    namespace_commitment = commit_coin_v3(
+        alternate_namespace, bundle, 500, COIN, R_NF, SALT_A, PARAMS_ID
+    )
+    namespace_nullifier = compute_nullifier_v3(
+        alternate_namespace, PARAMS_ID, bundle, namespace_commitment, COIN, R_NF, KEY
+    )
+    assert verify_coin_opening_v3(
+        namespace_commitment, alternate_namespace, bundle, 500, COIN, R_NF,
+        SALT_A, PARAMS_ID
+    )
+    assert namespace_nullifier != baseline_nullifier
+
+    alternate_coin = ScopedCoinId(bytes([0x23]) * 32)
+    coin_commitment = _commit(bundle, coin_id=alternate_coin)
+    coin_nullifier = compute_nullifier_v3(
+        NS, PARAMS_ID, bundle, coin_commitment, alternate_coin, R_NF, KEY
+    )
+    assert verify_coin_opening_v3(
+        coin_commitment, NS, bundle, 500, alternate_coin, R_NF, SALT_A, PARAMS_ID
+    )
+    assert coin_nullifier != baseline_nullifier
+
+    alternate_r_nf = NullifierSecret(bytes([0x34]) * 36)
+    r_nf_commitment = _commit(bundle, r_nf=alternate_r_nf)
+    r_nf_nullifier = compute_nullifier_v3(
+        NS, PARAMS_ID, bundle, r_nf_commitment, COIN, alternate_r_nf, KEY
+    )
+    assert verify_coin_opening_v3(
+        r_nf_commitment, NS, bundle, 500, COIN, alternate_r_nf, SALT_A, PARAMS_ID
+    )
+    assert r_nf_nullifier != baseline_nullifier
+
+
 def test_v3_nullifier_binds_bundle_tuple_and_parameter_suite() -> None:
     bundle_a = _bundle().encode()
     cm_a = _commit(bundle_a)
