@@ -136,6 +136,8 @@ def verify_eip1186_account_proof(
     slots = tuple(expected_storage_slots)
     if any(not isinstance(slot, bytes) or len(slot) != 32 for slot in slots):
         raise ValueError("each requested storage slot must be exactly 32 bytes")
+    if len(slots) > 128:
+        raise ValueError("at most 128 storage slots may be requested in one proof")
     if len(set(slots)) != len(slots):
         raise ValueError("requested storage slots must be unique")
     if not isinstance(response, dict):
