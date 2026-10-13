@@ -1,16 +1,23 @@
-# OpenVM V3 nullifier feasibility spike
+# OpenVM V3 nullifier and spend feasibility spikes
 
-**Status: experimental, non-production.** This isolated guest checks one predicate slice: canonical BundleV3 parsing, the commitment opening for the recipient-held 48-byte nullifier key, the CommitV3 opening, and the candidate HMAC-SHA3-384 NullifierV3 relation. Its fixed vectors are copied from the Python reference tests.
+**Status: experimental, non-production.** The guest has two explicit witness formats.
 
-The guest emits a 32-byte SHAKE256 digest over the declared public statement (params_id, namespace, commitment, nullifier). A future host prover/verifier harness must bind that output to the exact expected statement. This small guest does not authenticate who supplied the statement.
+- `V3 nullifier slice`: proves a canonical BundleV3 key-commitment opening, the CommitV3 opening, and the candidate HMAC-SHA3-384 NullifierV3 equation.
+- `one-input/one-output V3 spend candidate`: additionally enforces canonical TxFieldsV3Candidate bytes, the exact `0PSP-V3-NK-POSSESSION-CANDIDATE-v1` policy identifier, a depth-63 namespace-bound membership path against the transaction's root, an output identity derived from the consumed input's nullifier/commitment/witness plus the ordered output slot and entropy, the output's CommitV3 opening, and `input_value = output_value + fee` without u64 overflow.
 
-## Not included
+The spend profile is deliberately limited to one input and exactly one output. Its public result is a 32-byte digest of the canonical V3 candidate transaction digest. The input commitment and key remain witness data; they are not emitted as public output. The application proof is checked against the expected executable commitment and exact expected public digest.
 
-- Merkle membership or a trusted/finalized state root.
-- V3 issuance or transfer anchor/index derivation.
-- Complete transaction-digest binding or output/value-conservation constraints.
-- Spend authorization, recipient-address authentication, or note encryption/recovery.
-- Durable atomic ledger transition or replay/uniqueness enforcement.
-- End-to-end proof generation/verification, measured proving profile, composed 128-bit PQ bound, or independent cryptographic audit.
+## What this establishes
 
-CI is intended to run host conformance/adversarial tests and compile the OpenVM guest. **A successful build is not a proof.** OpenVM v2's cited profile remains below the project's 128-bit PQ target, and witness hiding has not been independently established for this relation. Do not use this spike to authorize spends or freeze the V3 HMAC byte contract.
+CI now runs a valid fixture and adversarial mutations through the OpenVM guest, then generates and verifies an application-level proof. This is evidence for the exact checked-in one-input/one-output predicate slice, not a complete 0PSP release. The dependency graph and cargo-openvm v2.0.2 binary are pinned/locked for this experiment.
+
+## Still not established
+
+- The transaction root/state head is not made trusted by the guest. An independently reviewed state-evidence adapter must authenticate a finalized root/head, and host acceptance must compare them byte-for-byte to the fields in the proven transaction.
+- The guest has no durable atomic transition. Ledger acceptance must atomically consume the input nullifier and append the output commitment, reject duplicate commitments/nullifiers, and recover correctly across crash/reorg.
+- Only one output is supported by this proved profile. Issuance, multiple outputs, globally anchored identity uniqueness, and all asset/custody/deposit paths are outside it.
+- The NK-possession equation is the candidate core-spend authorization. It authenticates control of the bundled nullifier key, not that the bundle belongs to an intended payee. Any required payee/address authenticity needs an independent authenticated anchor.
+- Witness-hiding/zero-knowledge for this exact guest/proof configuration has not been independently established. The project's 128-bit post-quantum composite soundness target is not satisfied by the current OpenVM v2.0.2 profile alone.
+- This is not an external cryptographic audit. No production scheme or V3 byte contract is frozen by this spike.
+
+A passing guest build or application proof cannot promote V3 to production on its own. Keep the release gate **NO-GO** until trusted state, durable atomic state transition, full relation scope, witness-hiding evidence, a composed >=128-bit PQ bound, performance limits, and independent review all pass on one exact release SHA.
