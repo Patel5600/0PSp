@@ -29,6 +29,7 @@ from src.protocol.commitment_tree import (
     leaf_hash,
     node_hash,
 )
+from src.protocol.transaction_v2 import CanonicalTransactionError, validate_spend_statement_transaction
 from src.protocol.reference_ledger import (
     AcceptedSpend,
     DepositAuthorization,
