@@ -82,6 +82,7 @@ class DepositRpc:
                 "hash": self.receipt["blockHash"],
                 "parentHash": as_hex(bytes([0x43]) * 32),
                 "receiptsRoot": as_hex(RECEIPTS_ROOT),
+                "transactionsRoot": as_hex(bytes([0x99]) * 32),
             }
         if method == "eth_getCode":
             return as_hex(self.code)
@@ -178,6 +179,8 @@ def test_valid_receipt_yields_canonical_quorum_observation_not_authorization():
     assert observed.log_index == 17
     assert observed.deposit_id == TX_HASH + (0).to_bytes(4, "big")
     assert observed.finalized_anchor == CHECKPOINT_HEIGHT.to_bytes(8, "big") + BLOCK_HASH
+    assert observed.receipts_root == RECEIPTS_ROOT
+    assert observed.transactions_root == bytes([0x99]) * 32
     assert observed.assurance_level == "QUORUM_OBSERVED_NOT_CRYPTOGRAPHICALLY_AUTHENTICATED"
     assert len(observed.evidence_digest) == 48
     assert observed.canonical_bytes() == reader.inspect(
@@ -211,9 +214,10 @@ def test_adversarial_receipt_claims_fail_closed(kwargs, match):
 
 
 def test_reader_rejects_log_absence_duplicate_indices_and_metadata_substitution():
-    receipt = make_receipt(log_index=18)
+    receipt = make_receipt()
+    receipt["logs"] = []
     _, _, _, _, reader = make_reader(receipt=receipt)
-    with pytest.raises(EvmDepositEvidenceError, match="log_index is absent"):
+    with pytest.raises(EvmDepositEvidenceError, match="receipt_log_ordinal is outside"):
         reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
     receipt = make_receipt()
