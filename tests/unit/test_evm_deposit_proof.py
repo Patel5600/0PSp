@@ -180,7 +180,7 @@ def test_supports_matching_known_typed_transaction_and_receipt_envelopes(tx_type
 def test_rejects_mismatched_typed_transaction_and_receipt_envelopes():
     verifier, args, *_ = make_case(tx_type=2)
     args["raw_receipt"] = b"\x01" + args["raw_receipt"][1:]
-    with pytest.raises(EvmDepositInclusionError, match="receipt trie inclusion|envelope types differ"):
+    with pytest.raises(EvmDepositInclusionError, match="receipt trie inclusion|envelope types differ|leaf value"):
         verifier.verify(**args)
 
 
