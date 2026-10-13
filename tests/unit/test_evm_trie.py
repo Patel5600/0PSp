@@ -142,7 +142,7 @@ def test_mpt_rejects_empty_extension_path():
 def test_mpt_exclusion_proves_divergent_leaf_and_rejects_existing_key():
     key = b"\x12"
     leaf = rlp_encode_list([
-        rlp_encode_bytes(bytes([0x32])),
+        rlp_encode_bytes(compact_encode_path(key, leaf=True)),
         rlp_encode_bytes(b"existing"),
     ])
     root = keccak256(leaf)
