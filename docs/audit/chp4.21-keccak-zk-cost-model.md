@@ -55,7 +55,7 @@ The scenario is explicitly illustrative. **The public-key codec and its size are
 | One output CommitV2 | 1,246 | 10 |
 | **Total** | — | **153** |
 
-For this scenario, the model reports **23,500,800 Keccak-f multiplication-equivalents**, plus an **upper bound of 42,288 absorb-XOR equivalents**, for a combined modeled count of **23,543,088**. The model deliberately excludes bit/range decomposition, the output-identity construction, Ringtail verification, value-conservation gadgets, public-input conversion, and the proof system's own commitment/opening/transcript costs. So the total is incomplete by design, not a disguised full circuit estimate.
+For this scenario, the model reports **23,500,800 Keccak-f multiplication-equivalents**, plus an **upper bound of 42,288 absorb-XOR equivalents**, for a combined modeled count of **23,543,088**. The model deliberately excludes bit/range decomposition, the output-identity construction, the selected threshold-authorization verification predicate, value-conservation gadgets, public-input conversion, and the proof system's own commitment/opening/transcript costs. So the total is incomplete by design, not a disguised full circuit estimate.
 
 ## 4. What this evidence establishes
 
