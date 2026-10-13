@@ -16,6 +16,7 @@ This record distinguishes an implemented/verifiable primitive from an accepted e
 |---|---|---|
 | Namespace V2 core and existing Python/native KATs | **GO for the frozen primitive only** | Existing V2 vectors and formula remain unchanged. This does not authenticate an EVM chain or establish production proof binding. |
 | Namespace V3 direct-hash Python/native KATs | **GO for deterministic codec behavior only** | Existing vectors exercise direct hashing of the full canonical descriptor tuple without 256-bit intermediate component hashes. Finite KATs do not prove collision freedom. |
+| Expected Namespace V3 ID manifest pin | **GO for fail-closed guard behavior only** | The runner requires a 48-byte `PSP_EXPECTED_NAMESPACE_ID`, derives V3 from the canonical descriptors, and fails if the result differs; a negative test covers mismatch. Test fixtures do not supply real manifest provenance. | Independently recompute and approve the expected ID from the exact canonical deployment manifest; run the real smoke with that manifest and bind the exact ID inside the accepted proof. The pin is not a consensus proof or ZK constraint. |
 | Typed Namespace V3 ledger boundary | **GO for reference/API type checks only** | The reference ledger rejects V2/V3 type confusion and mismatched namespace IDs before callback use. The type is not a cryptographic constraint inside a proof. |
 | Strict-majority JSON-RPC policy | **GO for the tested read-only policy only** | The policy requires a strict majority of at least three distinct transport objects and fails closed on disagreement/malformed responses. Distinct objects and provider labels do not prove administrative or infrastructure independence. |
 | Durable finalized ancestry journal | **GO for its specified local persistence contract only** | SQLite records the trusted execution checkpoint and parent-linked observed ancestry, freezes on conflict, and uses full synchronous mode. The CHp4.10 journal alone is not a light client. |
@@ -65,12 +66,12 @@ For token mode, the same exact-height state proof is required for the token acco
 
 ## CI evidence for the code commit
 
-The implementation and test suite at exact commit `465bdead0dfea01238d9b9459739322ae1715538` completed both repository workflows successfully on 2026-10-13:
+The implementation and test suite at exact commit `579229793ca3e4ff15cd4f59baf979d9b561d631` completed both repository workflows successfully on 2026-10-13:
 
-- [Functional checks](https://github.com/Patel5600/0PSp/actions/runs/38369177561): **success**. The job completed native build/tests, ASan/UBSan checks, probe builds, diagnostics, and the repository's unit/property test command, including the namespace smoke harness's negative-path regressions.
-- [Repository integrity watch](https://github.com/Patel5600/0PSp/actions/runs/38369177527): **success**.
+- [Functional checks](https://github.com/Patel5600/0PSp/actions/runs/38381350817): **success**. The job completed native build/tests, ASan/UBSan checks, probe builds, diagnostics, and the repository's unit/property test command, including the expected-namespace mismatch and authenticated-code-state negative-path regressions.
+- [Repository integrity watch](https://github.com/Patel5600/0PSp/actions/runs/38381350856): **success**.
 
-These checks are regression evidence for that exact implementation/test commit. They are not evidence that a live Mainnet deployment smoke passed, that RPC operators are operationally independent, that Helios is independently security-reviewed, that the complete proof relation exists, or that any external audit occurred. The next documentation commit also requires CI verification.
+These checks are regression evidence for that exact implementation/test commit. They are not evidence that a live Mainnet deployment smoke passed, that the expected namespace pin has independent provenance, that RPC operators are operationally independent, that Helios is independently security-reviewed, that the complete proof relation exists, or that any external audit occurred. Documentation edits following this recorded commit must also pass repository CI; do not infer status from code presence.
 
 ## Why the gate cannot honestly be marked GO yet
 
