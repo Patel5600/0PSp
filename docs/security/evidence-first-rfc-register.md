@@ -125,7 +125,7 @@ Production remains **NO-GO** until all of these have affirmative, reviewable evi
 - [ ] Threat model, leakage function and issuer/trustee collusion model frozen.
 - [ ] Canonical real-chain namespace mapping and protocol/parameter versioning specified.
 - [ ] Issuance protocol proves hidden commitment/value/deposit consistency; no issuer learns `coin_id` or `r_nf` in the stated privacy model.
-- [ ] The hidden coin-ID uniqueness invariant is either enforced by a reviewed privacy-preserving mechanism or explicitly revised with an analysis of consequences and leakage.
+- [x] **Policy decision recorded (CHp4.7 candidate only):** coin_id alone is not the uniqueness key; use an authenticated one-use creation anchor, canonical global output slot, commitment-bound recipient-keyed V3 nullifier candidate. **Implementation gate remains NO-GO:** no complete proof relation, authenticated anchor enforcement, recipient bundle authentication/recovery, or durable atomic uniqueness enforcement.
 - [ ] Commitment hiding and binding claims have formal definitions, concrete bounds and independent review.
 - [ ] A single instantiated proof proves membership, opening, authorization, nullifier and transaction policy over one witness.
 - [ ] Scheme-specific key/authorization relation selected; committee policy is not accidentally dropped.
