@@ -326,7 +326,11 @@ def test_integrity_audit_detects_non_root_merkle_node_corruption(tmp_path):
     second_authorizer = lambda _: DepositAuthorization(
         NS, b"evm-deposit-id-0002", 17, ANCHOR, BENEFICIARY
     )
-    second = make_ledger(path, authorizer=second_authorizer)
+    second = make_ledger(
+        path,
+        authorizer=second_authorizer,
+        issuance_verifier=lambda statement, proof: proof == b"valid-issue" and statement.authorized_value == 17,
+    )
     second.issue(deposit_evidence=b"e2", commitment=C2, params_id=PARAMS, proof=b"valid-issue")
     # The persisted root node remains untouched, so a root-only check misses this.
     with sqlite3.connect(path) as conn:
