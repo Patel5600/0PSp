@@ -1,0 +1,16 @@
+[package]
+name = "psp-openvm-v3-nullifier-spike"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Immutable OpenVM v2.0.2 commit: 59a69b8b0cbee7011ac978e4cc07707ee3681944.
+openvm = { git = "https://github.com/openvm-org/openvm.git", rev = "59a69b8b0cbee7011ac978e4cc07707ee3681944", features = ["std"] }
+openvm-keccak256-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "59a69b8b0cbee7011ac978e4cc07707ee3681944" }
+sha3 = "=0.10.8"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
