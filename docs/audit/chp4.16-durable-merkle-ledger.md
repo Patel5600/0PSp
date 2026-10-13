@@ -35,7 +35,7 @@ The module src/protocol/sqlite_ledger.py provides a single-namespace file-backed
 - Spend statements must bind the currently stored 48-byte Merkle root and 48-byte state-chain head. The configured proof verifier is called, then both snapshots are rechecked inside the transaction. A concurrent state change causes a fail-closed stale-state rejection.
 - Nullifier consumption, transaction fields/digest, output commitment insertion, Merkle root update, event-chain update and metadata version change are committed in one database transaction. Unique constraints and explicit checks reject duplicate nullifiers, commitments and deposit IDs.
 - UInt64 values are stored as fixed-width 8-byte big-endian BLOBs because SQLite INTEGER is signed and cannot represent all uint64 values.
-- audit_integrity() recomputes the append-only Merkle root and state-event head chain to detect internal inconsistency. This is a corruption/consistency check, not tamper-proof storage: an attacker with unrestricted write access to the entire database can rewrite and recompute unanchored hashes.
+- audit_integrity() runs at startup and recomputes the append-only Merkle root, compares every persisted Merkle node, and reconciles each issuance/spend record with its canonical event payload and state-head chain. This catches local record/node corruption before the ledger accepts a new transition. It is not tamper-proof storage: an attacker with unrestricted write access to the entire database can rewrite and recompute unanchored hashes.
 
 ## 4. Evidence and adversarial coverage
 
