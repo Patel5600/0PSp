@@ -11,7 +11,8 @@ import hmac
 from dataclasses import dataclass
 from typing import Final
 
-from src.primitives.namespace import NamespaceId, ScopedCoinId
+from src.primitives.namespace import ScopedCoinId
+from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.nullifier import NULLIFIER_BYTES, NULLIFIER_SECRET_BYTES, NullifierSecret
 from src.primitives.note_types_v3 import CoinCommitmentV3
 
@@ -141,15 +142,15 @@ def _validate_canonical_bundle_v3(encoded: bytes) -> bytes:
 
 
 def _nullifier_v3_message(
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     params_id: bytes,
     public_key_bundle: bytes,
     commitment: CoinCommitmentV3,
     coin_id: ScopedCoinId,
     r_nf: NullifierSecret,
 ) -> tuple[bytes, bytes]:
-    if not isinstance(namespace_id, NamespaceId):
-        raise TypeError("namespace_id must be a NamespaceId")
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TypeError("namespace_id must be a NamespaceIdV3")
     if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
         raise ValueError("params_id must be 1..65535 bytes")
     if not isinstance(public_key_bundle, bytes) or not public_key_bundle:
@@ -183,7 +184,7 @@ def _nullifier_v3_message(
 
 
 def compute_nullifier_v3(
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     params_id: bytes,
     public_key_bundle: bytes,
     commitment: CoinCommitmentV3,
