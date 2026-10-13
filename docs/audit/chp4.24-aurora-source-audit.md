@@ -1,6 +1,6 @@
 # CHp4.24 — Aurora/libiop source-level integration gate
 
-**Scope:** pinned-source audit and documentation triage only; no local compilation or execution was performed. This is not a complete internal security audit.
+**Scope:** pinned-source audit plus isolated GitHub Actions diagnostic build/test attempts recorded below. No local build was performed in this chat environment. This is not a complete internal security audit.
 **0PSP release:** **NO-GO**.
 **Aurora/libiop candidate:** **NO-GO**.
 **External cryptographic audit:** **NOT PERFORMED**.
@@ -69,6 +69,14 @@ Relevant immutable sources:
 This establishes partial control-flow tracing only. It does **not** establish that all oracle masking, degree bounds, transcript challenge derivation, serialization, or verifier checks meet a concrete zero-knowledge proof. The library's README itself calls the code an academic proof-of-concept, says it has not received careful code review, and explicitly says it is not ready for production: https://github.com/scipr-lab/libiop/blob/a2ed2ec2f3e85f29b6035951553b02cb737c817a/README.md.
 
 **Gate: NO-GO** until the entire prover/verifier path and parameters are reviewed against the applicable proof arguments and tested.
+
+### F5. Binary-field zero-knowledge salt conversion contains an explicit unimplemented path
+
+In `libiop/bcs/hashing/algebraic_sponge.tcc`, the overload of `string_to_field_elem` selected for additive fields (the binary-field category in this codebase) immediately throws `std::invalid_argument("zk hash for binary fields is not yet implemented")`. Immutable source: https://github.com/scipr-lab/libiop/blob/a2ed2ec2f3e85f29b6035951553b02cb737c817a/libiop/bcs/hashing/algebraic_sponge.tcc.
+
+**Impact:** any selected ZK hash path that requires this additive-field salt conversion cannot complete successfully. This is a separate blocker from F1's transcript transport gap. Do not infer that every possible binary-field hash configuration necessarily reaches this overload; the exact call path must be traced for the chosen configuration. The source-level exception is nevertheless concrete evidence that binary-field ZK support is incomplete across the library's available hash paths.
+
+**Gate: NO-GO** until the chosen configuration is traced end-to-end and a binary-field ZK proof passes positive, negative, serialization, and verifier tests without reaching an unimplemented path.
 
 ## Previously established upstream facts
 
