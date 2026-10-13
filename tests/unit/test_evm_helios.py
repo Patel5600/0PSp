@@ -450,7 +450,7 @@ def test_authenticated_deposit_verifier_checks_pinned_runtime_code_at_proven_blo
     )
     assert result.inclusion == fake_inclusion
     assert result.authenticated_header.block_hash == hash2
-    assert result.assurance_level == "HELIOS_FINALIZED_HEADER_ANCESTRY_AND_TRANSACTION_RECEIPT_TRIES_VERIFIED"
+    assert result.assurance_level == "HELIOS_FINALIZED_HEADER_TRIES_AND_ASSET_MOVEMENT_SIGNAL_VERIFIED_NOT_CUSTODY_AUTHORIZATION"
 
     # Wrong runtime at this historical block must fail closed even though the
     # header and trie verifier output are otherwise accepted.
