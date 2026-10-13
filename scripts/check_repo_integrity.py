@@ -26,6 +26,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.4-deterministic-output-id-proposal-review.md"),
     Path("docs/audit/chp4.5-hidden-witness-output-identity-proposal-review.md"),
     Path("docs/audit/chp4.6-output-identity-candidate-and-tests.md"),
+    Path("docs/audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md"),
     Path("docs/audit/chp4.8-namespace-v2-evm-adapter.md"),
     Path("docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md"),
     Path("docs/audit/chp4.10-namespace-rpc-finality-hardening.md"),
@@ -90,6 +91,13 @@ REQUIRED_TOKENS = {
         "not a privacy proof",
         "namespace",
         "36 bytes",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md"): (
+        "recipient-keyed nullifier",
+        "NullifierV3",
+        "CommitV3",
+        "canonical global output slot",
         "NO-GO",
     ),
     Path("docs/audit/chp4.8-namespace-v2-evm-adapter.md"): (

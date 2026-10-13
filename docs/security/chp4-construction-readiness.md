@@ -30,7 +30,18 @@ The target event is `Deposit(address indexed depositor, address indexed asset, a
 
 ### Coin identity and minting
 
-The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes. The candidate identity is (namespace_id, coin_id), but global hidden-ID uniqueness is under review in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md), not an approved production rule. One-use canonical deposit consumption and duplicate-nullifier rejection are separate obligations. The Python MintRegistryModel is only an in-memory test model.
+The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes; randomness is not a uniqueness proof. CHp4.7 records an additive V3 candidate that does not treat `coin_id` alone as a global identity key. It binds an accepted output to a canonical one-use creation anchor and canonical global output slot. Issuance anchors must come from the authenticated deposit/event adapter, and transfer anchors must be the consumed input V3 nullifier. This is a candidate protocol policy, not a production-enforced invariant.
+
+#### Recipient-keyed, commitment-bound V3 nullifier candidate
+
+- `src/primitives/coin_commitment_v3.py` defines a separate V3 commitment over value, namespace, tuple, independent salt and canonical V3 recipient bundle.
+- `src/primitives/nullifier_v3.py` defines a 48-byte recipient-keyed HMAC-SHA3-384 nullifier candidate over the parameters, namespace, encoded public-key bundle, exact registered V3 commitment, `coin_id` and `r_nf`. The bundle contains a domain-separated commitment to a 48-byte recipient-held nullifier key.
+- `src/protocol/note_public_key_bundle_v3.py` defines the bounded canonical bundle codec. `src/protocol/output_identity.py` contains versioned issuance/transfer identity derivations using an anchor and canonical global output slot.
+- V1/V2 encodings and vectors remain unchanged. Distinct commitment salts produce distinct keyed inputs for this candidate, avoiding V2's deterministic same-nullifier reuse for two commitments with the same hidden tuple; a finite-output collision remains possible, so no injectivity claim is made.
+- These functions are reference code, **not a ZK relation**. The proof must bind the same witness across the registered commitment opening, value, namespace, tuple, bundle/key-commitment opening, authorization key, anchor, output slot, value-conservation relation, and public nullifier. The recipient must authenticate the exact bundle. An unbound/substitutable key bundle could produce an unspendable output.
+- The Python MintRegistryModel is only an in-memory test model. A durable ledger must atomically consume an issuance anchor or parent nullifier and register outputs; it must not accept an identity candidate independently of an accepted complete proof.
+
+Open gates include canonical chain/deposit identity, selected authorization-signature codec and recipient address authentication, note key recovery/delivery, the shared-witness proof and its feasibility, uniqueness policy under malicious witnesses, and independent security review. The global hidden-ID rule in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md) is superseded as a design question by this V3 candidate, but its required proof/ledger enforcement is **not implemented**. Production remains **NO-GO**.
 
 ### Nullifier V2
 
@@ -80,7 +91,11 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Claim | Evidence | Decision |
 |---|---|---|
 | Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
-| Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; ledger uniqueness open |
+| Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; generated IDs are not a uniqueness proof |
+| V3 output identity | CHp4.7 issuance/transfer reference vectors bind anchor, recipient bundle, parameters, entropy and global output slot | Candidate only; authenticated anchor canonicality and proof-constrained one-use slot remain open |
+| Recipient-keyed V3 nullifier | HMAC-SHA3-384 candidate binds canonical bundle and exact V3 commitment; adversarial vectors cover salt changes and tuple/bundle substitutions | Key secrecy, recipient address authentication, PRF/privacy analysis, same-witness proof binding and independent review remain open |
+| V3 mint/spend identity uniqueness | In-memory reference tests and deterministic identity derivation vectors | Not durable/consensus enforcement; no circuit constraint or production ledger rule |
+| Issuer/sender unlinkability | Candidate keeps nullifier-deriving key outside sender knowledge and binds the exact commitment into HMAC input | No end-to-end issuance/privacy proof, recovery format, address-auth verification, or transcript leakage analysis |
 | Deposit evidence | CHp4.11 canonical event normalizer; CHp4.12 raw transaction/receipt MPT inclusion; CHp4.13 pinned Helios Mainnet finality and block-specific protocol code; CHp4.14 native transaction-value equality or ERC-20 Transfer-log matching plus pinned token code | Functional test evidence only; no real Mainnet smoke test, independent differential review, approved proxy/custody semantics, trusted DepositAuthorization conversion, durable atomic mint ledger or issuance proof |
 | Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof |
 | Mint-authority privacy | No blind-issuance construction implemented | OPEN: authority that knows coin ID and nullifier secret can match a later public nullifier to its record |
