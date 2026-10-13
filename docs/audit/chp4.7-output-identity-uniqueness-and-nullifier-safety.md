@@ -1,7 +1,7 @@
 # CHp4.7 — Output identity uniqueness and nullifier safety
 
 **Decision:** adopt a recipient-keyed, versioned V3 nullifier candidate and anchor every output identity to a one-use creation anchor plus a canonical global output slot.  
-**Reference implementation:** V3 nullifier, recipient key bundle, V3 commitment and issuance/transfer identity candidates plus known-answer/adversarial tests.  
+**Reference implementation:** V3 nullifier, recipient key bundle, V3 commitment and issuance/transfer identity candidates plus known-answer/adversarial tests. `generate_nullifier_deriving_key_v3()` now requests 48 bytes from the OS-backed CSPRNG; tests cover requested width, redacted repr, invalid output, and entropy-source failure.  
 **Proof/backend status:** NOT IMPLEMENTED.  
 **Production:** **NO-GO**.  
 **Compatibility rule:** frozen V1/V2 functions and vectors are unchanged. V3 is additive and must not be silently treated as V2.
@@ -200,7 +200,7 @@ Changing any of these domains, widths, field order or index endianness creates a
 - **Anchor/index only with V2:** helps make repeated derivations difficult to accept, but if the sender sees the output tuple then V2 exposes the future nullifier deterministically to that sender.
 - **Commitment-bound V3 keyed nullifier + anchored identity relation + durable one-use ledger:** the commitment is part of the keyed input, so changing `rho_C` changes the nullifier input; the recipient key prevents the sender from computing it, and the anchor/index relation prevents arbitrary tuple assignment. The actual proof and ledger must enforce all of these together.
 
-The sender may know the derivation inputs, including the output tuple, and still must not know `nk`. The recipient's `nk` must be generated on the recipient side and delivered to the sender only via the key commitment in BundleV3, never as plaintext. The receiving address must authenticate the exact namespace, params ID, authorization key, and nullifier-key commitment; the output proof must enforce this authentication. A note protocol still has to encrypt the recovery payload and prevent a sender from substituting another bundle. Reusing one `nk` across notes is disallowed by this candidate unless a future proof and privacy review explicitly approves it.
+The sender may know the derivation inputs, including the output tuple, and still must not know `nk`. The recipient's `nk` must be generated on the recipient side and delivered to the sender only via the key commitment in BundleV3, never as plaintext. The host reference API now provides `generate_nullifier_deriving_key_v3()` using Python's OS-backed `secrets.token_bytes(48)`. Tests exercise expected byte count, safe representation, invalid returned length, and exception propagation. It does not handle secret persistence, encrypted note delivery, backup/restore, recovery/rotation or reliable zeroization; Python immutable `bytes` do not offer reliable zeroization. The receiving address must authenticate the exact namespace, params ID, authorization key, and nullifier-key commitment; the output proof must enforce this authentication. A note protocol still has to encrypt the recovery payload and prevent a sender from substituting another bundle. Reusing one `nk` across notes is disallowed by this candidate unless a future proof and privacy review explicitly approves it.
 
 ### 3.6 Same-salt and cross-identity cases
 
