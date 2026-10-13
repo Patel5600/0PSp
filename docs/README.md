@@ -9,6 +9,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 ## Current source of truth
 
 1. [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory production gate and change-control rules.
+2. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate marked GO or NO-GO with its evidence and exact condition for changing status.
 2. [RFC-01: user-committed issuance](security/rfc-01-user-committed-issuance.md) — issuer privacy, issuance/value/deposit binding and replay requirements.
 3. [RFC-02: spend relation](theory/spend-relation-spec.md) — current V2 equations, shared witness and still-unspecified predicates.
 4. [V2 protocol security argument](security/v2-protocol-security-argument.md) — conditional component-level arguments and limitations.
@@ -25,7 +26,8 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 15. [CHp4.14 deposit asset-movement evidence](audit/chp4.14-asset-movement-evidence.md) — transaction-value equality for native deposits, Transfer-log matching for ERC-20 deposits, and protocol/token code-fingerprint checks; movement evidence is not custody authorization.
 16. [CHp4.15 authenticated account/storage proofs](audit/chp4.15-authenticated-evm-state-proofs.md) — EIP-1186 account and storage proofs verified against a state root from an authenticated finalized header; block-state evidence is not transaction-level custody proof.
 17. [CHp4.16 Ethereum proof differential tests](audit/chp4.16-ethereum-proof-differential-tests.md) — test-only comparison of local Keccak/RLP/MPT logic with independent libraries; no custody or production authorization claim.
-18. [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — fixed depth-63 tree, transactional SQLite issue/spend transitions, replay protection, and startup integrity reconciliation; authorization and proof backend remain unimplemented.
+19. [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — fixed depth-63 tree, transactional SQLite issue/spend transitions, replay protection, and startup integrity reconciliation; authorization and proof backend remain unimplemented.
+20. [CHp4.18 canonical V2 spend transaction and digest](audit/chp4.18-canonical-spend-transaction-v2.md) — fixed TxFieldsV2 wire encoding, TxDigestV2 KAT, strict decoding and ledger API binding; the ZK circuit/backend must still constrain the same relation.
 19. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
 20. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 

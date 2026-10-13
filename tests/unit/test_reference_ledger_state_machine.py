@@ -11,6 +11,7 @@ from threading import Barrier
 import pytest
 
 from src.primitives.namespace_v3 import derive_namespace_id_v3
+from src.protocol.transaction_v2 import encode_spend_transaction_v2
 from src.protocol.reference_ledger import (
     AcceptedSpend,
     DepositAuthorization,
@@ -27,6 +28,7 @@ from src.protocol.reference_ledger import (
 
 NS = derive_namespace_id_v3(b"test-ledger", b"test-deployment", b"test-asset")
 ANCHOR = bytes([0x22]) * 32
+LEDGER_STATE = bytes([0x23]) * 48
 PARAMS = b"v2-test-params"
 PROOF = b"test-proof"
 
@@ -173,17 +175,29 @@ def test_concurrent_duplicate_issuance_has_exactly_one_winner() -> None:
     assert ledger.state_version == 1
 
 
-def statement(nullifier: bytes, outputs: tuple[bytes, ...] = ()) -> SpendStatement:
+def statement(nullifier: bytes, outputs: tuple[bytes, ...] = (b"O" * 48,)) -> SpendStatement:
+    policy = b"test-self-spend-policy-v1"
+    root = b"R" * 48
+    fields, digest = encode_spend_transaction_v2(
+        params_id=PARAMS,
+        namespace_id=NS,
+        commitment_root=root,
+        nullifier=nullifier,
+        ledger_state=LEDGER_STATE,
+        authorization_policy_id=policy,
+        fee=0,
+        new_commitments=outputs,
+    )
     return SpendStatement(
         version=2,
         params_id=PARAMS,
         namespace_id=NS,
-        commitment_root=b"R" * 48,
+        commitment_root=root,
         nullifier=nullifier,
-        transaction_fields=b"canonical-test-transaction-fields",
-        transaction_digest=b"digest-v1",
-        ledger_state=ANCHOR,
-        authorization_policy=b"test-self-spend-policy-v1",
+        transaction_fields=fields,
+        transaction_digest=digest,
+        ledger_state=LEDGER_STATE,
+        authorization_policy=policy,
         new_commitments=outputs,
     )
 
@@ -249,8 +263,9 @@ def test_shape_errors_fail_before_transition() -> None:
     with pytest.raises(InvalidInput):
         ledger.issue(deposit_evidence=b"valid-deposit", commitment=b"short",
                      params_id=PARAMS, proof=PROOF)
+    malformed_nullifier = replace(statement(b"N" * 48), nullifier=b"short")
     with pytest.raises(InvalidInput):
-        ledger.accept_spend(statement=statement(b"short"), proof=PROOF)
+        ledger.accept_spend(statement=malformed_nullifier, proof=PROOF)
     invalid = statement(b"N" * 48)
     invalid_version = SpendStatement(
         version=1, params_id=invalid.params_id, namespace_id=invalid.namespace_id,

@@ -18,6 +18,7 @@ from src.protocol.reference_ledger import (
     ProofRejected,
     SpendStatement,
 )
+from src.protocol.transaction_v2 import encode_spend_transaction_v2
 from src.protocol.sqlite_ledger import (
     LedgerConfigurationMismatch,
     LedgerIntegrityError,
@@ -35,9 +36,6 @@ ANCHOR = b"\x07" * 8 + b"\x08" * 32
 BENEFICIARY = b"\x44" * 20
 C1, C2, C3 = b"\x11" * 48, b"\x22" * 48, b"\x33" * 48
 NF1 = b"\xaa" * 48
-TX_DIGEST = b"\xbb" * 48
-
-
 def make_ledger(path, *, namespace=NS, params=PARAMS, policy=POLICY, profile=PROFILE,
                 authorizer=None, issuance_verifier=None, spend_verifier=None):
     if authorizer is None:
@@ -69,16 +67,28 @@ def make_ledger(path, *, namespace=NS, params=PARAMS, policy=POLICY, profile=PRO
 
 
 def spend_statement(snapshot, *, nullifier=NF1, outputs=(C2,), root=None, head=None,
-                    fields=b"canonical transaction"):
+                    fields=None, fee=0):
+    actual_root = snapshot.commitment_root if root is None else root
+    actual_head = snapshot.state_head if head is None else head
+    canonical_fields, digest = encode_spend_transaction_v2(
+        params_id=PARAMS,
+        namespace_id=NS,
+        commitment_root=actual_root,
+        nullifier=nullifier,
+        ledger_state=actual_head,
+        authorization_policy_id=POLICY,
+        fee=fee,
+        new_commitments=tuple(outputs),
+    )
     return SpendStatement(
         version=2,
         params_id=PARAMS,
         namespace_id=NS,
-        commitment_root=snapshot.commitment_root if root is None else root,
+        commitment_root=actual_root,
         nullifier=nullifier,
-        transaction_fields=fields,
-        transaction_digest=TX_DIGEST,
-        ledger_state=snapshot.state_head if head is None else head,
+        transaction_fields=canonical_fields if fields is None else fields,
+        transaction_digest=digest,
+        ledger_state=actual_head,
         authorization_policy=POLICY,
         new_commitments=tuple(outputs),
     )
@@ -217,7 +227,8 @@ def test_spend_rejects_stale_or_substituted_state_and_rolls_back(tmp_path, mutat
         statement = SpendStatement(**{**statement.__dict__, "authorization_policy": b"other"})
         expected = InvalidInput
     else:
-        statement = spend_statement(snap, outputs=(C2, C2))
+        valid = spend_statement(snap, outputs=(C2,))
+        statement = SpendStatement(**{**valid.__dict__, "new_commitments": (C2, C2)})
         expected = DuplicateCommitment
     before = ledger.snapshot()
     with pytest.raises(expected):

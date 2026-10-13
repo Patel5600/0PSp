@@ -1,7 +1,7 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
 **Last reviewed:** 2026-10-13  
-**Main baseline reviewed:** `dead2676527f23cc8e83132dca48def3c08f2880` (2026-10-13; CHp4.17 durable-ledger candidate under review)  
+**Main baseline reviewed:** `f3fbde3c562d034d0fe258f2984d520f89d14719` (2026-10-13; CHp4.18 canonical transaction candidate under review)  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
@@ -12,7 +12,7 @@ The V2 primitive layer has useful, testable components: namespace derivation, ra
 
 The revised plan deliberately avoids (a) adding a second spend commitment without a demonstrated need, (b) claiming a generic proof-of-secret-key automatically replaces committee authorization, (c) replacing SHAKE based on invented constraint numbers, or (d) rewriting the C boundary merely because Rust is available.
 
-No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not a security theorem. CHp4.15 does not authorize minting; its block-state proof is supporting evidence only. CHp4.16 adds independent library differential tests but does not replace external review or the real-network smoke test. CHp4.17 adds persistent single-node state transitions and a stronger local consistency audit, but its injected verifier and deposit callbacks are not production implementations.
+No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not a security theorem. CHp4.15 does not authorize minting; its block-state proof is supporting evidence only. CHp4.16 adds independent library differential tests but does not replace external review or the real-network smoke test. CHp4.17 adds persistent single-node state transitions and a stronger local consistency audit, but its injected verifier and deposit callbacks are not production implementations. CHp4.18 candidate freezes the host TxFieldsV2/TxDigestV2 codec and rejects duplicate-field mismatches before the callbacks; the proof backend must still constrain those exact bytes. See the [binary Production Gate Matrix](production-gate-matrix.md).
 
 ## Current implementation facts
 
@@ -26,6 +26,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 | Authorization | Ringtail adapter contract and research notes | A production adapter, final authorization mode, or signature-verification constraints in an actual ZK backend |
 | ZK proof | Relation targets documented | An instantiated backend, knowledge soundness, zero knowledge, or a complete proof of the composed relation |
 | Mint and ledger | CHp4.1 in-memory model; CHp4.17 candidate adds a depth-63 namespace-bound commitment tree, file-backed SQLite issue/spend transactions, unique deposit/commitment/nullifier constraints, state-head event chain, concurrency stale-state rejection and startup reconciliation of all Merkle nodes/records/events | The ledger still depends on injected deposit/proof callbacks; no production `DepositAuthorization` adapter or actual issuance/spend proof exists. This is single-node persistence, not distributed consensus; power-loss/backup/recovery and external state-head anchoring remain open |
+| Canonical transaction fields / TxDigestV2 | CHp4.18 candidate defines one length-bounded TxFieldsV2 encoding, a 48-byte SHAKE256-384 digest, a known-answer vector, and ledger-boundary checks that duplicated public fields match decoded bytes | Exact-head CI; the real proof backend must enforce the same encoding/digest; transaction binding remains NO-GO until the proof relation is instantiated |
 | Hidden coin-ID uniqueness | Protocol names (namespace, coin_id) as identity while issuer-private minting hides coin_id | Proof/registry mechanism that detects a reused hidden ID without disclosing it, or revised identity semantics |
 
 ## Four RFCs
