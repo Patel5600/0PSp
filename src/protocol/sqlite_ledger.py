@@ -72,7 +72,7 @@ class PersistentLedgerError(LedgerRejected):
 
 
 class StaleLedgerState(PersistentLedgerError):
-    """Proof references a state root/head that is no longer current."""
+    """Proof references an unknown or expired retained anchor."""
 
 
 class LedgerConfigurationMismatch(PersistentLedgerError):
