@@ -177,3 +177,12 @@ def test_mpt_exclusion_rejects_wrong_root_and_unused_trailing_nodes():
         verify_mpt_exclusion(b"\x99" * 32, b"\x13", [leaf])
     with pytest.raises(EthereumEncodingError, match="unused trailing"):
         verify_mpt_exclusion(keccak256(leaf), b"\x13", [leaf, leaf])
+
+
+def test_mpt_exclusion_rejects_empty_extension_path():
+    node = rlp_encode_list([
+        rlp_encode_bytes(b"\x00"),
+        rlp_encode_bytes(b"\x01"),
+    ])
+    with pytest.raises(EthereumEncodingError, match="extension path must not be empty"):
+        verify_mpt_exclusion(keccak256(node), b"\x12", [node])
