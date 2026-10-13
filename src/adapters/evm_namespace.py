@@ -174,6 +174,11 @@ class EvmNamespaceConfig:
             raise ValueError(
                 "code_block_tag must be finalized, safe, latest, or a canonical block QUANTITY"
             )
+        if (
+            self.code_block_tag not in ("finalized", "safe", "latest")
+            and int(self.code_block_tag[2:], 16) > EVM_BLOCK_NUMBER_MAX
+        ):
+            raise ValueError("numeric code_block_tag must fit the configured uint64 block-height range")
 
 
 @dataclass(frozen=True, slots=True)
