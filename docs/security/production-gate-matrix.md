@@ -1,6 +1,6 @@
 # 0PSP Production Gate Matrix
 
-**Main base:** `13487d2f859460fc93fd2701023ce8f2cd60fd6a` (CHp4.23 merged). The CHp4.26 concurrency remediation is an unmerged branch candidate; exact-head CI is pending.  
+**Main base:** `13487d2f859460fc93fd2701023ce8f2cd60fd6a` (CHp4.23 merged). The CHp4.26 concurrency remediation is an unmerged branch candidate; exact-head check results and review status are recorded in PR #32.  
 **Current overall production status: NO-GO.**  
 **External cryptographic audit:** NOT PERFORMED, and deliberately tracked separately as requested. That does not convert missing implementation or proof obligations into GO.
 
@@ -35,7 +35,7 @@ Every gate below has a binary production status. **GO** means the exact gate des
 | Contract/token custody semantics and upgrades | **NO-GO** | Event/value/Transfer/code-fingerprint consistency checks | Pin and review actual deployed source/build artifacts, proxy/admin/implementation history and the custody invariant; no generic Transfer-log assumption |
 | Coin-ID reuse and same-nullifier output policy | **NO-GO** | OS-backed RNG; CHp4.3 review describes the identity/aliasing risk | Resolve global hidden-ID policy and prove recipient spendability/output identity behavior; random generation alone is not enforcement |
 | Issuer privacy, commitment hiding and linkability model | **NO-GO** | Candidate commitment includes independent salt; threat-model notes exist | Define games and leakage model, then analyze/prove the full issuance and spend transcript under the selected adversary model |
-| Durable replay protection across one local database | **GO** for the existing uniqueness invariant; CHp4.26 behavior pending exact-head CI | Unique deposit/commitment/nullifier constraints, atomic SQLite transitions; CHp4.26 adds concurrent duplicate-nullifier regression on its unmerged branch | Production deployment remains blocked by trusted callbacks, consensus, anchor/finality policy and backup/recovery/reorg handling |
+| Durable replay protection across one local database | **GO** for the existing uniqueness invariant; CHp4.26 behavior requires exact-head CI | Unique deposit/commitment/nullifier constraints, atomic SQLite transitions; CHp4.26 adds concurrent duplicate-nullifier regression on its unmerged branch | Production deployment remains blocked by trusted callbacks, consensus, anchor/finality policy and backup/recovery/reorg handling |
 | Distributed ledger consensus / external state-head anchoring | **NO-GO** | Local event hash chain detects internal inconsistency; it is not tamper-proof against a privileged database rewrite | Define a consensus/anchoring and recovery model, including equivocation, fork choice, backups and rollback protection |
 | Reorg, restart, disk-full and power-loss recovery for live deposits | **NO-GO** | Unit-tested journal rollback behavior; no complete end-to-end recovery runbook or live evidence | Add and test a reconciled recovery state machine across finalized deposit, authorization, issuance record and external state anchor |
 | Real Ethereum Mainnet smoke test | **NO-GO** | CI uses synthetic headers and mocked Helios process/RPC | Verify pinned binary digest/version, fresh independently sourced checkpoint, provider configuration, eth_getProof capability and a real finalized deposit end to end |
