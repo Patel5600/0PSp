@@ -105,17 +105,31 @@ def _envelope(raw: bytes, field: str) -> _Envelope:
 def _parse_header(raw_header_rlp: bytes) -> tuple[int, bytes, bytes, bytes]:
     try:
         decoded = rlp_decode(raw_header_rlp)
-        if not isinstance(decoded, list) or len(decoded) < 15:
-            raise EthereumEncodingError("block header must contain at least the 15 pre-London fields")
+        if not isinstance(decoded, list) or not 15 <= len(decoded) <= 21:
+            raise EthereumEncodingError("block header must contain 15 to 21 fields under the supported header schema")
         if any(not isinstance(field, bytes) for field in decoded):
             raise EthereumEncodingError("block header fields must all be RLP byte strings")
+        fixed_lengths = {0: 32, 1: 32, 2: 20, 3: 32, 4: 32, 5: 32, 6: 256, 13: 32, 14: 8}
+        for index, expected_length in fixed_lengths.items():
+            if len(decoded[index]) != expected_length:
+                raise EthereumEncodingError(f"header field {index} must be exactly {expected_length} bytes")
+        if len(decoded[12]) > 32:
+            raise EthereumEncodingError("header.extraData must not exceed 32 bytes")
+        integer_fields = [7, 8, 9, 10, 11]
+        integer_fields.extend(index for index in (15, 17, 18) if index < len(decoded))
+        for index in integer_fields:
+            rlp_integer(decoded[index], f"header.field[{index}]")
         number = rlp_integer(decoded[8], "header.number")
         if number > U64_MAX:
             raise EthereumEncodingError("header.number exceeds uint64 bound")
+        if len(decoded) >= 17 and len(decoded[16]) != 32:
+            raise EthereumEncodingError("header.withdrawalsRoot must be exactly 32 bytes")
+        if len(decoded) >= 20 and len(decoded[19]) != 32:
+            raise EthereumEncodingError("header.parentBeaconBlockRoot must be exactly 32 bytes")
+        if len(decoded) >= 21 and len(decoded[20]) != 32:
+            raise EthereumEncodingError("header.requestsHash must be exactly 32 bytes")
         transactions_root = decoded[4]
         receipts_root = decoded[5]
-        if len(transactions_root) != 32 or len(receipts_root) != 32:
-            raise EthereumEncodingError("header trie roots must be exactly 32 bytes")
         block_hash = keccak256(raw_header_rlp)
         return number, block_hash, transactions_root, receipts_root
     except (EthereumEncodingError, TypeError, ValueError, IndexError) as exc:
