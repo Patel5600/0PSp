@@ -43,11 +43,11 @@ For the current EVM mapping, the 48-byte namespace field is the output of the di
 
 ### Mint
 
-1. Validate the deposit and determine the amount authorized by the trusted ledger/asset adapter.
-2. Verify that the stated `v` equals the value authorized by `deposit_tx`.
-3. Verify `pi_issue`, which must bind `C`'s hidden opening to that exact `v`, namespace and accepted parameter set.
+1. Obtain a trusted `DepositAuthorization` only from the authenticated chain/deposit verifier. RPC observations alone are not authorization.
+2. Derive the public value `v`, canonical deposit ID, finalized anchor, Namespace V3 ID, and beneficiary from that authorization. Do not accept a caller-supplied amount or recipient as a substitute.
+3. Verify `pi_issue`, which must bind `C`'s hidden opening to that exact `v`, namespace and accepted parameter set, and prove the chosen policy authorizes issuance to the authenticated beneficiary.
 4. Enforce deposit replay protection and the defined uniqueness policy atomically.
-5. Commit `(namespace_id, C, v, deposit_tx, protocol_version)` and the state update in one durable transaction.
+5. Commit `(namespace_id, C, v, canonical_deposit_id, finalized_anchor, beneficiary_address, params_id, protocol_version)` and the state update in one durable transaction.
 6. Return a receipt over the canonical record and the committed state version/root.
 
 The mint never receives `coin_id`, `r_nf`, `rho_C`, or the hidden key opening in the intended privacy model. This is a target, not current repository behavior.
