@@ -361,6 +361,8 @@ def verify_mpt_exclusion(root_hash: bytes, key: bytes, proof_nodes: Sequence[byt
             if not isinstance(encoded_path, bytes):
                 raise EthereumEncodingError("trie compact path must be a byte string")
             is_leaf, partial_path = compact_decode_path(encoded_path)
+            if not is_leaf and not partial_path:
+                raise EthereumEncodingError("trie extension path must not be empty")
             remaining = path[path_offset:]
             common = min(len(remaining), len(partial_path))
             if remaining[:common] != partial_path[:common]:
