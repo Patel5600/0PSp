@@ -38,7 +38,6 @@ const OUTPUT_COIN_ID_DOMAIN: &[u8] = b"0PSP-OUTPUT-COIN-ID-v3-anchor-index-candi
 const OUTPUT_RNF_DOMAIN: &[u8] = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate";
 const OUTPUT_ID_VERSION: u8 = 0x03;
 const OUTPUT_ENTROPY_BYTES: usize = 32;
-const OUTPUT_ID_VERSION: u8 = 0x03;
 
 #[derive(Clone)]
 struct TxFields {
