@@ -105,8 +105,8 @@ def _envelope(raw: bytes, field: str) -> _Envelope:
 def _parse_header(raw_header_rlp: bytes) -> tuple[int, bytes, bytes, bytes]:
     try:
         decoded = rlp_decode(raw_header_rlp)
-        if not isinstance(decoded, list) or not 15 <= len(decoded) <= 21:
-            raise EthereumEncodingError("block header must contain 15 to 21 fields under the supported header schema")
+        if not isinstance(decoded, list) or len(decoded) not in {15, 16, 17, 20, 21}:
+            raise EthereumEncodingError("block header field count is not a supported pre-London through Prague schema")
         if any(not isinstance(field, bytes) for field in decoded):
             raise EthereumEncodingError("block header fields must all be RLP byte strings")
         fixed_lengths = {0: 32, 1: 32, 2: 20, 3: 32, 4: 32, 5: 32, 6: 256, 13: 32, 14: 8}
