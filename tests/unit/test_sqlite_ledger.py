@@ -373,3 +373,16 @@ def test_integrity_audit_rejects_record_head_or_source_link_substitution(tmp_pat
         )
     with pytest.raises(LedgerIntegrityError, match="post-state head/root"):
         clean.audit_integrity()
+
+
+def test_database_reopen_fails_closed_before_accepting_transitions_if_internal_tree_is_corrupt(tmp_path):
+    path = tmp_path / "startup-corrupt.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(deposit_evidence=b"evidence", commitment=C1, params_id=PARAMS, proof=b"valid-issue")
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE merkle_nodes SET node_hash=? WHERE level=0 AND node_index=0",
+            (b"\xFC" * 48,),
+        )
+    with pytest.raises(LedgerIntegrityError, match="persisted Merkle nodes"):
+        make_ledger(path)
