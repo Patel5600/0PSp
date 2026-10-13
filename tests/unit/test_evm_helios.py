@@ -420,6 +420,9 @@ def test_authenticated_deposit_verifier_checks_pinned_runtime_code_at_proven_blo
         depositor=b"\x63" * 20,
         beneficiary=b"\x64" * 20,
         amount=12,
+        transaction_to=TEST_PROTOCOL_ADDRESS,
+        transaction_value=12,
+        asset_movement_kind="NATIVE_TX_VALUE_MATCHED",
     )
 
     class FakeInclusionVerifier:
