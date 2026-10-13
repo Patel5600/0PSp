@@ -16,7 +16,7 @@ CHp4.7 adopts this policy for the V3 candidate: global uniqueness of the 32-byte
 
 The V2 reuse issue remains true: distinct commitments with the same tuple and different `rho_C` deterministically share a V2 nullifier. The other defect is privacy: a sender who knows the tuple can compute the unkeyed `NullifierV2` and later identify the spend. CHp4.6's sender-known derivation must not be deployed with V2 when sender-unlinkability is required.
 
-CHp4.7 therefore specifies a **new V3 suite**, without modifying any V1/V2 formula or KAT:
+CHp4.7 therefore records a **new V3 research candidate**, without modifying any V1/V2 formula or KAT:
 - BundleV3 canonically binds an authorization scheme/public key to a commitment to the recipient-held nullifier key `nk`.
 - The recipient must authenticate the exact domain-separated tuple (namespace, params ID, BundleV3) with the selected address-authorization key. The output proof must verify this signature/authentication token against the exact bundle; otherwise a sender could substitute an unknown key commitment and construct an unspendable output. The address signature codec is blocked on the authorization scheme/codec selection.
 - CommitV3 binds that bundle, value, namespace, tuple and independent commitment salt; V3 uses a separate result type from V2 to prevent accidental type/ledger mixing.
@@ -52,7 +52,7 @@ This is a formal target and Python reference, not an implemented circuit. The pr
 
 ## 3. Test status and adversarial boundaries
 
-Executable tests under tests/adversarial exercise the real V2 reference primitives for value, secret and namespace substitution, plus the CHp4.1 state model for deposit replay. These tests are finite regression tests over selected vectors. They are not general collision proofs and do not implement a ZK verifier.
+Unit/adversarial tests cover selected V3 reference vectors and malformed-input/substitution cases, alongside V2 primitive regressions and the local state-model replay checks. These are finite reference-code tests over selected inputs; they do not prove collision resistance, address authenticity, global uniqueness, privacy, or correct behavior of an actual ZK verifier.
 
 The following V3 proof/security fixtures remain deliberately **blocked**, rather than represented by fake security tests:
 
@@ -63,6 +63,6 @@ The following V3 proof/security fixtures remain deliberately **blocked**, rather
 
 ## 4. Security and implementation status
 
-Required but unimplemented: a selected ZK backend that supports the relation, a sound R_mint proof, a complete R_spend proof, chosen authorization policy, Merkle suite, transaction digest schema, durable ledger, real chain adapter, reorg recovery, concrete classical/quantum security bounds and independent cryptographic review.
+Required but unimplemented: a selected ZK backend that supports the complete relation in reviewed zero-knowledge mode; sound R_mint and complete V3 spend proofs; a chosen post-quantum authorization/address-authentication policy and canonical codecs; proof-constrained membership and V3 transaction encoding; durable consensus ledger enforcement; authenticated chain/custody composition; reorg/recovery; concrete classical/quantum security bounds; and independent cryptographic review.
 
 **Release: NO-GO.** This document specifies V3 research predicates and names the uninstantiated gates; it is not a proof or production implementation. HMAC-SHA3-384 remains provisional. Do not freeze it as a production byte contract until a pinned backend feasibility experiment measures the actual V3 relation and a separately reviewed versioned decision approves the construction.
