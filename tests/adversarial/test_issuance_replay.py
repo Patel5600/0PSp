@@ -28,6 +28,7 @@ def _ledger() -> ReferenceLedger:
             deposit_id=b"chain-id:tx-hash:output-index:7",
             authorized_value=10,
             finalized_anchor=ANCHOR,
+            beneficiary_address=bytes([0x55]) * 20,
         )
 
     # Explicitly a test double. A production verifier must enforce R_mint and

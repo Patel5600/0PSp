@@ -71,6 +71,7 @@ class DepositAuthorization:
     deposit_id: bytes
     authorized_value: int
     finalized_anchor: bytes
+    beneficiary_address: bytes
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ class IssuanceStatement:
     authorized_value: int
     deposit_id: bytes
     finalized_anchor: bytes
+    beneficiary_address: bytes
     params_id: bytes
 
 
@@ -93,6 +95,7 @@ class IssuedRecord:
     value: int
     deposit_id: bytes
     finalized_anchor: bytes
+    beneficiary_address: bytes
     params_id: bytes
     state_version: int
 
@@ -204,6 +207,10 @@ class ReferenceLedger:
             raise NamespaceMismatch("authorized deposit belongs to a different configured namespace")
         _require_bytes("authorized deposit_id", authorization.deposit_id, max_len=128)
         _require_bytes("finalized_anchor", authorization.finalized_anchor, max_len=256)
+        _require_bytes("beneficiary_address", authorization.beneficiary_address,
+                       min_len=20, max_len=20)
+        if authorization.beneficiary_address == bytes(20):
+            raise InvalidInput("beneficiary_address must not be the zero address")
         _validate_value(authorization.authorized_value)
 
         statement = IssuanceStatement(
@@ -213,6 +220,7 @@ class ReferenceLedger:
             authorized_value=authorization.authorized_value,
             deposit_id=authorization.deposit_id,
             finalized_anchor=authorization.finalized_anchor,
+            beneficiary_address=authorization.beneficiary_address,
             params_id=params_id,
         )
         try:
@@ -237,6 +245,7 @@ class ReferenceLedger:
                 value=statement.authorized_value,
                 deposit_id=statement.deposit_id,
                 finalized_anchor=statement.finalized_anchor,
+                beneficiary_address=statement.beneficiary_address,
                 params_id=statement.params_id,
                 state_version=next_version,
             )

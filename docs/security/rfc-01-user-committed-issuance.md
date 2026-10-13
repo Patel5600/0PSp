@@ -39,15 +39,15 @@ For the current EVM mapping, the 48-byte namespace field is the output of the di
 1. Generate `coin_id`, `r_nf` and `rho_C` using a reviewed fail-closed CSPRNG path.
 2. Construct `C` using the frozen V2 byte contract.
 3. Obtain a proof `pi_issue` for the issuance statement below, without disclosing the opening.
-4. Submit `(namespace_id, C, v, deposit_tx, pi_issue)` to the mint.
+4. Submit the namespace-bound deposit reference, intended beneficiary address, commitment `C`, and `pi_issue` to the mint. The mint derives the amount and beneficiary from its accepted deposit evidence; an independent caller-supplied amount is not authoritative.
 
 ### Mint
 
-1. Validate the deposit and determine the amount authorized by the trusted ledger/asset adapter.
-2. Verify that the stated `v` equals the value authorized by `deposit_tx`.
-3. Verify `pi_issue`, which must bind `C`'s hidden opening to that exact `v`, namespace and accepted parameter set.
+1. Obtain a trusted `DepositAuthorization` only from the authenticated chain/deposit verifier. RPC observations alone are not authorization.
+2. Derive the public value `v`, canonical deposit ID, finalized anchor, Namespace V3 ID, and beneficiary from that authorization. Do not accept a caller-supplied amount or recipient as a substitute.
+3. Verify `pi_issue`, which must bind `C`'s hidden opening to that exact `v`, namespace and accepted parameter set, and prove the chosen policy authorizes issuance to the authenticated beneficiary.
 4. Enforce deposit replay protection and the defined uniqueness policy atomically.
-5. Commit `(namespace_id, C, v, deposit_tx, protocol_version)` and the state update in one durable transaction.
+5. Commit `(namespace_id, C, v, canonical_deposit_id, finalized_anchor, beneficiary_address, params_id, protocol_version)` and the state update in one durable transaction.
 6. Return a receipt over the canonical record and the committed state version/root.
 
 The mint never receives `coin_id`, `r_nf`, `rho_C`, or the hidden key opening in the intended privacy model. This is a target, not current repository behavior.
@@ -63,7 +63,8 @@ A required issuance relation has at least this structure:
 ```text
 Public statement:
   x_issue = (protocol_version, namespace_id, C, v,
-             deposit_tx, ledger_state, params_id)
+             canonical_deposit_id, finalized_deposit_anchor,
+             beneficiary_address, ledger_state, params_id)
 
 Witness:
   w_issue = (canonical_pk, coin_id, r_nf, rho_C,
@@ -72,12 +73,56 @@ Witness:
 Relation:
   1. C = CommitV2(namespace_id, canonical_pk, v,
                   coin_id, r_nf, rho_C, params_id)
-  2. deposit_tx authorizes exactly v for this namespace/asset
-  3. the deposit/receipt has not been replayed
-  4. any required ownership, eligibility, and issuance policy holds
+  2. canonical deposit evidence authorizes exactly v for this namespace/asset
+  3. beneficiary_address is the same recipient authorized by the deposit policy
+  4. a reviewed ownership/authorization relation links the claimant to that beneficiary
+  5. the deposit has not been replayed
+  6. any other eligibility and issuance policy holds
 ```
 
 The proof must be zero knowledge for the specified adversary model and sound for the exact relation. A general-purpose proof backend is not integrated, so `pi_issue` is currently unavailable. Until that is solved, issuance is blocked. The alternative is a different reviewed issuance construction; simply trusting the caller is not an acceptable implicit substitute.
+
+## 4.1 EVM deposit evidence v1: canonical observation versus authorization
+
+CHp4.11 defines a narrow first event profile for the contract already bound by Namespace V3. The required event layout is:
+
+```solidity
+event Deposit(
+    address indexed depositor,
+    address indexed asset,
+    address indexed beneficiary,
+    uint256 amount
+);
+```
+
+Its canonical event signature string is `Deposit(address,address,address,uint256)`; indexed modifiers do not appear in that signature. `event_topic0` must be derived with Ethereum Keccak-256 from the reviewed ABI/artifact and pinned in deployment configuration. Do not substitute standardized SHA3-256.
+
+For this profile, the observed receipt log must have exactly four topics `[topic0, depositor, asset, beneficiary]` and exactly one 32-byte ABI word in `data` for `amount`. Each address topic must be ABI-canonical (12 zero bytes followed by 20 address bytes). Native asset identity is encoded in the event's asset topic as the zero address; a token profile uses the exact token address already selected by the Namespace V3 binding. The event emitter must equal the protocol contract address in that same namespace. A separate deposit contract is not silently accepted under this V3 profile.
+
+The reader binds the candidate to all of the following fields, normalized to canonical bytes/integers:
+
+- typed Namespace V3 identifier and configured EVM chain ID;
+- pinned protocol emitter, event topic, asset identity, and runtime-code fingerprint checked at the deposit block;
+- transaction hash, transaction index, block number, block hash, and the header-reported `transactionsRoot` and `receiptsRoot`;
+- zero-based `receipt_log_ordinal`, the selected log's global RPC `logIndex`, and consistent receipt/log transaction and block metadata;
+- successful receipt status, `removed == false`, expected non-zero beneficiary address, and a positive amount that fits the current uint64 ledger value contract.
+
+The canonical, namespace-scoped deposit ID is:
+
+```text
+deposit_id = transaction_hash[32] || BE32(receipt_log_ordinal)
+finalized_anchor = BE64(block_number) || block_hash[32]
+```
+
+The receipt-local ordinal is used instead of the RPC's global `logIndex` for identity. The global index is useful diagnostic metadata, but it is not a field inside the encoded transaction receipt and cannot be proven from one receipt alone without additional preceding-receipt evidence. Different qualifying logs within the same transaction therefore have distinct local ordinals and deposit IDs.
+
+`QuorumObservedEvmDeposit` has a fixed-width, domain-separated audit encoding and a 48-byte SHAKE256 fingerprint for reproducible comparison. That digest is a fingerprint, not a signature or proof. The reader requires `QuorumJsonRpcTransport`, checks a matching header hash against the durable finality journal, and returns an explicitly labelled `QUORUM_OBSERVED_NOT_CRYPTOGRAPHICALLY_AUTHENTICATED` result. It deliberately has no conversion method to `DepositAuthorization`.
+
+**A passing observation is not yet valid mint authorization.** Ordinary JSON-RPC receipt/header responses, even if a strict majority agrees, do not authenticate EVM consensus, prove that the selected transaction belongs at its claimed index, prove that the receipt belongs in `receiptsRoot`, or prove that an event corresponds to assets actually received. The trie commitments and typed receipt envelopes are defined by [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718); a future verifier must implement the applicable receipt encoding/trie rules correctly. The current implementation does not yet verify these proofs.
+
+Before an adapter may issue trusted `DepositAuthorization`, it must at minimum: (1) authenticate the finalized execution header using the explicitly selected chain's consensus/light-client strategy or an explicitly approved trust model; (2) verify transaction-trie inclusion at key `RLP(transaction_index)` against the authenticated `transactionsRoot`, and verify the raw transaction hashes to `transaction_hash`; (3) verify receipt-trie inclusion at the same index against `receiptsRoot`, decoding legacy or typed receipt envelopes according to the chain fork; (4) derive the selected event from the proven raw receipt by its receipt-local ordinal, rather than accepting RPC log fields as proof; (5) review contract/proxy semantics and prove the reported amount represents the intended asset transfer, including the policy for transfer-fee tokens; and (6) return the namespace, deposit ID, amount, beneficiary, and finalized anchor as one verified authorization consumed atomically by the ledger.
+
+The present CHp4.11 reader is therefore an evidence normalizer and adversarial input filter, not the missing authenticated deposit adapter. No RPC-only observation may be passed off as a production authorization. Production remains **NO-GO**.
 
 If `v` is intentionally public, the statement may expose it. If value confidentiality is required, the asset/deposit interface and relation must be redesigned rather than assuming the current public-`v` flow hides amounts.
 

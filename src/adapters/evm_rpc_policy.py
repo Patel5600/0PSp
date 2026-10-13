@@ -68,6 +68,14 @@ def _validate_request(method: str, params: list[object]) -> None:
         ):
             raise EvmRpcError("quorum transport rejected malformed eth_getCode parameters")
         return
+    if method == "eth_getTransactionReceipt":
+        if (
+            len(params) != 1
+            or not isinstance(params[0], str)
+            or re.fullmatch(r"0x[0-9a-fA-F]{64}", params[0]) is None
+        ):
+            raise EvmRpcError("quorum transport rejected malformed eth_getTransactionReceipt parameters")
+        return
     raise EvmRpcError(f"quorum transport does not permit RPC method {method!r}")
 
 
@@ -86,7 +94,60 @@ def _vote_key(method: str, result: object) -> tuple[object, ...]:
         block_hash = _data(result.get("hash"), "block.hash", 32)
         parent_value = result.get("parentHash")
         parent_hash = None if parent_value is None else _data(parent_value, "block.parentHash", 32)
-        return ("block", number, block_hash, parent_hash)
+        receipts_root_value = result.get("receiptsRoot")
+        receipts_root = (
+            None if receipts_root_value is None
+            else _data(receipts_root_value, "block.receiptsRoot", 32)
+        )
+        transactions_root_value = result.get("transactionsRoot")
+        transactions_root = (
+            None if transactions_root_value is None
+            else _data(transactions_root_value, "block.transactionsRoot", 32)
+        )
+        return ("block", number, block_hash, parent_hash, receipts_root, transactions_root)
+    if method == "eth_getTransactionReceipt":
+        if result is None:
+            return ("missing-receipt",)
+        if not isinstance(result, dict):
+            raise ValueError("receipt result is not an object")
+        tx_hash = _data(result.get("transactionHash"), "receipt.transactionHash", 32)
+        block_hash = _data(result.get("blockHash"), "receipt.blockHash", 32)
+        block_number = _quantity(result.get("blockNumber"), "receipt.blockNumber")
+        tx_index = _quantity(result.get("transactionIndex"), "receipt.transactionIndex")
+        status = _quantity(result.get("status"), "receipt.status")
+        logs_value = result.get("logs")
+        if not isinstance(logs_value, list):
+            raise ValueError("receipt.logs is not a list")
+        normalized_logs = []
+        seen_indices: set[int] = set()
+        for i, log in enumerate(logs_value):
+            if not isinstance(log, dict):
+                raise ValueError(f"receipt.logs[{i}] is not an object")
+            address = _data(log.get("address"), f"receipt.logs[{i}].address", 20)
+            topics_value = log.get("topics")
+            if not isinstance(topics_value, list) or len(topics_value) > 4:
+                raise ValueError(f"receipt.logs[{i}].topics is not a valid topic list")
+            topics = tuple(
+                _data(topic, f"receipt.logs[{i}].topics[{j}]", 32)
+                for j, topic in enumerate(topics_value)
+            )
+            data = _data(log.get("data"), f"receipt.logs[{i}].data")
+            log_index = _quantity(log.get("logIndex"), f"receipt.logs[{i}].logIndex")
+            log_tx_index = _quantity(log.get("transactionIndex"), f"receipt.logs[{i}].transactionIndex")
+            log_block_number = _quantity(log.get("blockNumber"), f"receipt.logs[{i}].blockNumber")
+            log_block_hash = _data(log.get("blockHash"), f"receipt.logs[{i}].blockHash", 32)
+            log_tx_hash = _data(log.get("transactionHash"), f"receipt.logs[{i}].transactionHash", 32)
+            removed = log.get("removed")
+            if type(removed) is not bool:
+                raise ValueError(f"receipt.logs[{i}].removed is not boolean")
+            if log_index in seen_indices:
+                raise ValueError("receipt contains duplicate log indices")
+            seen_indices.add(log_index)
+            normalized_logs.append((
+                address, topics, data, log_index, log_tx_index,
+                log_block_number, log_block_hash, log_tx_hash, removed,
+            ))
+        return ("receipt", tx_hash, block_hash, block_number, tx_index, status, tuple(normalized_logs))
     raise ValueError("unsupported method")
 
 

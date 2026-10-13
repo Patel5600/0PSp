@@ -1,6 +1,6 @@
 # 0PSP Documentation Map and Maintenance Policy
 
-**Last consistency check:** 2026-10-12  
+**Last consistency check:** 2026-10-13  
 **Release status:** **NO-GO**  
 **Normative status:** research prototype; documentation and regression tests do not certify security.
 
@@ -19,7 +19,8 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 9. [CHp4.8 Namespace V2 EVM adapter — historical initial mapping](audit/chp4.8-namespace-v2-evm-adapter.md) — retained as historical audit; its intermediate-hash EVM identity mapping is superseded.
 10. [CHp4.9 Namespace V3 direct-hash remediation](audit/chp4.9-namespace-v3-direct-hash-remediation.md) — current EVM identity mapping, exact encoding, quantum collision bound, native/Python parity and ledger typing.
 11. [CHp4.10 namespace RPC quorum and durable finality journal](audit/chp4.10-namespace-rpc-finality-hardening.md) — majority RPC policy, persistent checkpoint-to-finalized header ancestry, startup wiring and remaining consensus/deposit/proof boundaries.
-12. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+12. [CHp4.11 EVM deposit evidence contract](audit/chp4.11-evm-deposit-evidence-contract.md) — fixed event ABI profile, canonical evidence fields, receipt-local log identity, beneficiary binding, and receipt/transaction-trie authentication requirements.
+13. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
 13. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map

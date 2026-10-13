@@ -108,6 +108,7 @@ x_mint = (
   deposit_authorized_value v_deposit,
   canonical_deposit_id,
   finalized_deposit_anchor,
+  beneficiary_address,
   authenticated_ledger_state,
   issuance_policy_id
 )
@@ -117,6 +118,7 @@ The hidden witness is:
 
 ~~~text
 w_mint = (canonical_public_key pk, coin_id, r_nf, rho_C,
+          beneficiary-authorization witness,
           any scheme-specific ownership witness)
 ~~~
 
@@ -125,6 +127,7 @@ Define R_mint(x_mint, w_mint) = 1 only if:
 ~~~text
 C = CommitV2(params_id, pk, v_deposit,
              namespace_id, coin_id, r_nf, rho_C)
+AND BeneficiaryAuthorized(beneficiary_address, w_mint, issuance_policy_id) = 1
 AND CanonicalWitnessAndPolicy(params_id, pk, w_mint, issuance_policy_id) = 1
 ~~~
 
@@ -132,10 +135,10 @@ Separately, the trusted deposit adapter must authenticate the chain/asset and ve
 
 ~~~text
 DepositVerify(authenticated_ledger_state, canonical_deposit_id)
-  = (namespace_id, v_deposit, finalized_deposit_anchor)
+  = (namespace_id, v_deposit, finalized_deposit_anchor, beneficiary_address)
 ~~~
 
-The adapter's verified namespace, value and finalized anchor must match the public statement exactly. The mint verifies the issuance proof and deposit evidence, then atomically checks that the deposit ID has not been consumed and that the commitment has not already been registered before recording the canonical issuance state. The actual proof verifier, deposit adapter, durable transaction and finality/reorg behavior are not implemented.
+The adapter's verified namespace, value, finalized anchor and beneficiary must match the public statement exactly. The beneficiary is not decorative event metadata: the selected issuance policy must prove that the claimant is authorized for that address, and the proof verifier must bind it into the public statement. The mint atomically checks that the canonical deposit ID has not been consumed and that the commitment has not already been registered. CHp4.11's EVM reader only creates a provider-quorum observation, not a DepositVerify result: it does not yet verify transaction/receipt trie inclusion or authenticate the execution header through consensus. The actual proof verifier, authenticated deposit adapter, durable transaction and finality/reorg recovery remain unimplemented.
 
 A signed receipt over (C, v_deposit, deposit ID) alone does not establish R_mint.
 

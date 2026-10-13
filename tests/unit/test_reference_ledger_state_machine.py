@@ -39,6 +39,7 @@ def authorization_for(evidence: bytes, *, value: int = 2500, deposit_id: bytes |
         deposit_id=deposit_id or bytes([0x33]) * 32,
         authorized_value=value,
         finalized_anchor=ANCHOR,
+        beneficiary_address=bytes([0x55]) * 20,
     )
 
 
@@ -103,7 +104,7 @@ def test_value_opening_mismatch_is_rejected_by_the_relation_verifier_contract() 
     opening_value_by_commitment = {commitment: 1_000_000}
 
     def authorize(_evidence):
-        return DepositAuthorization(NS, b"D" * 32, 10, ANCHOR)
+        return DepositAuthorization(NS, b"D" * 32, 10, ANCHOR, beneficiary_address=bytes([0x55]) * 20)
 
     def verify_issue(statement, proof):
         return (proof == PROOF and
@@ -136,9 +137,9 @@ def test_duplicate_deposit_and_duplicate_commitment_are_rejected() -> None:
     # A second authenticated deposit cannot register an already-used commitment.
     def two_deposit_authorizer(evidence):
         if evidence == b"deposit-1":
-            return DepositAuthorization(NS, b"D" * 32, 2500, ANCHOR)
+            return DepositAuthorization(NS, b"D" * 32, 2500, ANCHOR, beneficiary_address=bytes([0x55]) * 20)
         if evidence == b"deposit-2":
-            return DepositAuthorization(NS, b"E" * 32, 4000, ANCHOR)
+            return DepositAuthorization(NS, b"E" * 32, 4000, ANCHOR, beneficiary_address=bytes([0x55]) * 20)
         return None
 
     other = make_ledger(authorizer=two_deposit_authorizer)
@@ -275,6 +276,7 @@ def test_wrong_namespace_deposit_is_rejected_before_issuance_verifier() -> None:
             deposit_id=b"D" * 32,
             authorized_value=100,
             finalized_anchor=ANCHOR,
+            beneficiary_address=bytes([0x55]) * 20,
         )
 
     ledger = ReferenceLedger(
@@ -341,6 +343,7 @@ def test_raw_namespace_bytes_from_deposit_adapter_fail_before_proof() -> None:
             deposit_id=b"D" * 32,
             authorized_value=100,
             finalized_anchor=ANCHOR,
+            beneficiary_address=bytes([0x55]) * 20,
         )
 
     ledger = ReferenceLedger(
@@ -373,3 +376,43 @@ def test_raw_namespace_bytes_in_spend_statement_fail_before_proof() -> None:
     assert calls == []
     assert observed.spent_count == 0
     assert observed.state_version == 0
+
+
+def test_issuance_binds_the_observed_deposit_beneficiary_into_public_statement():
+    observed = []
+    ledger = make_ledger(issue_seen=observed)
+    record = ledger.issue(
+        deposit_evidence=b"valid-deposit",
+        commitment=b"\x91" * 48,
+        params_id=PARAMS,
+        proof=PROOF,
+    )
+    expected_beneficiary = bytes([0x55]) * 20
+    assert observed[0].beneficiary_address == expected_beneficiary
+    assert record.beneficiary_address == expected_beneficiary
+
+
+@pytest.mark.parametrize("beneficiary", [b"short", bytes(20)])
+def test_invalid_beneficiary_rejected_before_issuance_proof(beneficiary):
+    seen = []
+
+    def authorize(_evidence):
+        return DepositAuthorization(
+            namespace_id=NS,
+            deposit_id=b"D" * 32,
+            authorized_value=10,
+            finalized_anchor=ANCHOR,
+            beneficiary_address=beneficiary,
+        )
+
+    ledger = make_ledger(authorizer=authorize, issue_seen=seen)
+    with pytest.raises(InvalidInput, match="beneficiary_address"):
+        ledger.issue(
+            deposit_evidence=b"deposit",
+            commitment=b"\x92" * 48,
+            params_id=PARAMS,
+            proof=PROOF,
+        )
+    assert seen == []
+    assert ledger.issued_count == 0
+    assert ledger.state_version == 0

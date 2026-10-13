@@ -105,3 +105,73 @@ def test_quorum_rejects_malformed_data_and_unsupported_or_mutating_rpc_surface()
         rpc.call("eth_sendRawTransaction", ["0xdeadbeef"])
     with pytest.raises(EvmRpcError, match="malformed"):
         rpc.call("eth_getCode", ["0x1234", "latest"])
+
+
+def _sample_receipt():
+    tx_hash = bytes.fromhex("33" * 32)
+    block_hash = bytes.fromhex("44" * 32)
+    address = bytes.fromhex("11" * 20)
+    topic0 = bytes.fromhex("55" * 32)
+    depositor = bytes(12) + bytes.fromhex("66" * 20)
+    asset = bytes(12) + bytes.fromhex("22" * 20)
+    beneficiary = bytes(12) + bytes.fromhex("77" * 20)
+    log = {
+        "address": "0x" + address.hex(),
+        "topics": ["0x" + x.hex() for x in (topic0, depositor, asset, beneficiary)],
+        "data": "0x" + (123).to_bytes(32, "big").hex(),
+        "logIndex": "0x11",
+        "transactionIndex": "0x2",
+        "blockNumber": "0x5",
+        "blockHash": "0x" + block_hash.hex(),
+        "transactionHash": "0x" + tx_hash.hex(),
+        "removed": False,
+    }
+    return {
+        "transactionHash": "0x" + tx_hash.hex(),
+        "transactionIndex": "0x2",
+        "blockHash": "0x" + block_hash.hex(),
+        "blockNumber": "0x5",
+        "status": "0x1",
+        "logs": [log],
+    }
+
+
+def test_transaction_receipt_quorum_normalizes_hex_case_and_log_fields():
+    from copy import deepcopy
+
+    base = _sample_receipt()
+    upper = deepcopy(base)
+    upper["transactionHash"] = "0x" + upper["transactionHash"][2:].upper()
+    upper["blockHash"] = "0x" + upper["blockHash"][2:].upper()
+    upper["transactionIndex"] = "0x2"
+    upper["blockNumber"] = "0x5"
+    upper["status"] = "0x1"
+    for log in upper["logs"]:
+        for key in ("address", "data", "blockHash", "transactionHash"):
+            log[key] = "0x" + log[key][2:].upper()
+        log["topics"] = ["0x" + item[2:].upper() for item in log["topics"]]
+        log["logIndex"] = "0x11"
+        log["transactionIndex"] = "0x2"
+        log["blockNumber"] = "0x5"
+    divergent = deepcopy(base)
+    divergent["logs"][0]["data"] = "0x" + (124).to_bytes(32, "big").hex()
+    rpc = QuorumJsonRpcTransport({
+        "provider-a": ScriptedRpc({"eth_getTransactionReceipt": base}),
+        "provider-b": ScriptedRpc({"eth_getTransactionReceipt": upper}),
+        "provider-c": ScriptedRpc({"eth_getTransactionReceipt": divergent}),
+    })
+    result = rpc.call("eth_getTransactionReceipt", ["0x" + "33" * 32])
+    assert result["logs"][0]["data"] == base["logs"][0]["data"]
+
+
+def test_transaction_receipt_quorum_rejects_malformed_or_mutating_requests():
+    receipt = _sample_receipt()
+    rpc = QuorumJsonRpcTransport({
+        "a": ScriptedRpc({"eth_getTransactionReceipt": receipt}),
+        "b": ScriptedRpc({"eth_getTransactionReceipt": receipt}),
+        "c": ScriptedRpc({"eth_getTransactionReceipt": None}),
+    })
+    with pytest.raises(EvmRpcError, match="malformed"):
+        rpc.call("eth_getTransactionReceipt", ["0x1234"])
+    with pytest.raises(EvmRpcError, match="does not permit"):
+        rpc.call("eth_sendTransaction", [{}])
