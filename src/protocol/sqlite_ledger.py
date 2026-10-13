@@ -586,6 +586,10 @@ class SQLiteLedger:
             _require_bytes(output, "new commitment", minimum=48, maximum=48)
         if len(set(statement.new_commitments)) != len(statement.new_commitments):
             raise DuplicateCommitment("transaction repeats a new output commitment")
+        try:
+            validate_spend_statement_transaction(statement)
+        except (CanonicalTransactionError, TypeError, ValueError) as exc:
+            raise InvalidInput(f"invalid canonical V2 transaction: {exc}") from None
 
         with closing(self._connect()) as conn:
             version, previous_head, count, current_root = self._meta(conn)
