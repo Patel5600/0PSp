@@ -26,6 +26,7 @@ from src.primitives.nullifier_v3 import (
     NullifierV3,
     compute_nullifier_key_commitment_v3,
     compute_nullifier_v3,
+    generate_nullifier_deriving_key_v3,
     verify_nullifier_key_commitment_v3,
 )
 from src.protocol.note_public_key_bundle_v3 import (
@@ -436,3 +437,44 @@ def test_v3_nullifier_and_identity_reject_noncanonical_bundles() -> None:
             output_index=0,
             params_id=TRANSFER_PARAMS_ID,
         )
+
+def test_v3_nullifier_key_generation_uses_os_csprng(monkeypatch) -> None:
+    import src.primitives.nullifier_v3 as nullifier_v3
+
+    requested_lengths: list[int] = []
+
+    def deterministic_test_source(length: int) -> bytes:
+        requested_lengths.append(length)
+        return bytes(range(length))
+
+    monkeypatch.setattr(nullifier_v3.secrets, "token_bytes", deterministic_test_source)
+    key = generate_nullifier_deriving_key_v3()
+
+    assert requested_lengths == [48]
+    assert key.data == bytes(range(48))
+    assert len(key.data) == 48
+    assert key.data.hex() not in repr(key)
+    assert "redacted" in repr(key).lower()
+    assert verify_nullifier_key_commitment_v3(
+        compute_nullifier_key_commitment_v3(key), key
+    )
+
+
+def test_v3_nullifier_key_generation_rejects_invalid_source_output(monkeypatch) -> None:
+    import src.primitives.nullifier_v3 as nullifier_v3
+
+    monkeypatch.setattr(nullifier_v3.secrets, "token_bytes", lambda _length: b"short")
+    with pytest.raises(ValueError, match="exactly 48 bytes"):
+        generate_nullifier_deriving_key_v3()
+
+
+def test_v3_nullifier_key_generation_fails_closed_if_os_source_fails(monkeypatch) -> None:
+    import src.primitives.nullifier_v3 as nullifier_v3
+
+    def failed_source(_length: int) -> bytes:
+        raise OSError("test entropy-source failure")
+
+    monkeypatch.setattr(nullifier_v3.secrets, "token_bytes", failed_source)
+    with pytest.raises(OSError, match="test entropy-source failure"):
+        generate_nullifier_deriving_key_v3()
+
