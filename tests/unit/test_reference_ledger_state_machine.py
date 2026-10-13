@@ -262,8 +262,9 @@ def test_shape_errors_fail_before_transition() -> None:
     with pytest.raises(InvalidInput):
         ledger.issue(deposit_evidence=b"valid-deposit", commitment=b"short",
                      params_id=PARAMS, proof=PROOF)
+    malformed_nullifier = replace(statement(b"N" * 48), nullifier=b"short")
     with pytest.raises(InvalidInput):
-        ledger.accept_spend(statement=statement(b"short"), proof=PROOF)
+        ledger.accept_spend(statement=malformed_nullifier, proof=PROOF)
     invalid = statement(b"N" * 48)
     invalid_version = SpendStatement(
         version=1, params_id=invalid.params_id, namespace_id=invalid.namespace_id,
