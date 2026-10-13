@@ -1,0 +1,56 @@
+name: OpenVM partial spend guest checks
+
+on:
+  pull_request:
+    paths:
+      - "proof/openvm/rspend-noauth/**"
+      - ".github/workflows/openvm-rspend-noauth.yml"
+  push:
+    branches: [main]
+    paths:
+      - "proof/openvm/rspend-noauth/**"
+      - ".github/workflows/openvm-rspend-noauth.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openvm-rspend-noauth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-tests-and-guest-build:
+    name: Host tests and OpenVM guest build (NOAUTH)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: proof/openvm/rspend-noauth
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install RISC-V build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential gcc-riscv64-unknown-elf
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.91.1 --profile minimal --component rust-src
+
+      - name: Install cargo-openvm from the immutable v2.0.2 release commit
+        run: cargo +1.91.1 install --locked --git https://github.com/openvm-org/openvm.git --rev 59a69b8b0cbee7011ac978e4cc07707ee3681944 cargo-openvm
+
+      - name: Run host-side unit tests
+        run: cargo +1.91.1 test
+
+      - name: Build guest for OpenVM
+        run: cargo +1.91.1 openvm build
+
+      - name: Record toolchain versions
+        if: always()
+        run: |
+          rustc +1.91.1 --version
+          cargo +1.91.1 --version
+          cargo +1.91.1 openvm --version || true
+          gcc-riscv64-unknown-elf --version | head -n 1
