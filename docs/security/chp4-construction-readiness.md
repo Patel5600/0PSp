@@ -2,7 +2,7 @@
 
 **Checkpoint:** namespace-bound component functions and fixed vectors are implemented. Full 0PSP protocol remains **NO-GO**.
 
-**RFC review update (2026-10-12):** The active work packages and blocking gates are tracked in [the evidence-first RFC register](evidence-first-rfc-register.md). The existing V2 commitment already includes `value`, namespace, `coin_id`, `r_nf`, key bytes, parameter ID and independent salt in its preimage. The identified multi-identity risk is not fixed by adding a second `C_spend`: the eventual spend proof must enforce that the commitment opening and nullifier use the exact same witness. More importantly, no live issuance flow yet proves that the mint's recorded public value equals the hidden value in `C`.
+**RFC review update (2026-10-13):** The active work packages and blocking gates are tracked in [the evidence-first RFC register](evidence-first-rfc-register.md). The existing V2 commitment already includes `value`, namespace, `coin_id`, `r_nf`, key bytes, parameter ID and independent salt in its preimage. The identified multi-identity risk is not fixed by adding a second `C_spend`: the eventual spend proof must enforce that the commitment opening and nullifier use the exact same witness. More importantly, no live issuance flow yet proves that the mint's recorded public value equals the hidden value in `C`.
 
 **Do not infer readiness from component tests:** Python/native equality proves byte-contract agreement only. It does not prove issuer unlinkability, commitment hiding, ZK relation soundness, ledger atomicity or constant-time execution. Authorization mode remains unresolved; see [RFC-02 spend relation](../theory/spend-relation-spec.md).
 
@@ -18,7 +18,13 @@ The public namespace is a 48-byte SHAKE256-384 digest of the domain/version and 
     uint16_le(32) || deployment_id[32] ||
     uint16_le(32) || asset_id[32]
 
-CHp4.9 supersedes CHp4.8's EVM identity derivation. The frozen Namespace V2 core is unchanged, but the current EVM adapter uses typed Namespace V3 and hashes the full canonical ledger/deployment/asset descriptors directly into one SHAKE256-384 output. Python and native implementations have matching known-answer vectors, and the reference ledger requires NamespaceIdV3 at its context boundary. CHp4.10 adds a read-only strict-majority RPC transport, a file-backed SQLite checkpoint-to-finalized header journal with parent-hash checks and fail-closed reorg/regression handling, and a startup wrapper requiring the finalized tag. These mechanisms corroborate RPC observations; they are not a consensus light client. Chain-specific deposit/event verification, the actual proof verifier, durable issuance/spend ledger and cross-system reorg/recovery handling remain unimplemented.
+CHp4.9 supersedes CHp4.8's EVM identity derivation. The frozen Namespace V2 core is unchanged, but the current EVM adapter uses typed Namespace V3 and hashes the full canonical ledger/deployment/asset descriptors directly into one SHAKE256-384 output. Python and native implementations have matching known-answer vectors, and the reference ledger requires NamespaceIdV3 at its context boundary. CHp4.10 adds a read-only strict-majority RPC transport, a file-backed SQLite checkpoint-to-finalized header journal with parent-hash checks and fail-closed reorg/regression handling, and a startup wrapper requiring the finalized tag. These mechanisms corroborate RPC observations; they are not a consensus light client. CHp4.11 adds a quorum-only canonical EVM deposit observation tied to a pinned event schema, contract code fingerprint, namespace asset, block roots, receipt-local log ordinal and beneficiary. Its assurance label explicitly says it is not cryptographically authenticated; it does not verify transaction or receipt trie inclusion or consensus. The beneficiary is now carried in DepositAuthorization, IssuanceStatement and IssuedRecord, but the actual proof must bind it under a reviewed policy. The real deposit verifier, durable issuance/spend ledger and cross-system reorg/recovery handling remain unimplemented.
+
+### Deposit evidence v1
+
+The target event is `Deposit(address indexed depositor, address indexed asset, address indexed beneficiary, uint256 amount)`; its `topic0` must be pinned from reviewed ABI artifacts using Ethereum Keccak-256. The observation records the canonical namespace, chain ID, protocol emitter, asset, event topic, transaction hash/index, receipt-local log ordinal, global log index (diagnostic only), block number/hash, `transactionsRoot`, `receiptsRoot`, depositor, beneficiary, amount, and block-specific code fingerprint. The deposit ID is `transaction_hash[32] || BE32(receipt_log_ordinal)`; the finality anchor is `BE64(block_number) || block_hash[32]`.
+
+**Do not treat this observation as authorization.** It relies on RPC responses plus the current provider-quorum/finality-journal policy. There is no authenticated receipt inclusion proof, transaction inclusion proof, consensus/light-client validation, or independent proof that the event means assets were actually received. Before production, verify the raw transaction and receipt against the matching authenticated header's transaction/receipt trie roots at `RLP(transaction_index)`, validate typed receipt encoding and event contents, review token/proxy custody semantics, and return trusted DepositAuthorization only from that verifier. The relevant trie/receipt rules are described in [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718) and the [Ethereum trie specification](https://ethereum.org/developers/docs/data-structures-and-encoding/patricia-merkle-trie/).
 
 ### Coin identity and minting
 
@@ -45,7 +51,7 @@ CI now performs:
 3. Python namespace/nullifier/commitment V2 vectors and native/reference agreement tests.
 4. Optimized disassembly capture for the combined native V1/V2/nullifier/commitment library.
 5. ASan/UBSan runs for native V1/V2 test executables; compile-only validation of separate V2 nullifier and commitment timing screens.
-6. Full Python unit/property tests, including namespace RPC-quorum and durable finality-journal regression tests.
+6. Full Python unit/property tests, including namespace RPC quorum, durable finality-journal and deposit-evidence adversarial regression tests.
 
 Local commands:
 
@@ -73,6 +79,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 |---|---|---|
 | Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
 | Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; ledger uniqueness open |
+| Deposit evidence | CHp4.11 event/log normalizer, RPC quorum checks, finalized journal match, transaction/receipt roots and beneficiary field | Observation only; no transaction/receipt MPT proof, authenticated header consensus, custody semantics or trusted DepositAuthorization yet |
 | Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof |
 | Mint-authority privacy | No blind-issuance construction implemented | OPEN: authority that knows coin ID and nullifier secret can match a later public nullifier to its record |
 | Nullifier V2 byte agreement | Fixed KAT plus Python/native comparison | Functional checks pass; not a security theorem |
