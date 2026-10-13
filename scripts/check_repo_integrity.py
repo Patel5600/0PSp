@@ -30,6 +30,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md"),
     Path("docs/audit/chp4.10-namespace-rpc-finality-hardening.md"),
     Path("docs/audit/chp4.11-evm-deposit-evidence-contract.md"),
+    Path("docs/audit/chp4.12-evm-trie-inclusion-verifier.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -105,6 +106,13 @@ REQUIRED_TOKENS = {
         "transactionsRoot",
         "receipt-trie inclusion",
         "Production remains NO-GO",
+    ),
+    Path("docs/audit/chp4.12-evm-trie-inclusion-verifier.md"): (
+        "verify_mpt_inclusion",
+        "Keccak256",
+        "receipt trie inclusion",
+        "DepositAuthorization",
+        "NO-GO",
     ),
 }
 
