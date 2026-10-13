@@ -5,6 +5,7 @@
 //! spend relation: no Merkle membership, authenticated state root, output identity,
 //! value accounting, spend authorization, ledger transition, or production ZK claim.
 
+#[cfg(target_os = "zkvm")]
 use core::cmp::min;
 
 pub const WITNESS_MAGIC: &[u8] = b"0PSP-OPENVM-V3-NULLIFIER-SPIKE-WITNESS-v1";
@@ -404,7 +405,7 @@ mod tests {
     use super::*;
 
     fn decode_hex(encoded: &str) -> Vec<u8> {
-        assert_eq!(encoded.len() % 2, 0);
+        assert_eq!(encoded.len() % 2, 0, "odd-length hex fixture: {} characters", encoded.len());
         encoded.as_bytes().chunks_exact(2).map(|pair| {
             let digit = |value: u8| -> u8 {
                 match value {
@@ -427,15 +428,19 @@ mod tests {
         "1300746573742d617574682d736368656d652d7631",
         "19000000746573742d726563697069656e742d7075626c69632d6b6579",
         "300075e79fc862d236ecb76a362a08edd81c910aaf660d5cb9d95",
+        "fabe8a8f35cfa67fee3371e044cd7abc802c655de4ccde8",
     );
     const KEY_COMMITMENT_HEX: &str = concat!(
         "75e79fc862d236ecb76a362a08edd81c910aaf660d5cb9d95",
+        "fabe8a8f35cfa67fee3371e044cd7abc802c655de4ccde8",
     );
     const COMMITMENT_HEX: &str = concat!(
         "7c29d710d6a81bed4f3df766421d66fa497072be7513022487eb55c8d4839f82",
+        "a9cf6dd11105ce21602715f0644f99d0",
     );
     const NULLIFIER_HEX: &str = concat!(
         "5309bdb17ad1527c06763ae96dfd806520132899bbdbc6519070883abb568a1",
+        "af3bc2a43c3a965325df2ba084bcf6f93",
     );
 
     fn fixture_witness(
