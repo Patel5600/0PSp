@@ -21,7 +21,7 @@ from src.adapters.evm_helios import (
 from src.adapters.evm_deposit_evidence import EvmDepositEvidencePolicy
 from src.adapters.evm_deposit_proof import ProvenEvmDepositInclusion
 from src.adapters.evm_namespace import EvmNamespaceConfig, runtime_code_fingerprint
-from src.adapters.evm_trie import keccak256, rlp_encode_bytes, rlp_encode_list
+from src.adapters.evm_trie import keccak256, rlp_encode_bytes, rlp_encode_list, rlp_encode_uint
 from src.primitives.namespace_v3 import derive_namespace_id_v3
 
 EMPTY_TRIE_ROOT = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
@@ -93,12 +93,12 @@ def mainnet_genesis_json():
     return json_header_from_rlp(encode_header_fields(fields))
 
 
-def make_header(number, parent_hash):
+def make_header(number, parent_hash, *, state_root=None):
     fields = [
         parent_hash,
         EMPTY_OMMERS_HASH,
         b"\x11" * 20,
-        bytes([number + 1]) * 32,
+        state_root if state_root is not None else bytes([number + 1]) * 32,
         bytes([0x40 + number]) * 32,
         bytes([0x50 + number]) * 32,
         bytes(256),
@@ -137,12 +137,13 @@ class FakeProcess:
 
 
 class FakeRpc:
-    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE, code_overrides=None):
+    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE, code_overrides=None, proof_response=None):
         self.blocks = blocks
         self.final_height = final_height
         self.chain_id = chain_id
         self.code = code
         self.code_overrides = dict(code_overrides or {})
+        self.proof_response = proof_response
         self.calls = []
 
     def call(self, method, params):
@@ -157,17 +158,21 @@ class FakeRpc:
         if method == "eth_getCode":
             code = self.code_overrides.get(params[0].lower(), self.code)
             return "0x" + code.hex()
+        if method == "eth_getProof":
+            if self.proof_response is None:
+                raise AssertionError("unexpected eth_getProof request")
+            return self.proof_response
         raise AssertionError(method)
 
 
-def make_fake_chain(final_height=3):
+def make_fake_chain(final_height=3, *, state_roots=None):
     genesis = mainnet_genesis_json()
     genesis["hash"] = "0x" + ETHEREUM_MAINNET_GENESIS_HASH.hex()
     # The independently known Mainnet genesis hash is the root of this test chain.
     blocks = {0: genesis}
     parent = ETHEREUM_MAINNET_GENESIS_HASH
     for height in range(1, final_height + 1):
-        block, _raw, block_hash = make_header(height, parent)
+        block, _raw, block_hash = make_header(height, parent, state_root=(state_roots or {}).get(height))
         blocks[height] = block
         parent = block_hash
     return blocks
@@ -187,7 +192,7 @@ def make_namespace_config(checkpoint_height, checkpoint_hash, *, asset_address=N
     )
 
 
-def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CODE, code_overrides=None):
+def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CODE, code_overrides=None, proof_response=None):
     binary = tmp_path / "helios"
     binary.write_bytes(b"test executable; the process is mocked")
     config = HeliosMainnetConfig(
@@ -200,7 +205,8 @@ def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CO
     light_client = HeliosMainnetLightClient(config)
     light_client._process = FakeProcess()
     light_client._rpc = FakeRpc(
-        blocks, final_height=final_height, code=code, code_overrides=code_overrides
+        blocks, final_height=final_height, code=code, code_overrides=code_overrides,
+        proof_response=proof_response
     )
     light_client._started = True
     return light_client
@@ -580,3 +586,66 @@ def test_authenticated_deposit_verifier_pins_token_code_at_deposit_block(tmp_pat
             receipt_log_ordinal=1,
             expected_beneficiary=b"\x74" * 20,
         )
+
+
+def _compact_leaf_path(key: bytes) -> bytes:
+    nibbles = [n for byte in key for n in (byte >> 4, byte & 15)]
+    encoded = [2, 0]  # even-length leaf path
+    encoded.extend(nibbles)
+    return bytes((encoded[i] << 4) | encoded[i + 1] for i in range(0, len(encoded), 2))
+
+
+def test_journal_fetches_and_verifies_account_state_against_authenticated_header(tmp_path):
+    address = TEST_PROTOCOL_ADDRESS
+    storage_root = EMPTY_TRIE_ROOT
+    code_hash = keccak256(TEST_PROTOCOL_CODE)
+    account_value = rlp_encode_list([
+        rlp_encode_uint(1),
+        rlp_encode_uint(500),
+        rlp_encode_bytes(storage_root),
+        rlp_encode_bytes(code_hash),
+    ])
+    account_leaf = rlp_encode_list([
+        rlp_encode_bytes(_compact_leaf_path(keccak256(address))),
+        rlp_encode_bytes(account_value),
+    ])
+    state_root = keccak256(account_leaf)
+    blocks = make_fake_chain(final_height=3, state_roots={2: state_root})
+    proof_response = {
+        "address": "0x" + address.hex(),
+        "nonce": "0x1",
+        "balance": "0x1f4",
+        "storageHash": "0x" + storage_root.hex(),
+        "codeHash": "0x" + code_hash.hex(),
+        "accountProof": ["0x" + account_leaf.hex()],
+        "storageProof": [],
+    }
+    client = fake_light_client(tmp_path, blocks, final_height=3, proof_response=proof_response)
+    checkpoint_hash = bytes.fromhex(blocks[1]["hash"][2:])
+    config = make_namespace_config(1, checkpoint_hash)
+    journal = HeliosAuthenticatedHeaderJournal(
+        tmp_path / "state-proof.sqlite3",
+        namespace_config=config,
+        namespace_id=NS,
+        light_client=client,
+        max_headers_per_sync=10,
+    )
+    raw_header = execution_header_rlp_from_json(blocks[2])
+    state = journal.verify_account_state(raw_header, address)
+    assert state.block_number == 2
+    assert state.block_hash == bytes.fromhex(blocks[2]["hash"][2:])
+    assert state.state_root == state_root
+    assert state.balance == 500
+    assert state.code_hash == code_hash
+    assert ("eth_getProof", ["0x" + address.hex(), [], "0x2"]) in client.rpc.calls
+    assert ("eth_getCode", ["0x" + address.hex(), "0x2"]) in client.rpc.calls
+
+
+def test_light_client_eth_get_proof_allowlist_requires_exact_block_and_32_byte_slots(tmp_path):
+    client = fake_light_client(tmp_path, make_fake_chain())
+    with pytest.raises(HeliosConsensusError, match="exact block number"):
+        client.call("eth_getProof", ["0x" + "11" * 20, [], "finalized"])
+    with pytest.raises(HeliosConsensusError, match="exact block number"):
+        client.call("eth_getProof", ["0x" + "11" * 20, ["0x01"], "0x2"])
+    with pytest.raises(HeliosConsensusError, match="does not permit"):
+        client.call("eth_sendRawTransaction", ["0xdeadbeef"])

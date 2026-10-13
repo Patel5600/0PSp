@@ -10,6 +10,7 @@ from src.adapters.evm_trie import (
     rlp_encode_bytes,
     rlp_encode_list,
     rlp_encode_uint,
+    verify_mpt_exclusion,
     verify_mpt_inclusion,
 )
 
@@ -136,3 +137,52 @@ def test_mpt_rejects_empty_extension_path():
     node = rlp_encode_list([rlp_encode_bytes(b"\x00"), rlp_encode_bytes(b"\x01")])
     with pytest.raises(EthereumEncodingError, match="extension path must not be empty"):
         verify_mpt_inclusion(keccak256(node), key, b"value", [node])
+
+
+def test_mpt_exclusion_proves_divergent_leaf_and_rejects_existing_key():
+    key = b"\x12"
+    leaf = rlp_encode_list([
+        rlp_encode_bytes(compact_encode_path(key, leaf=True)),
+        rlp_encode_bytes(b"existing"),
+    ])
+    root = keccak256(leaf)
+    assert verify_mpt_exclusion(root, b"\x13", [leaf])
+    with pytest.raises(EthereumEncodingError, match="existing leaf"):
+        verify_mpt_exclusion(root, key, [leaf])
+
+
+def test_mpt_exclusion_proves_empty_branch_child_and_empty_trie():
+    key = b"\x12"
+    branch_items = [rlp_encode_bytes(b"") for _ in range(17)]
+    for nibble in (4, 6):
+        leaf = rlp_encode_list([
+            rlp_encode_bytes(bytes([0x30 | nibble])),
+            rlp_encode_bytes(b"other"),
+        ])
+        branch_items[nibble - 1] = leaf if len(leaf) < 32 else rlp_encode_bytes(keccak256(leaf))
+    branch = rlp_encode_list(branch_items)
+    assert verify_mpt_exclusion(keccak256(branch), key, [branch])
+    assert verify_mpt_exclusion(keccak256(rlp_encode_bytes(b"")), key, [])
+    with pytest.raises(EthereumEncodingError, match="empty trie root"):
+        verify_mpt_exclusion(keccak256(rlp_encode_bytes(b"")), key, [branch])
+
+
+def test_mpt_exclusion_rejects_wrong_root_and_unused_trailing_nodes():
+    key = b"\x12"
+    leaf = rlp_encode_list([
+        rlp_encode_bytes(bytes([0x32])),
+        rlp_encode_bytes(b"existing"),
+    ])
+    with pytest.raises(EthereumEncodingError, match="node hash"):
+        verify_mpt_exclusion(b"\x99" * 32, b"\x13", [leaf])
+    with pytest.raises(EthereumEncodingError, match="unused trailing"):
+        verify_mpt_exclusion(keccak256(leaf), b"\x13", [leaf, leaf])
+
+
+def test_mpt_exclusion_rejects_empty_extension_path():
+    node = rlp_encode_list([
+        rlp_encode_bytes(b"\x00"),
+        rlp_encode_bytes(b"\x01"),
+    ])
+    with pytest.raises(EthereumEncodingError, match="extension path must not be empty"):
+        verify_mpt_exclusion(keccak256(node), b"\x12", [node])

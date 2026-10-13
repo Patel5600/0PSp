@@ -23,8 +23,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 13. [CHp4.12 EVM transaction/receipt trie inclusion verifier](audit/chp4.12-evm-trie-inclusion-verifier.md) — strict Keccak/RLP/MPT primitives, raw-header root binding and same-index transaction/receipt proofs; consensus authentication and mint authorization remain open.
 14. [CHp4.13 Ethereum Mainnet light-client finality integration](audit/chp4.13-helios-authenticated-finality.md) — supervised digest-pinned Helios process, beacon weak-subjectivity pin, execution checkpoint ancestry and trie-proof wiring; no production authorization or independent audit is claimed.
 15. [CHp4.14 deposit asset-movement evidence](audit/chp4.14-asset-movement-evidence.md) — transaction-value equality for native deposits, Transfer-log matching for ERC-20 deposits, and protocol/token code-fingerprint checks; movement evidence is not custody authorization.
-16. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-17. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+16. [CHp4.15 authenticated account/storage proofs](audit/chp4.15-authenticated-evm-state-proofs.md) — EIP-1186 account and storage proofs verified against a state root from an authenticated finalized header; block-state evidence is not transaction-level custody proof.
+17. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+18. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 

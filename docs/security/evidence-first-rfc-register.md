@@ -1,7 +1,7 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
 **Last reviewed:** 2026-10-13  
-**Main baseline reviewed:** `8fecc815b1b298a18cc9cd89aa0955dde2de2d4d` (2026-10-13; CHp4.14 candidate branch under review)  
+**Main baseline reviewed:** `d36906caa50d711abff7abc5d00947895f4517f6` (2026-10-13; CHp4.15 candidate branch under review)  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
@@ -12,14 +12,14 @@ The V2 primitive layer has useful, testable components: namespace derivation, ra
 
 The revised plan deliberately avoids (a) adding a second spend commitment without a demonstrated need, (b) claiming a generic proof-of-secret-key automatically replaces committee authorization, (c) replacing SHAKE based on invented constraint numbers, or (d) rewriting the C boundary merely because Rust is available.
 
-No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not a security theorem.
+No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not a security theorem. CHp4.15 does not authorize minting; its block-state proof is supporting evidence only.
 
 ## Current implementation facts
 
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
 | Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; V3 direct-hash Python/native KAT parity; typed V3 ledger boundary; CHp4.10 quorum/journal; CHp4.13 candidate adds supervised Helios Mainnet finality and checkpoint-to-finalized ancestry | Real binary/checkpoint/`eth_getProof` smoke test, independent light-client and header/MPT differential review, full proof binding and independent security review |
-| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 raw transaction/receipt MPT inclusion at the same `RLP(transaction_index)`; CHp4.13 digest-pinned Helios Mainnet finality and block-specific protocol code pin; CHp4.14 binds native event amount to proven transaction value or requires a matching ERC-20 Transfer log and pinned token code | No real-network smoke test; independent Helios/checkpoint and Keccak/RLP/MPT review, exact proxy/contract/token custody semantics, trusted `DepositAuthorization` conversion, durable atomic mint ledger and issuance proof remain open |
+| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 raw transaction/receipt MPT inclusion at the same `RLP(transaction_index)`; CHp4.13 digest-pinned Helios Mainnet finality and block-specific protocol code pin; CHp4.14 movement-signal consistency; CHp4.15 verifies EIP-1186 account/storage proofs against the authenticated header state root | State proofs establish block-boundary state, not transaction-specific causation. No live Mainnet smoke test; independent differential review, exact proxy/contract/token custody semantics, trusted `DepositAuthorization` conversion, durable atomic mint ledger and issuance proof remain open |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
