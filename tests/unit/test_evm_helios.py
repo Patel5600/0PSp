@@ -586,3 +586,66 @@ def test_authenticated_deposit_verifier_pins_token_code_at_deposit_block(tmp_pat
             receipt_log_ordinal=1,
             expected_beneficiary=b"\x74" * 20,
         )
+
+
+def _compact_leaf_path(key: bytes) -> bytes:
+    nibbles = [n for byte in key for n in (byte >> 4, byte & 15)]
+    encoded = [2, 0]  # even-length leaf path
+    encoded.extend(nibbles)
+    return bytes((encoded[i] << 4) | encoded[i + 1] for i in range(0, len(encoded), 2))
+
+
+def test_journal_fetches_and_verifies_account_state_against_authenticated_header(tmp_path):
+    address = TEST_PROTOCOL_ADDRESS
+    storage_root = EMPTY_TRIE_ROOT
+    code_hash = keccak256(TEST_PROTOCOL_CODE)
+    account_value = rlp_encode_list([
+        rlp_encode_uint(1),
+        rlp_encode_uint(500),
+        rlp_encode_bytes(storage_root),
+        rlp_encode_bytes(code_hash),
+    ])
+    account_leaf = rlp_encode_list([
+        rlp_encode_bytes(_compact_leaf_path(keccak256(address))),
+        rlp_encode_bytes(account_value),
+    ])
+    state_root = keccak256(account_leaf)
+    blocks = make_fake_chain(final_height=3, state_roots={2: state_root})
+    proof_response = {
+        "address": "0x" + address.hex(),
+        "nonce": "0x1",
+        "balance": "0x1f4",
+        "storageHash": "0x" + storage_root.hex(),
+        "codeHash": "0x" + code_hash.hex(),
+        "accountProof": ["0x" + account_leaf.hex()],
+        "storageProof": [],
+    }
+    client = fake_light_client(tmp_path, blocks, final_height=3, proof_response=proof_response)
+    checkpoint_hash = bytes.fromhex(blocks[1]["hash"][2:])
+    config = make_namespace_config(1, checkpoint_hash)
+    journal = HeliosAuthenticatedHeaderJournal(
+        tmp_path / "state-proof.sqlite3",
+        namespace_config=config,
+        namespace_id=NS,
+        light_client=client,
+        max_headers_per_sync=10,
+    )
+    raw_header = execution_header_rlp_from_json(blocks[2])
+    state = journal.verify_account_state(raw_header, address)
+    assert state.block_number == 2
+    assert state.block_hash == bytes.fromhex(blocks[2]["hash"][2:])
+    assert state.state_root == state_root
+    assert state.balance == 500
+    assert state.code_hash == code_hash
+    assert ("eth_getProof", ["0x" + address.hex(), [], "0x2"]) in client.rpc.calls
+    assert ("eth_getCode", ["0x" + address.hex(), "0x2"]) in client.rpc.calls
+
+
+def test_light_client_eth_get_proof_allowlist_requires_exact_block_and_32_byte_slots(tmp_path):
+    client = fake_light_client(tmp_path, make_fake_chain())
+    with pytest.raises(HeliosConsensusError, match="exact block number"):
+        client.call("eth_getProof", ["0x" + "11" * 20, [], "finalized"])
+    with pytest.raises(HeliosConsensusError, match="exact block number"):
+        client.call("eth_getProof", ["0x" + "11" * 20, ["0x01"], "0x2"])
+    with pytest.raises(HeliosConsensusError, match="does not permit"):
+        client.call("eth_sendRawTransaction", ["0xdeadbeef"])
