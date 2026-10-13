@@ -120,9 +120,11 @@ The transaction digest M must bind the protocol version, namespace, nullifier, i
 
 Listing assumptions is not a composed proof. A top-level theorem bounding the full protocol's advantage does not exist yet.
 
-## 9. Ringtail and proof-backend decision
+## 9. Historical Ringtail candidate and proof-backend decision
 
-Ringtail's paper describes a two-round lattice threshold signature based on LWE, but its current upstream Go code explicitly calls itself an unaudited academic proof-of-concept and not production-ready. Pin its revision, license and concrete parameter set; keep its demo networking out of the ledger. Ordinary signature verification must be proven inside the same ZK relation under the hidden public key; a standalone adapter does not solve that requirement. Sources: https://eprint.iacr.org/2024/1113 and https://github.com/daryakaviani/ringtail.
+This section records a historical candidate-specific assessment, **not** a selected authorization policy for V2. Ringtail's paper describes a two-round lattice threshold signature based on LWE, but its current upstream Go code explicitly calls itself an unaudited academic proof-of-concept and not production-ready. Pin its revision, license and concrete parameter set if it is ever reconsidered; keep its demo networking out of the ledger. Ordinary signature verification must be proven inside the same ZK relation under the hidden public key; a standalone adapter does not solve that requirement. Sources: https://eprint.iacr.org/2024/1113 and https://github.com/daryakaviani/ringtail.
+
+For V3 research, CHp4.27 identifies ML-DSA-87 threshold signing as the leading experiment candidate, but not a selected suite: the exact upstream release has conflicting audit-status statements, its subcrate declares GPL-3.0 while the repository root license is Apache-2.0, and no same-hidden-key proof-cost evidence exists. This newer V3 candidate does not silently alter the frozen V2 contract or select an authorization policy for V2. See [CHp4.27](../audit/chp4.27-authorization-and-backend-candidate-screen.md).
 
 Evaluate SmallWood first as an experimental proof candidate. Its hash-based ZK argument targets small-to-medium statements and its paper discusses hash-preimage and lattice-based relations, but the authors' implementation is a prototype and unaudited. It is a candidate, not a drop-in solution. The feasibility prototype must encode this exact V2 relation and measure prover time/memory, proof bytes and verifier time. Sources: https://eprint.iacr.org/2025/1085 and https://github.com/CryptoExperts/smallwood.
 
