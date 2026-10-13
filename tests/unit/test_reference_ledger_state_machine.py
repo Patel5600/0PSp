@@ -174,17 +174,29 @@ def test_concurrent_duplicate_issuance_has_exactly_one_winner() -> None:
     assert ledger.state_version == 1
 
 
-def statement(nullifier: bytes, outputs: tuple[bytes, ...] = ()) -> SpendStatement:
+def statement(nullifier: bytes, outputs: tuple[bytes, ...] = (b"O" * 48,)) -> SpendStatement:
+    policy = b"test-self-spend-policy-v1"
+    root = b"R" * 48
+    fields, digest = encode_spend_transaction_v2(
+        params_id=PARAMS,
+        namespace_id=NS,
+        commitment_root=root,
+        nullifier=nullifier,
+        ledger_state=ANCHOR,
+        authorization_policy_id=policy,
+        fee=0,
+        new_commitments=outputs,
+    )
     return SpendStatement(
         version=2,
         params_id=PARAMS,
         namespace_id=NS,
-        commitment_root=b"R" * 48,
+        commitment_root=root,
         nullifier=nullifier,
-        transaction_fields=b"canonical-test-transaction-fields",
-        transaction_digest=b"digest-v1",
+        transaction_fields=fields,
+        transaction_digest=digest,
         ledger_state=ANCHOR,
-        authorization_policy=b"test-self-spend-policy-v1",
+        authorization_policy=policy,
         new_commitments=outputs,
     )
 
