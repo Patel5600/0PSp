@@ -291,3 +291,88 @@ def verify_mpt_inclusion(root_hash: bytes, key: bytes, expected_value: bytes, pr
             continue
         raise EthereumEncodingError("trie node must contain 2 or 17 elements")
     raise EthereumEncodingError("trie proof ended before an inclusion value was reached")
+
+
+def verify_mpt_exclusion(root_hash: bytes, key: bytes, proof_nodes: Sequence[bytes]) -> bool:
+    """Verify that a key is absent from a Merkle-Patricia trie.
+
+    A valid absence proof terminates at an authenticated empty branch child, a
+    divergent extension/leaf path, or the empty-trie root. It must not contain
+    unused trailing nodes. This is a proof relative to root_hash only.
+    """
+    if not isinstance(root_hash, bytes) or len(root_hash) != 32:
+        raise ValueError("root_hash must be exactly 32 bytes")
+    if not isinstance(key, bytes):
+        raise TypeError("key must be bytes")
+    if not isinstance(proof_nodes, (list, tuple)):
+        raise TypeError("proof_nodes must be a list or tuple")
+    if any(not isinstance(node, bytes) or not node for node in proof_nodes):
+        raise ValueError("each supplied proof node must be non-empty encoded bytes")
+    if root_hash == keccak256(rlp_encode_bytes(b"")):
+        if proof_nodes:
+            raise EthereumEncodingError("empty trie root must use an empty absence proof")
+        return True
+    if not proof_nodes:
+        raise EthereumEncodingError("non-empty trie requires an absence proof path")
+
+    path = bytes_to_nibbles(key)
+    path_offset = 0
+    expected_ref = root_hash
+
+    def finish_absence(node_index: int) -> bool:
+        if node_index != len(proof_nodes) - 1:
+            raise EthereumEncodingError("trie absence proof contains unused trailing nodes")
+        return True
+
+    for node_index, encoded_node in enumerate(proof_nodes):
+        if len(expected_ref) == 32:
+            if node_index > 0 and len(encoded_node) < 32:
+                raise EthereumEncodingError("short trie child must be embedded rather than hash-referenced")
+            if keccak256(encoded_node) != expected_ref:
+                raise EthereumEncodingError("trie proof node hash does not match its parent reference")
+        elif encoded_node != expected_ref:
+            raise EthereumEncodingError("embedded trie proof node does not match its parent reference")
+
+        decoded = rlp_decode(encoded_node)
+        if not isinstance(decoded, list):
+            raise EthereumEncodingError("trie node must be an RLP list")
+
+        if len(decoded) == 17:
+            if path_offset == len(path):
+                value = decoded[16]
+                if not isinstance(value, bytes):
+                    raise EthereumEncodingError("branch value must be a byte string")
+                if value:
+                    raise EthereumEncodingError("absence proof reaches an existing branch value")
+                return finish_absence(node_index)
+            child = _child_reference(decoded[path[path_offset]])
+            if not child:
+                return finish_absence(node_index)
+            path_offset += 1
+            expected_ref = child
+            continue
+
+        if len(decoded) == 2:
+            encoded_path, child_or_value = decoded
+            if not isinstance(encoded_path, bytes):
+                raise EthereumEncodingError("trie compact path must be a byte string")
+            is_leaf, partial_path = compact_decode_path(encoded_path)
+            remaining = path[path_offset:]
+            common = min(len(remaining), len(partial_path))
+            if remaining[:common] != partial_path[:common]:
+                return finish_absence(node_index)
+            if len(remaining) < len(partial_path):
+                return finish_absence(node_index)
+            path_offset += len(partial_path)
+            if is_leaf:
+                if path_offset == len(path):
+                    raise EthereumEncodingError("absence proof reaches an existing leaf value")
+                return finish_absence(node_index)
+            expected_ref = _child_reference(child_or_value)
+            if not expected_ref:
+                raise EthereumEncodingError("trie extension has an empty child")
+            continue
+
+        raise EthereumEncodingError("trie node must contain 2 or 17 elements")
+
+    raise EthereumEncodingError("trie absence proof ended before absence was established")
