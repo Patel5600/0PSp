@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from src.primitives.namespace import NamespaceId, ScopedCoinId
+from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.nullifier_v3 import (
     NullifierDerivingKeyV3,
     compute_nullifier_key_commitment_v3,
@@ -24,7 +25,7 @@ from src.protocol.output_identity import (
     verify_issuance_output_identity_v3_candidate,
 )
 
-NS = NamespaceId(bytes([0x11]) * 48)
+NS = NamespaceIdV3(bytes([0x11]) * 48)
 PARAMS_ID = b"v3-test-params"
 DEPOSIT_ID = b"chain-a:tx123:log0"
 ISSUANCE_ENTROPY = bytes([0x55]) * 32
@@ -42,7 +43,7 @@ def _derive(
     recipient_key_bundle: bytes = RECIPIENT_KEY_BUNDLE,
     issuance_entropy: bytes = ISSUANCE_ENTROPY,
     output_index: int = 0,
-    namespace_id: NamespaceId = NS,
+    namespace_id: NamespaceIdV3 = NS,
     params_id: bytes = PARAMS_ID,
 ):
     return derive_issuance_output_identity_v3_candidate(
@@ -81,7 +82,7 @@ def test_distinct_anchor_slot_namespace_recipient_or_params_separates_vectors() 
     variants = [
         _derive(deposit_id=b"chain-a:tx124:log0"),
         _derive(output_index=1),
-        _derive(namespace_id=NamespaceId(bytes([0x12]) * 48)),
+        _derive(namespace_id=NamespaceIdV3(bytes([0x12]) * 48)),
         _derive(recipient_key_bundle=alternate_bundle),
         _derive(issuance_entropy=bytes([0x56]) * 32),
         _derive(params_id=b"different-params"),
@@ -92,6 +93,11 @@ def test_distinct_anchor_slot_namespace_recipient_or_params_separates_vectors() 
 
 
 @pytest.mark.parametrize("bad_index", [-1, OUTPUT_INDEX_MAX + 1, True, 1.5])
+def test_issuance_identity_rejects_legacy_namespace_type() -> None:
+    with pytest.raises(TypeError, match="NamespaceIdV3"):
+        _derive(namespace_id=NamespaceId(bytes([0x11]) * 48))  # type: ignore[arg-type]
+
+
 def test_output_index_is_canonical_uint16(bad_index: object) -> None:
     with pytest.raises(ValueError):
         _derive(output_index=bad_index)  # type: ignore[arg-type]
