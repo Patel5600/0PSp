@@ -92,12 +92,12 @@ def test_distinct_anchor_slot_namespace_recipient_or_params_separates_vectors() 
     assert all(item.r_nf != baseline.r_nf for item in variants)
 
 
-@pytest.mark.parametrize("bad_index", [-1, OUTPUT_INDEX_MAX + 1, True, 1.5])
 def test_issuance_identity_rejects_legacy_namespace_type() -> None:
     with pytest.raises(TypeError, match="NamespaceIdV3"):
         _derive(namespace_id=NamespaceId(bytes([0x11]) * 48))  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("bad_index", [-1, OUTPUT_INDEX_MAX + 1, True, 1.5])
 def test_output_index_is_canonical_uint16(bad_index: object) -> None:
     with pytest.raises(ValueError):
         _derive(output_index=bad_index)  # type: ignore[arg-type]
