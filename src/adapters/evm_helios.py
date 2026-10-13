@@ -710,7 +710,10 @@ class HeliosAuthenticatedDepositVerifier:
             or policy.expected_runtime_code_fingerprint != namespace_config.expected_protocol_code_fingerprint
         ):
             raise ValueError("deposit event/code policy must match the namespace's pinned protocol and asset")
+        if namespace_config.asset_address is not None and namespace_config.expected_asset_code_fingerprint is None:
+            raise ValueError("token deposit profile requires a pinned asset runtime-code fingerprint")
         self._policy = policy
+        self._namespace_config = namespace_config
         self._journal = journal
         self._inclusion_verifier = EvmDepositInclusionVerifier(policy, journal)
 
@@ -755,4 +758,26 @@ class HeliosAuthenticatedDepositVerifier:
             raise HeliosConsensusError("could not authenticate protocol runtime code at the deposit block") from None
         if observed_fingerprint != self._policy.expected_runtime_code_fingerprint:
             raise HeliosConsensusError("protocol runtime code at the deposit block differs from the pinned manifest")
+        if self._policy.asset_address is not None:
+            expected_asset_fingerprint = self._namespace_config.expected_asset_code_fingerprint
+            if expected_asset_fingerprint is None:
+                raise HeliosConsensusError("token asset has no pinned runtime-code fingerprint")
+            try:
+                asset_code_result = self._journal.light_client.call(
+                    "eth_getCode",
+                    [
+                        "0x" + self._policy.asset_address.hex(),
+                        hex(inclusion.block_number),
+                    ],
+                )
+                if not isinstance(asset_code_result, str) or _DATA_RE.fullmatch(asset_code_result) is None:
+                    raise HeliosConsensusError("Helios returned malformed token runtime code at the deposit block")
+                asset_code = bytes.fromhex(asset_code_result[2:])
+                asset_fingerprint = runtime_code_fingerprint(asset_code)
+            except HeliosConsensusError:
+                raise
+            except Exception:
+                raise HeliosConsensusError("could not authenticate token runtime code at the deposit block") from None
+            if asset_fingerprint != expected_asset_fingerprint:
+                raise HeliosConsensusError("token runtime code at the deposit block differs from the pinned manifest")
         return HeliosAuthenticatedEvmDeposit(inclusion, authenticated_header)
