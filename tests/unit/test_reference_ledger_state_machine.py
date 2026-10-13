@@ -376,3 +376,43 @@ def test_raw_namespace_bytes_in_spend_statement_fail_before_proof() -> None:
     assert calls == []
     assert observed.spent_count == 0
     assert observed.state_version == 0
+
+
+def test_issuance_binds_the_observed_deposit_beneficiary_into_public_statement():
+    observed = []
+    ledger = make_ledger(issue_seen=observed)
+    record = ledger.issue(
+        deposit_evidence=b"valid-deposit",
+        commitment=b"\x91" * 48,
+        params_id=PARAMS,
+        proof=PROOF,
+    )
+    expected_beneficiary = bytes([0x55]) * 20
+    assert observed[0].beneficiary_address == expected_beneficiary
+    assert record.beneficiary_address == expected_beneficiary
+
+
+@pytest.mark.parametrize("beneficiary", [b"short", bytes(20)])
+def test_invalid_beneficiary_rejected_before_issuance_proof(beneficiary):
+    seen = []
+
+    def authorize(_evidence):
+        return DepositAuthorization(
+            namespace_id=NS,
+            deposit_id=b"D" * 32,
+            authorized_value=10,
+            finalized_anchor=ANCHOR,
+            beneficiary_address=beneficiary,
+        )
+
+    ledger = make_ledger(authorizer=authorize, issue_seen=seen)
+    with pytest.raises(InvalidInput, match="beneficiary_address"):
+        ledger.issue(
+            deposit_evidence=b"deposit",
+            commitment=b"\x92" * 48,
+            params_id=PARAMS,
+            proof=PROOF,
+        )
+    assert seen == []
+    assert ledger.issued_count == 0
+    assert ledger.state_version == 0
