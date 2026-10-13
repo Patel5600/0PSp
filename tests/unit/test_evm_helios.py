@@ -21,7 +21,7 @@ from src.adapters.evm_helios import (
 from src.adapters.evm_deposit_evidence import EvmDepositEvidencePolicy
 from src.adapters.evm_deposit_proof import ProvenEvmDepositInclusion
 from src.adapters.evm_namespace import EvmNamespaceConfig, runtime_code_fingerprint
-from src.adapters.evm_trie import keccak256, rlp_encode_bytes, rlp_encode_list
+from src.adapters.evm_trie import keccak256, rlp_encode_bytes, rlp_encode_list, rlp_encode_uint
 from src.primitives.namespace_v3 import derive_namespace_id_v3
 
 EMPTY_TRIE_ROOT = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
@@ -93,12 +93,12 @@ def mainnet_genesis_json():
     return json_header_from_rlp(encode_header_fields(fields))
 
 
-def make_header(number, parent_hash):
+def make_header(number, parent_hash, *, state_root=None):
     fields = [
         parent_hash,
         EMPTY_OMMERS_HASH,
         b"\x11" * 20,
-        bytes([number + 1]) * 32,
+        state_root if state_root is not None else bytes([number + 1]) * 32,
         bytes([0x40 + number]) * 32,
         bytes([0x50 + number]) * 32,
         bytes(256),
@@ -137,12 +137,13 @@ class FakeProcess:
 
 
 class FakeRpc:
-    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE, code_overrides=None):
+    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE, code_overrides=None, proof_response=None):
         self.blocks = blocks
         self.final_height = final_height
         self.chain_id = chain_id
         self.code = code
         self.code_overrides = dict(code_overrides or {})
+        self.proof_response = proof_response
         self.calls = []
 
     def call(self, method, params):
@@ -157,17 +158,21 @@ class FakeRpc:
         if method == "eth_getCode":
             code = self.code_overrides.get(params[0].lower(), self.code)
             return "0x" + code.hex()
+        if method == "eth_getProof":
+            if self.proof_response is None:
+                raise AssertionError("unexpected eth_getProof request")
+            return self.proof_response
         raise AssertionError(method)
 
 
-def make_fake_chain(final_height=3):
+def make_fake_chain(final_height=3, *, state_roots=None):
     genesis = mainnet_genesis_json()
     genesis["hash"] = "0x" + ETHEREUM_MAINNET_GENESIS_HASH.hex()
     # The independently known Mainnet genesis hash is the root of this test chain.
     blocks = {0: genesis}
     parent = ETHEREUM_MAINNET_GENESIS_HASH
     for height in range(1, final_height + 1):
-        block, _raw, block_hash = make_header(height, parent)
+        block, _raw, block_hash = make_header(height, parent, state_root=(state_roots or {}).get(height))
         blocks[height] = block
         parent = block_hash
     return blocks
@@ -187,7 +192,7 @@ def make_namespace_config(checkpoint_height, checkpoint_hash, *, asset_address=N
     )
 
 
-def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CODE, code_overrides=None):
+def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CODE, code_overrides=None, proof_response=None):
     binary = tmp_path / "helios"
     binary.write_bytes(b"test executable; the process is mocked")
     config = HeliosMainnetConfig(
@@ -200,7 +205,8 @@ def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CO
     light_client = HeliosMainnetLightClient(config)
     light_client._process = FakeProcess()
     light_client._rpc = FakeRpc(
-        blocks, final_height=final_height, code=code, code_overrides=code_overrides
+        blocks, final_height=final_height, code=code, code_overrides=code_overrides,
+        proof_response=proof_response
     )
     light_client._started = True
     return light_client
