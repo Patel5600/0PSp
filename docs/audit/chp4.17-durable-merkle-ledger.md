@@ -32,7 +32,7 @@ The module src/protocol/sqlite_ledger.py provides a single-namespace file-backed
 - The database file is created/forced to owner-only 0600 permissions and symlink database paths are rejected. SQLite uses file-backed journaling and synchronous=FULL.
 - Issuance obtains the amount, deposit ID, finalized anchor and beneficiary only from the injected deposit-authorizer dependency. There is no caller-provided amount. Proof acceptance and uniqueness checks precede the atomic state transition.
 - A single SQLite BEGIN IMMEDIATE transaction consumes the deposit ID, inserts the commitment and issuance record, updates the Merkle path/root, appends a domain-separated state event, and updates the state head/version.
-- Spend statements must bind the currently stored 48-byte Merkle root and 48-byte state-chain head. The configured proof verifier is called, then both snapshots are rechecked inside the transaction. A concurrent state change causes a fail-closed stale-state rejection.
+- **CHp4.26 remediation branch:** spend statements bind a matching retained historical (48-byte Merkle root, 48-byte state-chain head) anchor from the last 256 state versions. The anchor is checked before proof verification and rechecked inside the final write transaction. A concurrent state advance does not alone reject an otherwise eligible anchor. If the anchor ages out while verification runs, the spend is rejected. Outputs append to the current root, not the historical root. The ring-buffer metadata is written atomically with the state transition and reconstructed/checked by `audit_integrity()`.
 - Nullifier consumption, transaction fields/digest, output commitment insertion, Merkle root update, event-chain update and metadata version change are committed in one database transaction. Unique constraints and explicit checks reject duplicate nullifiers, commitments and deposit IDs.
 - UInt64 values are stored as fixed-width 8-byte big-endian BLOBs because SQLite INTEGER is signed and cannot represent all uint64 values.
 - audit_integrity() runs at startup and recomputes the append-only Merkle root, compares every persisted Merkle node, and reconciles each issuance/spend record with its canonical event payload and state-head chain. This catches local record/node corruption before the ledger accepts a new transition. It is not tamper-proof storage: an attacker with unrestricted write access to the entire database can rewrite and recompute unanchored hashes.
@@ -46,8 +46,8 @@ The new tests exercise:
 - duplicate deposit/commitment rejection without partial mutation;
 - wrong namespace, parameter set, authorization result and proof rejection;
 - atomic nullifier consumption and append of multiple outputs;
-- stale state/head/root and parameter/policy substitution;
-- competing spends against one snapshot, with exactly one commit and one stale-state failure;
+- invalid, mismatched, and expired historical anchor rejection; schema-v1-to-v2 anchor-history migration; atomic snapshot-plus-membership-path retrieval;
+- competing spends against one retained snapshot, with both unrelated spends able to commit; duplicate nullifiers must still be rejected atomically;
 - concurrent issuance replay, where only one transaction consumes a deposit;
 - configuration mismatch, in-memory database and symlink rejection, owner-only permissions, and modified-head/root detection.
 
@@ -63,4 +63,4 @@ No value-conservation policy can be inferred from a SpendStatement shape; the pr
 
 ## 6. Decision
 
-CHp4.17 defines the tree encoding and adds durable, replay-protected single-node state transitions with deterministic internal audit checks. **The complete protocol remains NO-GO** until the production deposit/custody adapter, actual zero-knowledge proof backend, authorization mode, full spend/issuance relation, live-chain operational verification and production recovery/security tests are integrated. External audit is an additional later step, not a replacement for those implementation gates.
+CHp4.17 defines the tree encoding and adds durable, replay-protected single-node state transitions with deterministic internal audit checks. The CHp4.26 remediation candidate adds a 256-version historical-anchor ring to avoid rejecting proofs solely because unrelated transactions advanced the ledger while preserving atomic nullifier/commitment uniqueness checks. **The complete protocol remains NO-GO** until the production deposit/custody adapter, actual zero-knowledge proof backend, authorization mode, full spend/issuance relation, live-chain operational verification and production recovery/security tests are integrated. External audit is an additional later step, not a replacement for those implementation gates.
