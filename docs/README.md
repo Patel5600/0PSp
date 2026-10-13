@@ -1,5 +1,6 @@
 # 0PSP Documentation Map and Maintenance Policy
 
+**Last consistency check:** 2026-10-13 (documentation consistency only; not a human security review).  
 **Snapshot:** CHp4.25 candidate in PR #30; the PR is open and unmerged.  
 **Release status:** **NO-GO**  
 **Independent security review of CHp4.25:** NOT PERFORMED.  
