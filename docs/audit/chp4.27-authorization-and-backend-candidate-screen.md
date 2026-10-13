@@ -76,6 +76,19 @@ The OpenVM CLI distinguishes application-level, aggregated STARK and EVM proof p
 
 **Decision:** OpenVM 2.0 is now a concrete feasibility candidate worth testing against the actual relation, but its reported 100-bit profile is below the current 128-bit research target. Do not silently lower that target. The experiment must show whether a documented configuration meets the required security target without trading away witness hiding, soundness, transparency, or reproducibility.
 
+### OpenVM V3 NullifierV3 predicate slice — execution and app-proof evidence
+
+At PR #10 head `5d79a1b66cb2fe595d6d4f9dc7c1fe5b92a48503`, the separate experimental path `proof/openvm/v3-nullifier-spike` passed [OpenVM feasibility workflow run #19](https://github.com/Patel5600/0PSp/actions/runs/38415678950), [Functional Checks #462](https://github.com/Patel5600/0PSp/actions/runs/38415679000), and [Repository Integrity Watch #334](https://github.com/Patel5600/0PSp/actions/runs/38415678971).
+
+The guest checks just this predicate slice: canonical BundleV3 parsing; opening the recipient-held 48-byte nullifier-key commitment; recomputing the exact CommitV3 opening; computing HMAC-SHA3-384 NullifierV3; and revealing a domain-separated public statement digest. The run passed five host known-answer/adversarial tests, a public-output digest KAT, valid guest execution, rejection of six invalid witnesses (wrong key, changed value, changed salt, wrong nullifier, malformed bundle and trailing bytes), app-proof generation/verification, and the Cargo.lock non-mutation check.
+
+Measured on that GitHub-hosted runner for this **slice only**:
+- App proof generation: **79.63 s**, peak RSS **2,732,600 KiB** (about 2.61 GiB).
+- Serialized app proof size: **645,001 bytes**.
+- Verification: **0.06 s**, peak RSS **45,632 KiB** (about 44.6 MiB).
+
+These measurements are not target-laptop benchmarks. More importantly, a verified OpenVM app proof is evidence for execution of this guest program, not a complete 0PSP spend proof and not, by itself, a proof of witness hiding or a ≥128-bit post-quantum bound. This guest does **not** constrain Merkle membership or a trusted/finalized root, anchored output identity, full transaction/value conservation, spend authorization, intended-payee authentication, durable ledger transition, or recovery. The separate PR #31 guest remains **NOAUTH**. The OpenVM profile's published 100-bit PQ claim remains below the project's 128-bit target. Do not use this experiment to freeze the HMAC byte contract or authorize spends.
+
 ## FRI query-count sanity check (not a security approval)
 
 The upstream [Plonky3 FRI prover source](https://github.com/Plonky3/Plonky3/blob/main/fri/src/prover.rs) documents two Reed–Solomon proximity terms: `rate^num_queries` under the conjectured proximity bound, or `rate^(num_queries/2)` under the proven bound. For rate \(\rho=1/8\), the FRI term alone is:
@@ -97,9 +110,9 @@ The CI step `scripts/security_budget_evaluator.py` is explicitly historical nume
 
 ## 3. The next experiment
 
-Use immutable sources and one explicit security profile. No broad production refactor should begin before this short feasibility spike passes.
+The isolated V3 nullifier predicate spike has passed execution and app-proof verification; the next experiment is now the complete shared-witness relation, not another claim based on guest compilation alone. Use immutable sources and one explicit security profile. No production gate advances until the complete relation passes.
 
-1. Check in the generated Cargo lockfile for the existing OpenVM guest and record the exact OpenVM, Rust toolchain, extension and dependency graph versions.
+1. Retain the checked-in, locked dependency graph for the V3 predicate spike. Separately add and verify a generated Cargo.lock to PR #31's NOAUTH guest; it is still missing there. Record exact OpenVM, Rust toolchain, extension and dependency versions for both trees.
 2. Generate and verify an actual **application/STARK proof**, not just a guest build. Use a deterministic valid fixture and demonstrate that mutations to the public digest, witness, domain/padding, root or membership path cause proving or verification to fail.
 3. Create isolated benchmark guests for the actual V3 components: SHAKE256-384 commitment, recipient key-commitment opening, HMAC-SHA3-384 NullifierV3, and anchored output derivation. Use the same backend configuration and public-input model.
 4. Measure prover wall time, verifier wall time, peak resident memory, execution/trace size, proof size and reproducibility on the target CPU. State exactly what was included and what remained outside the guest.
