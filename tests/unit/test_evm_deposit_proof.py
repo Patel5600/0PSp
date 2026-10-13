@@ -9,6 +9,7 @@ from src.adapters.evm_deposit_proof import (
 )
 from src.adapters.evm_trie import (
     keccak256,
+    rlp_decode,
     rlp_encode_bytes,
     rlp_encode_list,
     rlp_encode_uint,
@@ -144,7 +145,9 @@ def test_rejects_proof_or_public_field_substitution(mutation, match):
     elif mutation == "receipt":
         args["raw_receipt"] = enc([b"\x01", b"\x52\x08", bytes(256), []])
     elif mutation == "header":
-        header_fields = __import__("src.adapters.evm_trie", fromlist=["rlp_decode"]).rlp_decode(args["raw_header_rlp"])\n        header_fields[11] = b"\x02"\n        args["raw_header_rlp"] = enc(header_fields)
+        header_fields = rlp_decode(args["raw_header_rlp"])
+        header_fields[11] = b"\x02"
+        args["raw_header_rlp"] = enc(header_fields)
     elif mutation == "index":
         args["transaction_index"] = INDEX + 1
     elif mutation == "beneficiary":
@@ -183,7 +186,9 @@ def test_rejects_mismatched_typed_transaction_and_receipt_envelopes():
 
 def test_rejects_unjournaled_header_and_noncanonical_header_rlp():
     verifier, args, *_ = make_case()
+    header_fields = rlp_decode(args["raw_header_rlp"])
+    header_fields[11] = b"\x02"
     with pytest.raises(EvmDepositInclusionError, match="not present in the durable finalized-header"):
-        verifier.verify(**{**args, "raw_header_rlp": enc([b"\xaa"] * 15)})
+        verifier.verify(**{**args, "raw_header_rlp": enc(header_fields)})
     with pytest.raises(EvmDepositInclusionError, match="invalid raw execution header"):
         verifier.verify(**{**args, "raw_header_rlp": b"\x81\x01"})
