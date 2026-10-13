@@ -2,10 +2,10 @@
 
 This is the persistence/state-transition layer, not a cryptographic verifier.
 It requires explicit deposit and proof-verifier dependencies, pins the namespace,
-parameter ID, policy ID and deployment profile, validates the append-only Merkle
-root plus state-chain head before spend verification, and rechecks both inside
-the write transaction before committing a spend. A test double must never be
-configured as a production verifier.
+parameter ID, policy ID and deployment profile. Spend proofs bind a retained
+historical commitment-root/state-head anchor; the anchor is rechecked atomically
+while outputs append to the latest state. A test double must never be configured
+as a production verifier.
 """
 from __future__ import annotations
 
@@ -415,10 +415,14 @@ class SQLiteLedger:
                 elif existing_schema != expected[0]:
                     raise LedgerConfigurationMismatch("existing database schema version is unsupported")
 
-            if not anchor_table_existed:
+            if (
+                not anchor_table_existed
+                or conn.execute("SELECT 1 FROM commitment_anchors LIMIT 1").fetchone() is None
+            ):
+                # Empty is recoverable after an interrupted additive migration:
+                # canonical event/tree records are the source for rebuilding it.
+                # Non-empty corruption is left to audit_integrity() to reject.
                 self._backfill_anchor_history(conn)
-            elif conn.execute("SELECT 1 FROM commitment_anchors LIMIT 1").fetchone() is None:
-                raise LedgerIntegrityError("commitment anchor history is empty")
 
     def _backfill_anchor_history(self, conn: sqlite3.Connection) -> None:
         """Migrate a pre-anchor ledger by reconstructing snapshots from durable records."""
