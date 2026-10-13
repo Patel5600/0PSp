@@ -16,11 +16,13 @@ from src.protocol.note_public_key_bundle_v3 import NotePublicKeyBundleV3
 from src.protocol.transaction_v3_candidate import (
     TX_AUTH_CONTEXT_V3_CANDIDATE,
     TX_FIELDS_V3_CANDIDATE_DOMAIN,
+    V3_NK_POSSESSION_POLICY_CANDIDATE,
     TransactionV3CandidateError,
     TxFieldsV3Candidate,
     authorization_input_v3_candidate,
     decode_tx_fields_v3_candidate,
     transaction_digest_v3_candidate,
+    validate_nk_possession_policy_v3_candidate,
 )
 
 PARAMS = b"candidate-v3"
@@ -181,3 +183,17 @@ def test_digest_refuses_noncanonical_bytes_and_wrong_input_type() -> None:
         transaction_digest_v3_candidate(statement().encode() + b"\x00")
     with pytest.raises(TransactionV3CandidateError, match="input must be"):
         transaction_digest_v3_candidate(17)  # type: ignore[arg-type]
+
+def test_nk_possession_policy_candidate_requires_exact_policy_id() -> None:
+    tx = statement(authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE)
+    assert validate_nk_possession_policy_v3_candidate(tx) == tx
+    assert validate_nk_possession_policy_v3_candidate(tx.encode()) == tx
+
+    with pytest.raises(TransactionV3CandidateError, match="does not select"):
+        validate_nk_possession_policy_v3_candidate(statement())
+
+    with pytest.raises(TransactionV3CandidateError, match="does not select"):
+        validate_nk_possession_policy_v3_candidate(
+            statement(authorization_policy_id=b"0PSP-V3-UNREVIEWED-POLICY-v1")
+        )
+
