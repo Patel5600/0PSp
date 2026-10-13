@@ -19,7 +19,7 @@ from src.primitives.namespace_v3 import NamespaceIdV3
 CHAIN_ID = 1
 GENESIS = b"\x01" * 32
 CHECKPOINT_HEIGHT = 5
-CHECKPOINT_HASH = b"\x06" * 32
+CHECKPOINT_HASH = b"\x44" * 32
 PROTOCOL_ADDRESS = b"\x11" * 20
 PROTOCOL_CODE = bytes.fromhex("60006000556001600055")
 ASSET_ADDRESS = b"\x22" * 20
@@ -51,7 +51,12 @@ class NamespaceRpc:
                 return {"number": hex(height), "hash": as_hex(CHECKPOINT_HASH)}
             return None
         if method == "eth_getCode":
-            return as_hex(PROTOCOL_CODE)
+            address = params[0]
+            if address == "0x" + PROTOCOL_ADDRESS.hex():
+                return as_hex(PROTOCOL_CODE)
+            if address == "0x" + ASSET_ADDRESS.hex():
+                return as_hex(bytes.fromhex("6060604052"))
+            return "0x"
         raise AssertionError(method)
 
 
@@ -203,7 +208,7 @@ def test_reader_rejects_log_absence_duplicate_indices_and_metadata_substitution(
 
 def test_reader_rejects_noncanonical_topics_data_and_amount_overflow():
     receipt = make_receipt()
-    receipt["logs"][0]["topics"][2] = "0x" + "ff" * 32
+    receipt["logs"][0]["topics"][2] = topic_address(b"\x98" * 20)
     _, _, _, _, reader = make_reader(receipt=receipt)
     with pytest.raises(EvmDepositEvidenceError, match="asset does not match"):
         reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
