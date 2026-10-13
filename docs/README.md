@@ -1,7 +1,9 @@
 # 0PSP Documentation Map and Maintenance Policy
 
-**Last consistency check:** 2026-10-13  
+**Snapshot:** CHp4.25 candidate in PR #30; the PR is open and unmerged.  
 **Release status:** **NO-GO**  
+**Independent security review of CHp4.25:** NOT PERFORMED.  
+**External cryptographic audit:** NOT PERFORMED.  
 **Normative status:** research prototype; documentation and regression tests do not certify security.
 
 This index is the entry point for maintainers. When a proposal, experiment or historical note conflicts with the current release decision, follow the current release register and the approved, versioned protocol specification. A research branch is not an approved protocol decision.
