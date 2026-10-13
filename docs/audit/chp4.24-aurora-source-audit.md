@@ -186,7 +186,7 @@ Measure real constraint counts, peak RSS, prover wall/CPU time, verifier time, p
 | SmallWood Python adapter at evaluated scaling target | **NO-GO** | Evaluated representation has unacceptable memory scaling |
 | Aurora source identity and partial configuration trace | **GO for source identification/partial trace only** | Immutable revision and code path located |
 | Aurora native proof serialization for binary field + binary hash | **NO-GO** | Pinned serializer/deserializer explicitly unimplemented for this pairing |
-| Reproducible Aurora build | **NO-GO** | Not built in this environment |
+| Reproducible Aurora build | **NO-GO** | The pristine pinned build fails at the missing `<cstddef>` declaration; builds succeeded only after temporary diagnostic overlays, and the focused serialization test still failed/segfaulted |
 | Binary-field ZK proof with transport round-trip | **NO-GO** | No executable end-to-end evidence |
 | Concrete post-quantum security | **NO-GO** | Heuristic test modes; no completed independent parameter worksheet |
 | Complete shared-witness spend proof | **NO-GO** | No instantiated full relation |
@@ -198,4 +198,23 @@ Measure real constraint counts, peak RSS, prover wall/CPU time, verifier time, p
 
 The newly identified serialization gap is an implementation-level blocker, not merely a missing benchmark. Aurora/libiop stays a feasibility candidate and must not be selected for production until the binary-field proof transport path is fixed and tested, the exact ZK and quantum-security claims are established, and the full shared-witness relation is instantiated. If any condition fails, reject the candidate rather than weakening 0PSP's requirements.
 
-No local build, proof run, or external audit is claimed in this checkpoint.
+No local build or complete 0PSP proof run is claimed in this checkpoint. Remote diagnostic builds below are explicitly overlay-based and are not a clean upstream build. External cryptographic audit: **NOT PERFORMED**.
+
+
+## Third isolated diagnostic retry: serialization executable still fails
+
+**Evidence source:** GitHub Actions run [38364766082](https://github.com/Patel5600/0PSp/actions/runs/38364766082), job `aurora-upstream-candidate`, on diagnostic branch `chp4.24-aurora-ci-retry` at `ba3a49e1e271e6538914acdc903800ffa490d9fd`. The workflow checked out pinned libiop revision `a2ed2ec2f3e85f29b6035951553b02cb737c817a` and its recursive submodules. It applied a temporary `<cstddef>` compatibility include and a separate temporary proof-of-work serialization patch before building; neither patch is an accepted upstream/source-fork fix.
+
+Focused CTest evidence from the job log:
+
+| Target | Result |
+|---|---|
+| `test_aurora_protocol` | **PASS** |
+| `test_aurora_snark` | **PASS** |
+| `test_serialization` | **FAIL — SEGFAULT** |
+
+The focused test step exited with code 8. GitHub Actions uploaded the diagnostic evidence artifact: [chp4-aurora-source-audit artifact](https://github.com/Patel5600/0PSp/actions/runs/38364766082/artifacts/11796831239). The uploaded artifact ZIP SHA-256 recorded by the runner is `a4500a11b32d8d6794471f7eef9a4d24bec396c888b6e647c13115be6959e083`.
+
+This is a separate attempt from run `38364226609`, where the serialization test reached the verifier and failed with `Invalid pow`. The second diagnostic patch changed the failure mode to a segmentation fault; it does **not** demonstrate a fix. The available log establishes a segfault in `test_serialization`, but it does not by itself identify the precise crashing instruction or prove the root cause. Do not attribute the segfault solely to the proof-of-work patch without a reproducer, sanitizer/backtrace evidence, and a controlled one-change-at-a-time experiment.
+
+**Decision remains NO-GO.** We have not established safe serialization, verifier acceptance after a valid round trip, binary-field/non-algebraic-hash transport, ZK-mode transport, or production suitability. The source candidate remains rejected for production pending a maintained fix and adversarial evidence. External cryptographic audit: **NOT PERFORMED**.
