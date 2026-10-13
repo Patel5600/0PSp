@@ -229,8 +229,14 @@ def verify_mpt_inclusion(root_hash: bytes, key: bytes, expected_value: bytes, pr
         raise ValueError("root_hash must be exactly 32 bytes")
     if not isinstance(key, bytes) or not isinstance(expected_value, bytes):
         raise TypeError("key and expected_value must be bytes")
+    if len(key) > 1024:
+        raise ValueError("trie key exceeds the 1024-byte safety bound")
+    if not expected_value:
+        raise ValueError("Ethereum trie inclusion value must be non-empty")
     if not isinstance(proof_nodes, (list, tuple)) or not proof_nodes:
         raise ValueError("proof_nodes must be a non-empty list or tuple")
+    if len(proof_nodes) > 128:
+        raise ValueError("proof contains more than 128 trie nodes")
     if any(not isinstance(node, bytes) or not node for node in proof_nodes):
         raise ValueError("each proof node must be non-empty encoded bytes")
     path = bytes_to_nibbles(key)
