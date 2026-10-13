@@ -5,9 +5,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
-openvm = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.2", features = ["std"] }
-openvm-keccak256-guest = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.2" }
-sha3 = "0.10.8"
+# Immutable OpenVM v2.0.2 release commit (tag v2.0.2 -> 59a69b8b0cbee7011ac978e4cc07707ee3681944).
+openvm = { git = "https://github.com/openvm-org/openvm.git", rev = "59a69b8b0cbee7011ac978e4cc07707ee3681944", features = ["std"] }
+openvm-keccak256-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "59a69b8b0cbee7011ac978e4cc07707ee3681944" }
+sha3 = "=0.10.8"
 
 [profile.release]
 opt-level = 3
