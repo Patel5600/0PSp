@@ -288,8 +288,8 @@ def test_concurrent_duplicate_nullifier_anchored_spends_only_one_commits(tmp_pat
     )
     snapshot = ledger.snapshot()
     statements = [
-        spend_statement(snapshot, nullifier=NF1, outputs=(b"\\x61" * 48,)),
-        spend_statement(snapshot, nullifier=NF1, outputs=(b"\\x62" * 48,)),
+        spend_statement(snapshot, nullifier=NF1, outputs=(bytes([0x61]) * 48,)),
+        spend_statement(snapshot, nullifier=NF1, outputs=(bytes([0x62]) * 48,)),
     ]
 
     def attempt(statement):
