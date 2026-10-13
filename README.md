@@ -4,7 +4,7 @@
 
 0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and one post-quantum zero-knowledge proof over the complete spend relation. This repository currently implements hash/encoding components and test models. It does **not** yet implement a live minting ledger, a Ringtail adapter, or the end-to-end proof.
 
-## Current security gate (reviewed 2026-10-13; CHp4.20 proof-backend feasibility under review)
+## Current security gate (reviewed 2026-10-13; CHp4.21 static SHAKE cost-model candidate under review)
 
 **Complete protocol: NO-GO.** The current branch documents a research plan; it does not activate minting, select an authorization mode, integrate a ZK backend, or certify side-channel resistance.
 
@@ -31,6 +31,7 @@ Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs
 - [CHp4.17: durable ledger and commitment Merkle tree](docs/audit/chp4.17-durable-merkle-ledger.md) adds a depth-63 namespace-bound tree, SQLite atomic issuance/spend state transitions, restart replay protection, and startup auditing that reconciles all persisted Merkle nodes, records, and event-chain entries. It remains a single-node state machine; trusted deposit authorization and the real proof backend are not supplied.
 - [CHp4.18: canonical V2 transaction and digest](docs/audit/chp4.18-canonical-spend-transaction-v2.md) freezes TxFieldsV2 and TxDigestV2 at the host/API boundary and rejects public-field/digest substitutions before the ledger invokes a verifier callback. Exact-main Functional checks and Repository integrity watch passed; the actual ZK relation must still constrain the exact same encoding; production remains NO-GO.
 - [CHp4.20: proof-backend feasibility](docs/audit/chp4.20-zk-backend-feasibility.md) rejects the assumption that a transparent/hash-based STARK automatically provides zero knowledge. No backend is approved until the exact private-spend relation, witness hiding, post-quantum assumptions and target-hardware cost are demonstrated.
+- [CHp4.21: static SHAKE arithmetization cost model](docs/audit/chp4.21-keccak-zk-cost-model.md) adds a tested, parameterized estimator for the frozen SHAKE256-384 predicates. Its example reports 23,543,088 modeled multiplication-equivalents for one input and one output under a 1,024-byte illustrative public-key encoding; this is not an actual backend benchmark or a proof. All proof/authorization/custody production gates remain NO-GO.
 - [Documentation map and maintenance policy](docs/README.md) is the entry point for active specifications, research history, invariant fixtures and repository checks.
 
 ## Active V2 construction target
