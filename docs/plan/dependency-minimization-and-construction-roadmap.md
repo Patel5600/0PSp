@@ -14,7 +14,7 @@ Minimize the trusted computing base and runtime link dependencies, but do not re
 MAMA40 is a **candidate source for an isolated SHAKE256 + OS-entropy backend**, not a solution for the missing protocol construction. Do not add the entire MAMA40 suite as a linked dependency or private Git submodule. Audit and, only after the gates below, vendor the smallest useful subset behind a 0PSP-owned C interface.
 
 MAMA40 does **not** currently provide:
-- the Ringtail threshold-signature protocol required by 0PSP;
+- a selected post-quantum threshold-authorization scheme. ML-DSA-87 threshold signing is the leading experiment candidate in CHp4.27, but it is not selected and its exact-release audit/license blockers remain open; Ringtail is a research/prior-art alternative;
 - a proof backend for the complete hidden-spend relation;
 - a proof that the commitment construction is hiding and binding;
 - a full security reduction for 0PSP.
@@ -25,7 +25,7 @@ Its ML-KEM implementation is a key-encapsulation mechanism, not a threshold sign
 
 V2 component code is now present in `src/primitives/namespace.py`, `src/primitives/nullifier.py`, `src/primitives/coin_commitment.py`, `native/nullifier_v2.c`, and `native/coin_commitment_v2.c`. V2 uses a 48-byte namespace ID derived from fixed-width canonical ledger/deployment/asset identifiers, a random 32-byte coin ID, and an explicit namespace input to both the commitment and nullifier. The nullifier preimage is 149 bytes and produces 48 bytes. Native secret/salt generation fails closed, Python/native known-answer tests cover V2 commitment/nullifier, ASan/UBSan tests are wired into CI, and separate nullifier/commitment timing screens compile in CI.
 
-These changes close byte-contract ambiguity at the component layer only. They do **not** close the live mint ledger, commitment hiding, Ringtail, zero-knowledge, full-security or side-channel gates. A mint authority that learns `coin_id` and `r_nf` can compute a later public nullifier and trace the spend; issuer privacy therefore requires an explicit trust boundary or a blind-issuance design, neither of which is complete. The V1 helper remains for historical vectors and is explicitly legacy-only.
+These changes close byte-contract ambiguity at the component layer only. They do **not** close the live mint ledger, commitment hiding, threshold authorization, zero-knowledge, full-security or side-channel gates. A mint authority that learns `coin_id` and `r_nf` can compute a later public nullifier and trace the spend; issuer privacy therefore requires an explicit trust boundary or a blind-issuance design, neither of which is complete. The V1 helper remains for historical vectors and is explicitly legacy-only.
 
 See:
 - [V2 protocol/security argument](../security/v2-protocol-security-argument.md)
@@ -117,16 +117,17 @@ Reasons not to trust it as a drop-in replacement today:
 
 ### Phase 5 — Integrate the threshold-signature layer
 
-- Pin the Ringtail paper, implementation revision, license, parameters, transcript encoding and key-generation model. The current design assumes dealer-based key generation unless a DKG is separately designed and proven.
-- Treat the upstream Ringtail code as an academic prototype until reviewed; its own upstream README warns that the code has not received careful review and is not production-ready.
-- Build a minimal adapter with explicit serialization, transcript/domain separation, key validation, signature verification and negative tests.
-- Decide how the signature-verification relation is represented inside the proof backend before declaring the adapter integrated.
+- Evaluate ML-DSA-87 threshold signing first, pinned at `qp-rusty-crystals-threshold` v3.0.0 commit `5d3d252fbc7975586e13e7576652f37ad1395c05`; do not add the dependency until its audit claim is mapped to an exact report/commit and its `GPL-3.0` package license is reconciled with 0PSP distribution plans.
+- Pin the exact parameter profile, FIPS 204 public-key/signature codec, message/context, key-generation/DKG model, signer threshold and seed/nonce lifecycle. The tagged README claims threshold signing/DKG review for ML-DSA-87, but the same tagged `threshold/src/lib.rs` carries a warning that it has not undergone an audit; preserve both pieces of evidence until reconciled.
+- Build an adapter only after the license/security review, using the exact `TX_FIELDS_V3_CANDIDATE` digest and the candidate context from `src/protocol/transaction_v3_candidate.py`; validate standard ML-DSA interoperability and fail-closed behavior for malformed signatures/keys, insufficient signer quorum and session/seed reuse.
+- Keep Ringtail as prior art/backup candidate rather than the current selection default; its upstream Go implementation explicitly warns it is an unaudited academic prototype.
+- Decide how signature verification under the same hidden BundleV3 key is represented inside the proof backend before declaring any adapter integrated.
 
 **Gate:** reproducible threshold signing/verification vectors and a security-reviewed adapter contract. A standalone signature verifier is not enough if the full anonymous proof cannot establish its validity for the same hidden witness.
 
 ### Phase 6 — Select and instantiate one post-quantum proof system
 
-- Compare viable transparent proof systems against one required relation: hidden membership, exact commitment opening, Ringtail signature validity under the same hidden key, nullifier equation, and state/policy eligibility.
+- Compare viable proof systems against one required relation: hidden membership, exact commitment opening, threshold ML-DSA candidate signature validity under the same hidden key (or the subsequently selected scheme), nullifier equation, canonical transaction digest/context, output identity and state/policy eligibility.
 - Specify the full relation mathematically before choosing a backend. Measure whether the lattice-signature relation is efficiently expressible; do not assume a generic SNARK makes it cheap or post-quantum secure.
 - Define setup assumptions, transcript challenge generation, Fiat–Shamir/QROM treatment where applicable, soundness/knowledge error, zero knowledge, proof size, prover memory, verifier time and side-channel scope.
 - Instantiate the entire relation as one proof statement. Avoid recreating the retired multi-proof/bridge-commitment design.
@@ -163,13 +164,15 @@ Reasons not to trust it as a drop-in replacement today:
 - The nullifier input is currently 99 bytes and the output is 48 bytes.
 - The current native helper uses OpenSSL for SHAKE256, random generation and output cleansing.
 - The nullifier itself has no separate asset/deployment field; the minting invariant remains open.
-- Ringtail is not integrated. The single-relation proof backend is not instantiated.
+- No threshold authorization scheme is selected or integrated. ML-DSA-87 is the leading experiment candidate but audit scope/license and proof-cost gates are open; Ringtail is not integrated. The single-relation proof backend is not instantiated.
 - The latest 0PSP functional CI passed at the baseline commit, but it does not prove the complete construction secure.
 - No timing result currently establishes constant-time behavior or absence of exploitable side channels.
 
 ## References
 
 - [NIST FIPS 202: SHA-3, SHAKE128 and SHAKE256](https://csrc.nist.gov/pubs/fips/202/final)
+- [CHp4.27 authorization and proof-backend candidate screen](../audit/chp4.27-authorization-and-backend-candidate-screen.md)
+- [Threshold ML-DSA-87 release commit](https://github.com/Quantus-Network/qp-rusty-crystals/commit/5d3d252fbc7975586e13e7576652f37ad1395c05) and [published crate](https://docs.rs/crate/qp-rusty-crystals-threshold/3.0.0); audit warning/license conflict remain open.
 - [Ringtail paper, ePrint 2024/1113](https://eprint.iacr.org/2024/1113)
 - [Upstream Ringtail academic prototype](https://github.com/daryakaviani/ringtail)
 - [MAMA40 security policy](https://github.com/Patel5600/Mama40/blob/master/SECURITY.md)
