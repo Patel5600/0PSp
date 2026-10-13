@@ -1,7 +1,7 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
 **Last reviewed:** 2026-10-13  
-**Main baseline reviewed:** `b18e2edd0abb7431b783484a5453af23d87ffef2` (2026-10-13; CHp4.16 candidate branch under review)  
+**Main baseline reviewed:** `dead2676527f23cc8e83132dca48def3c08f2880` (2026-10-13; CHp4.17 durable-ledger candidate under review)  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
@@ -12,20 +12,20 @@ The V2 primitive layer has useful, testable components: namespace derivation, ra
 
 The revised plan deliberately avoids (a) adding a second spend commitment without a demonstrated need, (b) claiming a generic proof-of-secret-key automatically replaces committee authorization, (c) replacing SHAKE based on invented constraint numbers, or (d) rewriting the C boundary merely because Rust is available.
 
-No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not a security theorem. CHp4.15 does not authorize minting; its block-state proof is supporting evidence only. CHp4.16 adds independent library differential tests but does not replace external review or the real-network smoke test.
+No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not a security theorem. CHp4.15 does not authorize minting; its block-state proof is supporting evidence only. CHp4.16 adds independent library differential tests but does not replace external review or the real-network smoke test. CHp4.17 adds persistent single-node state transitions and a stronger local consistency audit, but its injected verifier and deposit callbacks are not production implementations.
 
 ## Current implementation facts
 
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
 | Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; V3 direct-hash Python/native KAT parity; typed V3 ledger boundary; CHp4.10 quorum/journal; CHp4.13 candidate adds supervised Helios Mainnet finality and checkpoint-to-finalized ancestry | Real binary/checkpoint/`eth_getProof` smoke test, independent light-client and header/MPT differential review, full proof binding and independent security review |
-| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 raw transaction/receipt MPT inclusion; CHp4.13 digest-pinned Helios Mainnet finality; CHp4.14 movement-signal consistency; CHp4.15 EIP-1186 account/storage proofs; CHp4.16 test-only Keccak/RLP/MPT differential checks against independent libraries | State proofs establish block-boundary state, not transaction-specific causation. Differential tests are not a formal proof or live-chain audit. No live Mainnet smoke test; exact proxy/contract/token custody semantics, trusted `DepositAuthorization` conversion, durable atomic mint ledger and issuance proof remain open |
+| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 raw transaction/receipt MPT inclusion; CHp4.13 digest-pinned Helios Mainnet finality; CHp4.14 movement-signal consistency; CHp4.15 EIP-1186 account/storage proofs; CHp4.16 test-only Keccak/RLP/MPT differential checks against independent libraries | State proofs establish block-boundary state, not transaction-specific causation. Differential tests are not a formal proof or live-chain audit. No live Mainnet smoke test; exact proxy/contract/token custody semantics and trusted `DepositAuthorization` conversion remain open |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
 | Authorization | Ringtail adapter contract and research notes | A production adapter, final authorization mode, or signature-verification constraints in an actual ZK backend |
 | ZK proof | Relation targets documented | An instantiated backend, knowledge soundness, zero knowledge, or a complete proof of the composed relation |
-| Mint and ledger | CHp4.1 in-memory reference model; requires one configured 48-byte namespace, checks issuance authorization and spend statement before test/injected proof callbacks; CHp4.11 adds a non-zero 20-byte beneficiary to authorization, issuance statement and issued record; CHp4.12 adds candidate transaction/receipt trie inclusion verification but does not authenticate the header's consensus | Only an authenticated deposit adapter may create trusted authorization; actual issuance/spend proofs, durable constraints, consensus/finality, crash recovery and fork/reorg safety are still missing |
+| Mint and ledger | CHp4.1 in-memory model; CHp4.17 candidate adds a depth-63 namespace-bound commitment tree, file-backed SQLite issue/spend transactions, unique deposit/commitment/nullifier constraints, state-head event chain, concurrency stale-state rejection and startup reconciliation of all Merkle nodes/records/events | The ledger still depends on injected deposit/proof callbacks; no production `DepositAuthorization` adapter or actual issuance/spend proof exists. This is single-node persistence, not distributed consensus; power-loss/backup/recovery and external state-head anchoring remain open |
 | Hidden coin-ID uniqueness | Protocol names (namespace, coin_id) as identity while issuer-private minting hides coin_id | Proof/registry mechanism that detects a reused hidden ID without disclosing it, or revised identity semantics |
 
 ## Four RFCs
