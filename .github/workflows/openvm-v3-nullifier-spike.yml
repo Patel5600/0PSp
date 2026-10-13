@@ -88,9 +88,11 @@ jobs:
       - name: Generate and verify application-level proof for valid V3 predicate slice
         run: |
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
-          cargo +1.91.1 openvm keygen --app-only
-          cargo +1.91.1 openvm prove app --input "$fixture_dir/valid.json" --proof "$fixture_dir/valid.app.proof"
-          cargo +1.91.1 openvm verify app --proof "$fixture_dir/valid.app.proof"
+          /usr/bin/time -f 'V3_SPIKE_KEYGEN_SECONDS=%e MAX_RSS_KIB=%M' cargo +1.91.1 openvm keygen --app-only
+          /usr/bin/time -f 'V3_SPIKE_APP_PROVE_SECONDS=%e MAX_RSS_KIB=%M' cargo +1.91.1 openvm prove app --input "$fixture_dir/valid.json" --proof "$fixture_dir/valid.app.proof"
+          stat --format='V3_SPIKE_APP_PROOF_BYTES=%s' "$fixture_dir/valid.app.proof"
+          sha256sum "$fixture_dir/valid.app.proof"
+          /usr/bin/time -f 'V3_SPIKE_APP_VERIFY_SECONDS=%e MAX_RSS_KIB=%M' cargo +1.91.1 openvm verify app --proof "$fixture_dir/valid.app.proof"
 
       - name: Ensure guest build did not alter locked dependencies
         run: git diff --exit-code -- proof/openvm/v3-nullifier-spike/Cargo.lock
