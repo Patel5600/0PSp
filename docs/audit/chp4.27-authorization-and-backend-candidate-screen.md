@@ -11,7 +11,7 @@ Do not freeze a V3 authorization scheme or approve a production proof backend ye
 - **Ringtail reference implementation:** its public Go repository explicitly says it is an academic proof-of-concept, has not received careful code review, and is not ready for production. The scheme is a plausible threshold-signature research candidate, but its existence is not a reviewed implementation or a complete 0PSP authorization path.
 - **LoTRS implementation:** its 2026 artifact includes Python and Rust implementations, reproducible interoperability tests and parameter-estimation scripts, which is stronger reproducibility evidence. But its own README reports a production-profile estimate of **100.7978 bits** for one listed post-quantum ASIS variant, with other variants materially lower. Those figures do not substantiate the project's stated 128-bit post-quantum target. LoTRS is also a **structured** threshold ring signature, where signers form a hidden column in a table, not a generic drop-in replacement for Ringtail or an arbitrary wallet policy.
 
-The correct decision is **no scheme selected** until the policy model, security target, relation integration, parameters and verifier cost are evaluated together.
+The correct decision is **no production scheme selected** until the policy model, security target, relation integration, parameters and verifier cost are evaluated together. Threshold ML-DSA-87 is now the leading authorization *experiment candidate*, not an approved suite; its exact-release audit warning and license scope require resolution before integration.
 
 ## 2. Evidence and limitations
 
@@ -58,6 +58,12 @@ This is a materially better candidate for the next authorization experiment than
 
 **Decision:** make ML-DSA-87 threshold signing the **leading experiment candidate, not the selected production scheme**. Freeze no scheme ID or key codec yet. Next evidence must include the exact audit report, license reconciliation, pinned clean-build/conformance run, signature/context KATs, adversarial threshold/seed-reuse/session tests, and a measured proof of signature verification against the hidden note key.
 
+### Candidate authorization message and context
+
+The new host-only module `src/protocol/transaction_v3_candidate.py` defines the exact canonical field encoding, a domain-separated 48-byte SHAKE256 digest, and `authorization_input_v3_candidate()`, which returns the digest as the message plus the fixed context `0PSP-TX-AUTH-v3-CANDIDATE`. The context is within ML-DSA's 255-byte context limit. Tests mutate the namespace, root, input nullifier, state head, policy, fee, entropy and ordered outputs and verify that the signed message changes; round-trip, trailing-data and malformed-input tests are also present.
+
+This defines an explicit host/API contract for the next threshold-signature experiment, **not** a frozen signature scheme or proof. It does not validate any signature and no V3 circuit/guest constrains these fields. The eventual proof must check the signature against the exact hidden authorization public key committed by BundleV3 and the same message/context; a standalone host check is not sufficient where the key is hidden.
+
 ### OpenVM 2.0 as a proof-backend candidate
 
 Pinned upstream release used by the partial research guest: https://github.com/openvm-org/openvm/tree/v2.0.2  
@@ -102,4 +108,4 @@ The proof relation must enforce authorization over the **same witness** as the e
 
 A build passes only a build gate. A hash microbenchmark passes only a hash benchmark. Neither closes the authorization gate.
 
-**Current result:** no authorization scheme selected; no production proof backend selected; V3 remains non-normative; complete 0PSP production remains **NO-GO**. External cryptographic audit remains **NOT PERFORMED**.
+**Current result:** ML-DSA-87 threshold signing is the leading experiment candidate, but no production authorization scheme is selected; the exact-release audit claim is internally inconsistent, license scope needs clarification, and no signature verifier is integrated into a ZK relation. No production proof backend is selected; V3 remains non-normative; complete 0PSP production remains **NO-GO**. External audit of 0PSP remains **NOT PERFORMED**.
