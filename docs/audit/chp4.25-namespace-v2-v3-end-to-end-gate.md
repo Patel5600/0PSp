@@ -44,18 +44,19 @@ The operator must supply these environment variables:
 | **PSP_MAINNET_EXECUTION_CHECKPOINT_HASH** | Independently sourced 32-byte execution header hash at that number, hex |
 | **PSP_PROTOCOL_ADDRESS** | Actual intended deployed protocol address, 20 bytes, hex |
 | **PSP_PROTOCOL_RUNTIME_FINGERPRINT** | Independently reviewed 48-byte v2 runtime-code fingerprint for that deployment, hex |
+| **PSP_EXPECTED_NAMESPACE_ID** | Independently recomputed and approved 48-byte Namespace V3 ID for the exact chain/deployment/asset/epoch manifest, hex |
 | **PSP_FINALITY_JOURNAL_PATH** | Absolute path to a persistent SQLite file; not the in-memory database sentinel |
 
 For a token asset, set both **PSP_ASSET_ADDRESS** (20 bytes) and **PSP_ASSET_RUNTIME_FINGERPRINT** (48 bytes). For native asset mode, leave both unset. Optional values are **PSP_DEPLOYMENT_EPOCH** and **PSP_ASSET_EPOCH** (canonical decimal, default 0), **PSP_HELIOS_RPC_PORT** (default 18545), and **PSP_MAX_HEADERS_PER_SYNC** (default 4096, allowed 1..100000).
 
-All trust pins must come from independent provenance, not from the same endpoint this test checks. Keep the execution checkpoint recent enough to synchronize within the configured header bound; the process intentionally fails instead of persisting a partial catch-up. Do not delete a journal or change a checkpoint merely to clear an error.
+All trust pins must come from independent provenance, not from the same endpoint this test checks. The expected Namespace V3 ID must be independently recomputed and approved from the canonical descriptor manifest; do not copy the runner's output back into the expected-value field without an independent comparison. The expected-ID check catches local manifest/epoch/asset mapping mistakes but does not bind the value inside a zero-knowledge proof. Keep the execution checkpoint recent enough to synchronize within the configured header bound; the process intentionally fails instead of persisting a partial catch-up. Do not delete a journal or change a checkpoint merely to clear an error.
 
 Run:
 
     python scripts/smoke_namespace_mainnet.py
 
 A successful live run reports:
-- exact Mainnet chain/genesis identity and computed Namespace V3 ID;
+- exact Mainnet chain/genesis identity and computed Namespace V3 ID, matching the independently pinned expected ID;
 - the exact finalized block height/hash at which code was queried;
 - protocol runtime-code fingerprint match and account code-hash agreement with an EIP-1186 proof tied to that authenticated header’s state root;
 - authenticated finalized ancestry, including durable persistence through the observed finalized head.
