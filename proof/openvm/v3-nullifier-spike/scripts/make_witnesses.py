@@ -91,7 +91,7 @@ def main() -> int:
         (output / name).write_bytes(payload)
         json_name = name.removesuffix(".witness") + ".json"
         (output / json_name).write_text(
-            json.dumps({"input": ["01" + payload.hex()]}) + "\\n",
+            json.dumps({"input": ["01" + payload.hex()]}) + chr(10),
             encoding="ascii",
         )
 
