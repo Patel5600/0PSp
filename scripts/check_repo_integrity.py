@@ -33,6 +33,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.12-evm-trie-inclusion-verifier.md"),
     Path("docs/audit/chp4.13-helios-authenticated-finality.md"),
     Path("docs/audit/chp4.14-asset-movement-evidence.md"),
+    Path("docs/audit/chp4.15-authenticated-evm-state-proofs.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -127,6 +128,13 @@ REQUIRED_TOKENS = {
         "NATIVE_TX_VALUE_MATCHED",
         "ERC20_TRANSFER_LOG_MATCHED",
         "custody authorization",
+        "DepositAuthorization",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.15-authenticated-evm-state-proofs.md"): (
+        "verify_eip1186_account_proof",
+        "verify_mpt_exclusion",
+        "block-boundary state",
         "DepositAuthorization",
         "NO-GO",
     ),
