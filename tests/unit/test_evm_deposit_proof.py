@@ -22,6 +22,7 @@ NS = NamespaceIdV3(b"\x11" * 48)
 CONTRACT = b"\x22" * 20
 ASSET = b"\x33" * 20
 TOPIC0 = b"\x44" * 32
+TRANSFER_TOPIC0 = keccak256(b"Transfer(address,address,uint256)")
 DEPOSITOR = b"\x55" * 20
 BENEFICIARY = b"\x66" * 20
 AMOUNT = 12345
@@ -59,6 +60,10 @@ def topic_address(address: bytes) -> bytes:
     return bytes(12) + address
 
 
+def uint_bytes(value: int) -> bytes:
+    return b"" if value == 0 else value.to_bytes((value.bit_length() + 7) // 8, "big")
+
+
 class Journal:
     def __init__(self, block_hash):
         self.namespace_id = NS
@@ -69,16 +74,65 @@ class Journal:
         return (block_number, block_hash) in self.accepted
 
 
-def make_case(*, beneficiary=BENEFICIARY, amount=AMOUNT, receipt_status=b"\x01", tx_type=None):
-    topics = [TOPIC0, topic_address(DEPOSITOR), topic_address(ASSET), topic_address(beneficiary)]
-    log = [CONTRACT, topics, amount.to_bytes(32, "big")]
-    receipt_payload = [receipt_status, b"\x52\x08", bytes(256), [log]]
+def make_case(
+    *,
+    beneficiary=BENEFICIARY,
+    amount=AMOUNT,
+    transfer_amount=None,
+    transfer_to=CONTRACT,
+    tx_to=CONTRACT,
+    tx_value=None,
+    receipt_status=b"\x01",
+    tx_type=None,
+    asset_address=ASSET,
+    duplicate_transfer=False,
+):
+    # The event profile is Deposit(address,address,address,uint256).
+    event_asset = bytes(20) if asset_address is None else asset_address
+    deposit_topics = [
+        TOPIC0,
+        topic_address(DEPOSITOR),
+        topic_address(event_asset),
+        topic_address(beneficiary),
+    ]
+    deposit_log = [CONTRACT, deposit_topics, amount.to_bytes(32, "big")]
+    logs = []
+    deposit_ordinal = 0
+    if asset_address is not None:
+        transfer_value = amount if transfer_amount is None else transfer_amount
+        transfer_log = [
+            asset_address,
+            [TRANSFER_TOPIC0, topic_address(DEPOSITOR), topic_address(transfer_to)],
+            transfer_value.to_bytes(32, "big"),
+        ]
+        logs.append(transfer_log)
+        if duplicate_transfer:
+            logs.append(transfer_log)
+        deposit_ordinal = len(logs)
+    logs.append(deposit_log)
+    receipt_payload = [receipt_status, b"\x52\x08", bytes(256), logs]
+
+    actual_tx_value = (amount if asset_address is None else 0) if tx_value is None else tx_value
+    encoded_value = uint_bytes(actual_tx_value)
     if tx_type is None:
         raw_receipt = enc(receipt_payload)
-        raw_tx = enc([b"", b"\x01", b"\x52\x08", CONTRACT, b"", b"", b"\x1c", b"\x01", b"\x01"])
-    else:
+        raw_tx = enc([
+            b"", b"\x01", b"\x52\x08", tx_to, encoded_value,
+            b"", b"\x1c", b"\x01", b"\x01",
+        ])
+    elif tx_type == 1:
         raw_receipt = bytes([tx_type]) + enc(receipt_payload)
-        raw_tx = bytes([tx_type]) + enc([b"\x01"] * {1: 11, 2: 12, 3: 14, 4: 13}[tx_type])
+        tx_fields = [b"\x01", b"\x01", b"\x02", b"\x52\x08", tx_to,
+                     encoded_value, b"", [], b"\x01", b"\x01", b"\x01"]
+        raw_tx = bytes([tx_type]) + enc(tx_fields)
+    elif tx_type == 2:
+        raw_receipt = bytes([tx_type]) + enc(receipt_payload)
+        tx_fields = [b"\x01", b"\x01", b"\x01", b"\x02", b"\x52\x08", tx_to,
+                     encoded_value, b"", [], b"\x01", b"\x01", b"\x01"]
+        raw_tx = bytes([tx_type]) + enc(tx_fields)
+    else:
+        raise ValueError("test fixture supports legacy, type-1 and type-2 transactions")
+
     key = rlp_encode_uint(INDEX)
     tx_root, tx_proof = leaf_proof(key, raw_tx)
     receipt_root, receipt_proof = leaf_proof(key, raw_receipt)
@@ -95,7 +149,7 @@ def make_case(*, beneficiary=BENEFICIARY, amount=AMOUNT, receipt_status=b"\x01",
         deposit_contract_address=CONTRACT,
         expected_runtime_code_fingerprint=b"\x77" * 48,
         event_topic0=TOPIC0,
-        asset_address=ASSET,
+        asset_address=asset_address,
     )
     journal = Journal(block_hash)
     verifier = EvmDepositInclusionVerifier(policy, journal)
@@ -106,29 +160,32 @@ def make_case(*, beneficiary=BENEFICIARY, amount=AMOUNT, receipt_status=b"\x01",
         raw_receipt=raw_receipt,
         receipt_proof=receipt_proof,
         transaction_index=INDEX,
-        receipt_log_ordinal=0,
+        receipt_log_ordinal=deposit_ordinal,
         expected_beneficiary=BENEFICIARY,
     )
-    return verifier, args, block_hash, raw_tx, raw_receipt, tx_proof, receipt_proof
+    return verifier, args, block_hash, raw_tx, raw_receipt, tx_proof, receipt_proof, deposit_ordinal
 
 
-def test_verifies_transaction_and_receipt_trie_inclusion_against_journaled_header():
-    verifier, args, block_hash, raw_tx, _raw_receipt, _tp, _rp = make_case()
+def test_verifies_transaction_and_receipt_trie_inclusion_and_erc20_movement():
+    verifier, args, block_hash, raw_tx, _raw_receipt, _tp, _rp, ordinal = make_case()
     result = verifier.verify(**args)
     tx_hash = keccak256(raw_tx)
     assert result.namespace_id == NS
     assert result.chain_id == CHAIN_ID
     assert result.transaction_hash == tx_hash
     assert result.transaction_index == INDEX
-    assert result.receipt_log_ordinal == 0
+    assert result.receipt_log_ordinal == ordinal == 1
     assert result.block_number == BLOCK_NUMBER
     assert result.block_hash == block_hash
     assert result.finalized_anchor == BLOCK_NUMBER.to_bytes(8, "big") + block_hash
-    assert result.deposit_id == tx_hash + b"\x00\x00\x00\x00"
+    assert result.deposit_id == tx_hash + ordinal.to_bytes(4, "big")
     assert result.depositor == DEPOSITOR
     assert result.beneficiary == BENEFICIARY
     assert result.amount == AMOUNT
-    assert result.assurance_level == "TRIE_INCLUSION_VERIFIED_AGAINST_QUORUM_FINALIZED_HEADER"
+    assert result.transaction_to == CONTRACT
+    assert result.transaction_value == 0
+    assert result.asset_movement_kind == "ERC20_TRANSFER_LOG_MATCHED"
+    assert result.assurance_level == "TRIE_INCLUSION_AND_ASSET_MOVEMENT_SIGNAL_VERIFIED_NOT_CUSTODY_AUTHORIZATION"
 
 
 @pytest.mark.parametrize("mutation,match", [
@@ -139,7 +196,7 @@ def test_verifies_transaction_and_receipt_trie_inclusion_against_journaled_heade
     ("beneficiary", "proven beneficiary"),
 ])
 def test_rejects_proof_or_public_field_substitution(mutation, match):
-    verifier, args, _hash, _tx, _receipt, _tp, _rp = make_case()
+    verifier, args, _hash, _tx, _receipt, _tp, _rp, _ordinal = make_case()
     args = dict(args)
     if mutation == "transaction":
         args["raw_transaction"] = enc([b"\x02"] * 9)
@@ -160,7 +217,7 @@ def test_rejects_proof_or_public_field_substitution(mutation, match):
 def test_rejects_wrong_log_ordinal_failed_receipt_and_amount_overflow():
     verifier, args, *_ = make_case()
     with pytest.raises(EvmDepositInclusionError, match="outside the proven receipt logs"):
-        verifier.verify(**{**args, "receipt_log_ordinal": 1})
+        verifier.verify(**{**args, "receipt_log_ordinal": 2})
 
     failed, failed_args, *_ = make_case(receipt_status=b"")
     with pytest.raises(EvmDepositInclusionError, match="status is not successful"):
@@ -176,10 +233,11 @@ def test_supports_matching_known_typed_transaction_and_receipt_envelopes(tx_type
     verifier, args, *_ = make_case(tx_type=tx_type)
     result = verifier.verify(**args)
     assert result.amount == AMOUNT
+    assert result.asset_movement_kind == "ERC20_TRANSFER_LOG_MATCHED"
 
 
 def test_rejects_mismatched_typed_transaction_and_receipt_envelopes():
-    _verifier, _args, _hash, _tx, raw_receipt, _tp, _rp = make_case(tx_type=1)
+    _verifier, _args, _hash, _tx, raw_receipt, _tp, _rp, _ordinal = make_case(tx_type=1)
     with pytest.raises(EvmDepositInclusionError, match="envelope types differ"):
         _parse_receipt(raw_receipt, expected_type=2)
 
@@ -192,3 +250,38 @@ def test_rejects_unjournaled_header_and_noncanonical_header_rlp():
         verifier.verify(**{**args, "raw_header_rlp": enc(header_fields)})
     with pytest.raises(EvmDepositInclusionError, match="invalid raw execution header"):
         verifier.verify(**{**args, "raw_header_rlp": b"\x81\x01"})
+
+
+def test_native_asset_requires_transaction_value_to_equal_proven_deposit_amount():
+    verifier, args, _hash, _tx, _receipt, _tp, _rp, ordinal = make_case(asset_address=None)
+    result = verifier.verify(**args)
+    assert ordinal == 0
+    assert result.asset_movement_kind == "NATIVE_TX_VALUE_MATCHED"
+    assert result.transaction_value == AMOUNT
+    bad_value, bad_args, *_ = make_case(asset_address=None, tx_value=AMOUNT - 1)
+    with pytest.raises(EvmDepositInclusionError, match="native deposit amount does not equal"):
+        bad_value.verify(**bad_args)
+
+
+def test_token_profile_requires_exactly_one_matching_transfer_and_zero_native_value():
+    bad_amount, bad_args, *_ = make_case(transfer_amount=AMOUNT - 1)
+    with pytest.raises(EvmDepositInclusionError, match="exactly one matching ERC-20 Transfer"):
+        bad_amount.verify(**bad_args)
+
+    bad_recipient, bad_recipient_args, *_ = make_case(transfer_to=b"\x99" * 20)
+    with pytest.raises(EvmDepositInclusionError, match="exactly one matching ERC-20 Transfer"):
+        bad_recipient.verify(**bad_recipient_args)
+
+    duplicate, duplicate_args, *_ = make_case(duplicate_transfer=True)
+    with pytest.raises(EvmDepositInclusionError, match="exactly one matching ERC-20 Transfer"):
+        duplicate.verify(**duplicate_args)
+
+    nonzero_value, nonzero_args, *_ = make_case(tx_value=1)
+    with pytest.raises(EvmDepositInclusionError, match="transaction value must be zero"):
+        nonzero_value.verify(**nonzero_args)
+
+
+def test_rejects_transaction_target_substitution():
+    wrong_target, wrong_args, *_ = make_case(tx_to=b"\x99" * 20)
+    with pytest.raises(EvmDepositInclusionError, match="transaction target differs"):
+        wrong_target.verify(**wrong_args)
