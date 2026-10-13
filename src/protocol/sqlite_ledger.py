@@ -300,6 +300,9 @@ class SQLiteLedger:
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='commitment_anchors'"
             ).fetchone() is not None
             conn.execute("PRAGMA journal_mode = DELETE")
+            # Schema creation and anchor backfill are one SQLite transaction.
+            # A crash must not leave a half-populated ring with schema v2 marked active.
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS ledger_meta (
                     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -423,6 +426,7 @@ class SQLiteLedger:
                 # canonical event/tree records are the source for rebuilding it.
                 # Non-empty corruption is left to audit_integrity() to reject.
                 self._backfill_anchor_history(conn)
+            conn.execute("COMMIT")
 
     def _backfill_anchor_history(self, conn: sqlite3.Connection) -> None:
         """Migrate a pre-anchor ledger by reconstructing snapshots from durable records."""
