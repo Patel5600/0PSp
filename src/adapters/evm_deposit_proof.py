@@ -30,6 +30,7 @@ from src.primitives.namespace_v3 import NamespaceIdV3
 
 U64_MAX = (1 << 64) - 1
 KNOWN_TYPED_ENVELOPES = frozenset({1, 2, 3, 4})
+_TYPED_TRANSACTION_FIELD_COUNTS = {1: 11, 2: 12, 3: 14, 4: 13}
 
 
 class EvmDepositInclusionError(RuntimeError):
@@ -92,6 +93,12 @@ def _envelope(raw: bytes, field: str) -> _Envelope:
         raise EvmDepositInclusionError(f"{field} has an invalid EIP-2718 envelope prefix")
     if not isinstance(decoded, list):
         raise EvmDepositInclusionError(f"{field} envelope payload must be an RLP list")
+    if field == "raw transaction":
+        expected_count = 9 if tx_type is None else _TYPED_TRANSACTION_FIELD_COUNTS[tx_type]
+        if len(decoded) != expected_count:
+            raise EvmDepositInclusionError(
+                f"{field} envelope has {len(decoded)} fields; expected {expected_count} for its type"
+            )
     return _Envelope(tx_type=tx_type, payload=decoded)
 
 
@@ -126,7 +133,7 @@ def _parse_receipt(raw_receipt: bytes, expected_type: int | None) -> _Receipt:
         status_field, cumulative_gas, bloom, logs_value = fields
         if not isinstance(status_field, bytes) or not isinstance(cumulative_gas, bytes):
             raise EthereumEncodingError("receipt status and cumulative gas must be byte strings")
-        if len(bloom) != 256 if isinstance(bloom, bytes) else True:
+        if not isinstance(bloom, bytes) or len(bloom) != 256:
             raise EthereumEncodingError("receipt logs bloom must be exactly 256 bytes")
         rlp_integer(cumulative_gas, "receipt.cumulativeGasUsed")
         # This profile accepts post-Byzantium status receipts only. Pre-Byzantium
@@ -238,5 +245,7 @@ class EvmDepositInclusionVerifier:
             )
         except EvmDepositInclusionError:
             raise
+        except EvmDepositEvidenceError as exc:
+            raise EvmDepositInclusionError(str(exc)) from None
         except (EthereumEncodingError, TypeError, ValueError, IndexError) as exc:
             raise EvmDepositInclusionError(f"deposit inclusion verification failed: {exc}") from None
