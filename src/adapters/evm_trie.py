@@ -238,6 +238,8 @@ def verify_mpt_inclusion(root_hash: bytes, key: bytes, expected_value: bytes, pr
     expected_ref = root_hash
     for node_index, encoded_node in enumerate(proof_nodes):
         if len(expected_ref) == 32:
+            if node_index > 0 and len(encoded_node) < 32:
+                raise EthereumEncodingError("short trie child must be embedded rather than hash-referenced")
             if keccak256(encoded_node) != expected_ref:
                 raise EthereumEncodingError("trie proof node hash does not match its parent reference")
         elif encoded_node != expected_ref:
