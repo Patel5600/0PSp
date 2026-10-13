@@ -35,6 +35,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.14-asset-movement-evidence.md"),
     Path("docs/audit/chp4.15-authenticated-evm-state-proofs.md"),
     Path("docs/audit/chp4.16-ethereum-proof-differential-tests.md"),
+    Path("docs/audit/chp4.17-durable-merkle-ledger.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -144,6 +145,13 @@ REQUIRED_TOKENS = {
         "HexaryTrie",
         "Keccak/RLP/MPT",
         "not a formal proof",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.17-durable-merkle-ledger.md"): (
+        "commitment Merkle tree",
+        "src/protocol/sqlite_ledger.py",
+        "audit_integrity()",
+        "DepositAuthorization",
         "NO-GO",
     ),
 }

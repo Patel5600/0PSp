@@ -7,6 +7,8 @@
 **Do not infer readiness from component tests:** Python/native equality proves byte-contract agreement only. It does not prove issuer unlinkability, commitment hiding, ZK relation soundness, ledger atomicity or constant-time execution. Authorization mode remains unresolved; see [RFC-02 spend relation](../theory/spend-relation-spec.md).
 
 
+CHp4.17 adds a reference depth-63 commitment tree and file-backed SQLite ledger with atomic issue/spend state transitions, unique deposit/commitment/nullifier constraints, and startup reconciliation of Merkle nodes, transition records, and the event-chain head. This closes an engineering persistence gap in the reference state machine only. The injected deposit-authorizer and proof-verifier callbacks are still dependencies, not production implementations; the canonical transaction digest, authorization mode, actual issuance/spend proof, live-chain smoke test, and custody policy remain blockers. External audit is explicitly not claimed.
+
 ## Active V2 component contract
 
 ### Namespace
