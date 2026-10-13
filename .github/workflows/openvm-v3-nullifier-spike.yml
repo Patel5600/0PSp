@@ -60,6 +60,31 @@ jobs:
       - name: Build V3 nullifier spike guest for OpenVM
         run: cargo +1.91.1 openvm build
 
+      - name: Generate deterministic witness fixtures and assert public digest KAT
+        run: |
+          fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
+          python3 scripts/make_witnesses.py "$fixture_dir"
+          test "$(cat "$fixture_dir/expected-public-digest.txt")" = "0e56393a40f9cb5480bce7830aaed68573f828953d1b711f10064893c62fde21"
+
+      - name: Execute valid and adversarial witness fixtures in OpenVM
+        run: |
+          fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
+          cargo +1.91.1 openvm run --input "$fixture_dir/valid.witness" > "$fixture_dir/valid-run.log" 2>&1
+          for fixture in wrong-key changed-value changed-salt wrong-nullifier bad-bundle trailing-data; do
+            if cargo +1.91.1 openvm run --input "$fixture_dir/$fixture.witness" > "$fixture_dir/$fixture-run.log" 2>&1; then
+              echo "OpenVM unexpectedly accepted adversarial fixture: $fixture"
+              cat "$fixture_dir/$fixture-run.log"
+              exit 1
+            fi
+          done
+
+      - name: Generate and verify application-level proof for valid V3 predicate slice
+        run: |
+          fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
+          cargo +1.91.1 openvm keygen --app-only
+          cargo +1.91.1 openvm prove app --input "$fixture_dir/valid.witness" --proof "$fixture_dir/valid.app.proof"
+          cargo +1.91.1 openvm verify app --proof "$fixture_dir/valid.app.proof"
+
       - name: Ensure guest build did not alter locked dependencies
         run: git diff --exit-code -- proof/openvm/v3-nullifier-spike/Cargo.lock
 
