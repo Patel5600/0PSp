@@ -1,0 +1,15 @@
+[package]
+name = "psp-openvm-rspend-noauth"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+openvm = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.2", features = ["std"] }
+openvm-keccak256-guest = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.2" }
+sha3 = "0.10.8"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
