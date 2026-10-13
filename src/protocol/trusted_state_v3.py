@@ -13,9 +13,11 @@ from typing import Callable
 
 from src.primitives.namespace_v3 import NamespaceIdV3
 from src.protocol.transaction_v3_candidate import (
+    V3_NK_POSSESSION_POLICY_CANDIDATE,
     TxFieldsV3Candidate,
     decode_tx_fields_v3_candidate,
     transaction_digest_v3_candidate,
+    validate_nk_possession_policy_v3_candidate,
 )
 
 HASH_BYTES = 48
@@ -100,15 +102,25 @@ def _decode_statement(
     statement_or_encoded: TxFieldsV3Candidate | bytes,
 ) -> TxFieldsV3Candidate:
     if isinstance(statement_or_encoded, TxFieldsV3Candidate):
-        return statement_or_encoded
-    if isinstance(statement_or_encoded, bytes):
+        statement = statement_or_encoded
+    elif isinstance(statement_or_encoded, bytes):
         try:
-            return decode_tx_fields_v3_candidate(statement_or_encoded)
+            statement = decode_tx_fields_v3_candidate(statement_or_encoded)
         except (TypeError, ValueError) as exc:
             raise TrustedStateRejected("V3 candidate transaction is not canonical") from exc
-    raise TrustedStateRejected(
-        "transaction must be TxFieldsV3Candidate or canonical encoded bytes"
-    )
+    else:
+        raise TrustedStateRejected(
+            "transaction must be TxFieldsV3Candidate or canonical encoded bytes"
+        )
+
+    try:
+        validate_nk_possession_policy_v3_candidate(statement)
+    except (TypeError, ValueError) as exc:
+        raise TrustedStateRejected(
+            "V3 candidate spend must explicitly select the NK-possession policy "
+            f"{V3_NK_POSSESSION_POLICY_CANDIDATE!r}"
+        ) from exc
+    return statement
 
 
 def validate_transaction_state_binding_v3(
