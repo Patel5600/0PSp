@@ -27,7 +27,7 @@ The implementation's README warns that the code is an academic proof of concept,
 ### LoTRS
 
 Artifact: https://github.com/lotrs-sig/lotrs  
-Paper: https://eprint.iacr.org/2026/0974 (IACR ePrint 2026/974)
+Paper: https://eprint.iacr.org/2026/974 (IACR ePrint 2026/974)
 
 The artifact README states that it includes Python/Rust implementations, parameter-estimation scripts, deterministic interoperability tests and a benchmark harness. For its `N=100,T=50` production profile, it reports:
 - analytic signature estimate: 52.6574 KiB;
