@@ -48,6 +48,7 @@ class SmokeConfigurationError(ValueError):
 class MainnetSmokeConfiguration:
     helios: HeliosMainnetConfig
     namespace: EvmNamespaceConfig
+    expected_namespace_id: bytes
     finality_database: Path
     max_headers_per_sync: int
 
@@ -152,6 +153,8 @@ def load_configuration(env: Mapping[str, str] | None = None) -> MainnetSmokeConf
         code_block_tag="finalized",
     )
 
+    expected_namespace_id = _hex_bytes(values, "PSP_EXPECTED_NAMESPACE_ID", 48)
+
     database_value = _required(values, "PSP_FINALITY_JOURNAL_PATH")
     database_path = Path(database_value).expanduser()
     if str(database_path) == ":memory:" or not database_path.is_absolute():
@@ -164,7 +167,9 @@ def load_configuration(env: Mapping[str, str] | None = None) -> MainnetSmokeConf
 
     if namespace.chain_id != 1 or namespace.genesis_hash != ETHEREUM_MAINNET_GENESIS_HASH:
         raise SmokeConfigurationError("this smoke runner only accepts the pinned Ethereum Mainnet profile")
-    return MainnetSmokeConfiguration(helios, namespace, database_path, max_headers)
+    return MainnetSmokeConfiguration(
+        helios, namespace, expected_namespace_id, database_path, max_headers
+    )
 
 
 def _verify_code_against_authenticated_state(
@@ -217,6 +222,10 @@ def run_live_smoke(config: MainnetSmokeConfiguration) -> dict[str, object]:
         binding = EvmNamespaceAdapter(namespace_config, client).resolve()
         if not isinstance(binding.namespace_id, NamespaceIdV3):
             raise RuntimeError("namespace adapter did not return typed NamespaceIdV3")
+        if not hmac.compare_digest(binding.namespace_id.data, config.expected_namespace_id):
+            raise RuntimeError(
+                "derived Namespace V3 ID differs from the independently pinned expected namespace ID"
+            )
 
         journal = HeliosAuthenticatedHeaderJournal(
             config.finality_database,
@@ -267,6 +276,7 @@ def run_live_smoke(config: MainnetSmokeConfiguration) -> dict[str, object]:
             "namespace_version": 3,
             "namespace_id": binding.namespace_id.data.hex(),
             "namespace_mapping": "PASS_DIRECT_HASH_OF_CANONICAL_RAW_DESCRIPTORS",
+            "expected_namespace_id_match": "PASS",
             "authenticated_code_block_number": block_number,
             "authenticated_code_block_hash": block_hash.hex(),
             "protocol_code_state_proof": "PASS_CODE_HASH_BOUND_TO_AUTHENTICATED_STATE_ROOT",
