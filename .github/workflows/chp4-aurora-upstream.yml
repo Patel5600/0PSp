@@ -1,0 +1,80 @@
+name: CHp4 Aurora pinned-source gate
+
+on:
+  pull_request:
+    paths:
+      - "docs/audit/chp4.24-aurora-source-audit.md"
+      - "docs/security/production-gate-matrix.md"
+      - ".github/workflows/chp4-aurora-upstream.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-aurora-source:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.head_ref == 'chp4.24-aurora-source-audit' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact upstream source and recursive submodules
+        uses: actions/checkout@v4
+        with:
+          repository: scipr-lab/libiop
+          ref: a2ed2ec2f3e85f29b6035951553b02cb737c817a
+          path: vendor/libiop-audit
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install upstream build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git libgmp-dev libprocps-dev libboost-all-dev libssl-dev libsodium-dev
+
+      - name: Record source identity and build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p audit-results
+          {
+            echo "Expected upstream revision: a2ed2ec2f3e85f29b6035951553b02cb737c817a"
+            echo "Actual upstream revision:"
+            git -C vendor/libiop-audit rev-parse HEAD
+            echo "Recursive submodule state:"
+            git -C vendor/libiop-audit submodule status --recursive
+            echo "CMake:"
+            cmake --version
+            echo "C++ compiler:"
+            c++ --version
+            echo "Host:"
+            uname -a
+          } 2>&1 | tee audit-results/environment.txt
+
+      - name: Configure pinned source with upstream defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S vendor/libiop-audit -B vendor/libiop-audit/build -DCMAKE_BUILD_TYPE=Release 2>&1 | tee audit-results/configure.log
+
+      - name: Build the Aurora and transcript serialization targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build vendor/libiop-audit/build --parallel 2 --target test_aurora_snark test_aurora_protocol test_serialization 2>&1 | tee audit-results/build.log
+
+      - name: Run focused Aurora and serialization tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir vendor/libiop-audit/build --output-on-failure --timeout 1800 -R '^(test_aurora_snark|test_aurora_protocol|test_serialization)$' 2>&1 | tee audit-results/ctest.log
+
+      - name: Upload immutable source, build and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chp4-aurora-source-audit
+          path: |
+            audit-results/
+            vendor/libiop-audit/build/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 30
