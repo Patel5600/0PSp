@@ -13,7 +13,8 @@ from src.primitives.coin_commitment import (
     COMMITMENT_BYTES,
     COMMITMENT_RANDOMNESS_BYTES,
 )
-from src.primitives.namespace import NamespaceId, ScopedCoinId
+from src.primitives.namespace import ScopedCoinId
+from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.nullifier import NullifierSecret
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
@@ -23,7 +24,7 @@ COIN_COMMITMENT_V3_VERSION = b"\x03"
 
 
 def _encode_commitment_input_v3(
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     public_key_bundle: bytes,
     value: int,
     coin_id: ScopedCoinId,
@@ -31,8 +32,8 @@ def _encode_commitment_input_v3(
     rho_coin: bytes,
     params_id: bytes,
 ) -> bytes:
-    if not isinstance(namespace_id, NamespaceId):
-        raise TypeError("namespace_id must be a NamespaceId")
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TypeError("namespace_id must be a NamespaceIdV3")
     if not isinstance(public_key_bundle, bytes) or not public_key_bundle:
         raise ValueError("public_key_bundle must be non-empty canonical bytes")
     decode_note_public_key_bundle_v3(public_key_bundle)
@@ -69,7 +70,7 @@ def _encode_commitment_input_v3(
 
 
 def commit_coin_v3(
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     public_key_bundle: bytes,
     value: int,
     coin_id: ScopedCoinId,
@@ -86,7 +87,7 @@ def commit_coin_v3(
 
 def verify_coin_opening_v3(
     commitment: CoinCommitmentV3,
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     public_key_bundle: bytes,
     value: int,
     coin_id: ScopedCoinId,
