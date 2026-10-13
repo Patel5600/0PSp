@@ -28,6 +28,10 @@ MAX_TX_FIELDS_V3_CANDIDATE_BYTES = 1_000_000
 # appended with a uint16 little-endian length; the final context must be <=255 B.
 # This is candidate-only and is not an approved V3 suite.
 TX_AUTH_CONTEXT_V3_CANDIDATE = b"0PSP-TX-AUTH-v3-CANDIDATE"
+# Candidate core-spend policy: the proof must demonstrate possession of nk by
+# opening BundleV3.nullifier_key_commitment and using the same nk to derive nu3.
+# This is an API/spec target only; the complete relation and ZK backend must enforce it.
+V3_NK_POSSESSION_POLICY_CANDIDATE = b"0PSP-V3-NK-POSSESSION-CANDIDATE-v1"
 
 
 class TransactionV3CandidateError(ValueError):
@@ -277,3 +281,33 @@ def authorization_input_v3_candidate(
             "candidate authorization context exceeds 255 bytes for auth_scheme_id"
         )
     return message, context
+
+def validate_nk_possession_policy_v3_candidate(
+    statement_or_encoded: TxFieldsV3Candidate | bytes,
+) -> TxFieldsV3Candidate:
+    """Require the explicit per-note nullifier-key-possession policy candidate.
+
+    This selects the core spend-authority semantics without a separate signature
+    scheme: the eventual shared-witness proof must prove knowledge of nk opening
+    the exact BundleV3 key commitment and must use that same nk in NullifierV3,
+    while binding the exact transaction digest, membership, outputs and trusted
+    state. A host-side policy check is not proof enforcement.
+
+    The bundle auth_public_key/auth_scheme_id are not spend authority under this
+    policy. They cannot be treated as intended-payee authentication unless a
+    separate independently anchored address-auth predicate is implemented.
+    """
+    if isinstance(statement_or_encoded, TxFieldsV3Candidate):
+        statement = statement_or_encoded
+    elif isinstance(statement_or_encoded, bytes):
+        statement = decode_tx_fields_v3_candidate(statement_or_encoded)
+    else:
+        raise TransactionV3CandidateError(
+            "input must be TxFieldsV3Candidate or canonical encoded bytes"
+        )
+    if statement.authorization_policy_id != V3_NK_POSSESSION_POLICY_CANDIDATE:
+        raise TransactionV3CandidateError(
+            "authorization_policy_id does not select the V3 nk-possession candidate"
+        )
+    return statement
+
