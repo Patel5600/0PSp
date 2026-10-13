@@ -34,8 +34,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 24. [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — scenario estimator and the need for measured backend results.
 25. [CHp4.22 SmallWood R1CS adapter scaling audit](audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — memory-scaling evidence and rejection of the dense generic adapter.
 26. [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — circuit-row model and Aurora candidate screen.
-27. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-28. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+27. [CHp4.27 authorization and proof-backend candidate screen](audit/chp4.27-authorization-and-backend-candidate-screen.md) — evidence against premature Ringtail/LoTRS selection and the current OpenVM/Aurora feasibility path.
+28. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+29. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 
@@ -60,7 +61,7 @@ CHp4.7 records a versioned V3 identity-policy candidate: `coin_id` alone is not 
 
 This is a **reference construction candidate, not a verified security result**. The Python helpers do not enforce canonical chain anchors, key authentication, honest entropy generation, proof witness consistency, uniqueness constraints, or recipient spendability. The future proof must bind the same V3 note witness across the commitment opening, recipient bundle/key-commitment opening, output derivation, global output slot, value conservation, authorization predicate, and public nullifier. The durable state transition must atomically consume each issuance anchor or spend nullifier and register outputs. The signature/key codec, note recovery/key delivery, complete shared-witness proof, circuit feasibility, and independent review remain open. A finite digest/PRF output is not mathematically injective, and changing the commitment salt removes V2's deterministic same-nullifier behavior for this candidate but does not eliminate the possibility of finite-output collisions.
 
-The CHp4.6 sender-known tuple candidate must not be paired with unkeyed V2 nullifiers where sender-unlinkability is required. The [CHp4.7 audit record](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md), [V2-only formal spend relation](theory/spend-relation-spec.md), [separate V3 candidate relation](theory/spend-relation-v3-candidate.md), and [evidence-first release register](security/evidence-first-rfc-register.md) retain the remaining obligations. Overall protocol status remains **NO-GO**.
+The CHp4.6 sender-known tuple candidate must not be paired with unkeyed V2 nullifiers where sender-unlinkability is required. The [CHp4.7 audit record](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md), [V2-only formal spend relation](theory/spend-relation-spec.md), [separate V3 candidate relation](theory/spend-relation-v3-candidate.md), [CHp4.27 authorization/backend candidate screen](audit/chp4.27-authorization-and-backend-candidate-screen.md), and [evidence-first release register](security/evidence-first-rfc-register.md) retain the remaining obligations. Overall protocol status remains **NO-GO**.
 
 ## Continuous maintenance
 
