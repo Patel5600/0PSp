@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -28,6 +29,7 @@ def valid_env() -> dict[str, str]:
         "PSP_MAINNET_EXECUTION_CHECKPOINT_HASH": "33" * 32,
         "PSP_PROTOCOL_ADDRESS": "44" * 20,
         "PSP_PROTOCOL_RUNTIME_FINGERPRINT": runtime_code_fingerprint(PROTOCOL_CODE).hex(),
+        "PSP_EXPECTED_NAMESPACE_ID": "ab" * 48,
         "PSP_FINALITY_JOURNAL_PATH": "/tmp/0psp-mainnet-finality.sqlite3",
     }
 
@@ -39,6 +41,7 @@ def test_config_is_explicitly_pinned_to_mainnet_and_finalized_code() -> None:
     assert config.namespace.genesis_hash == ETHEREUM_MAINNET_GENESIS_HASH
     assert config.namespace.code_block_tag == "finalized"
     assert config.namespace.expected_protocol_code_fingerprint == runtime_code_fingerprint(PROTOCOL_CODE)
+    assert config.expected_namespace_id == bytes.fromhex("ab" * 48)
     assert config.namespace.asset_address is None
     assert config.max_headers_per_sync == 4096
 
@@ -51,6 +54,7 @@ def test_config_is_explicitly_pinned_to_mainnet_and_finalized_code() -> None:
         ("PSP_MAINNET_EXECUTION_CHECKPOINT_HASH", "33" * 31),
         ("PSP_PROTOCOL_ADDRESS", "44" * 19),
         ("PSP_PROTOCOL_RUNTIME_FINGERPRINT", "55" * 32),
+        ("PSP_EXPECTED_NAMESPACE_ID", "ab" * 47),
     ],
 )
 def test_config_rejects_wrong_sized_trust_pins(name: str, value: str) -> None:
@@ -157,6 +161,7 @@ def test_live_smoke_binds_exact_code_to_authenticated_state_and_keeps_composite_
     assert state == {"started": True, "stopped": True}
     assert report["smoke_result"] == "PASS"
     assert report["namespace_mapping"] == "PASS_DIRECT_HASH_OF_CANONICAL_RAW_DESCRIPTORS"
+    assert report["expected_namespace_id_match"] == "PASS"
     assert report["protocol_code_state_proof"] == "PASS_CODE_HASH_BOUND_TO_AUTHENTICATED_STATE_ROOT"
     assert report["durable_authenticated_ancestry"] == "PASS"
     assert report["proof_binding"] == "NO-GO_NOT_INSTANTIATED_BY_THIS_SMOKE"
@@ -253,6 +258,15 @@ def test_live_smoke_fails_closed_when_runtime_fingerprint_disagrees_with_manifes
     monkeypatch.setattr(smoke, "execution_header_rlp_from_json", lambda _value: RAW_HEADER)
 
     with pytest.raises(RuntimeError, match="fingerprint"):
+        smoke.run_live_smoke(config)
+    assert state == {"started": True, "stopped": True}
+
+
+def test_live_smoke_rejects_namespace_id_that_differs_from_approved_manifest(monkeypatch) -> None:
+    config, state = _install_fakes(monkeypatch)
+    config = replace(config, expected_namespace_id=bytes.fromhex("cd" * 48))
+
+    with pytest.raises(RuntimeError, match="differs from the independently pinned expected namespace ID"):
         smoke.run_live_smoke(config)
     assert state == {"started": True, "stopped": True}
 
