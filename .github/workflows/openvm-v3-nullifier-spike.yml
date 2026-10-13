@@ -22,7 +22,7 @@ jobs:
   host-tests-and-guest-build:
     name: Host KAT/adversarial tests and OpenVM guest build (non-production)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: proof/openvm/v3-nullifier-spike
@@ -93,6 +93,26 @@ jobs:
             cat "$fixture_dir/$fixture-run.log"
           done
 
+      - name: Execute full one-input/one-output spend fixtures in OpenVM
+        run: |
+          set -euo pipefail
+          fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
+          if ! cargo +1.91.1 openvm run --input "$fixture_dir/spend-valid.json" > "$fixture_dir/spend-valid-run.log" 2>&1; then
+            echo "OpenVM rejected the valid one-input/one-output spend fixture; full output follows:"
+            cat "$fixture_dir/spend-valid-run.log"
+            exit 1
+          fi
+          python3 scripts/check_public_output.py "$fixture_dir/spend-valid-run.log" "$fixture_dir/expected-spend-public-digest.txt"
+          for fixture in spend-wrong-key spend-changed-value spend-changed-salt spend-wrong-nullifier spend-bad-bundle spend-trailing-data spend-bad-root spend-bad-path spend-changed-output-entropy spend-unknown-policy spend-value-conservation; do
+            if cargo +1.91.1 openvm run --input "$fixture_dir/$fixture.json" > "$fixture_dir/$fixture-run.log" 2>&1; then
+              echo "OpenVM unexpectedly accepted adversarial spend fixture: $fixture"
+              cat "$fixture_dir/$fixture-run.log"
+              exit 1
+            fi
+            echo "OpenVM rejected adversarial spend fixture: $fixture"
+            cat "$fixture_dir/$fixture-run.log"
+          done
+
       - name: Generate and verify application-level proof for valid V3 predicate slice
         run: |
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
@@ -104,6 +124,13 @@ jobs:
           cargo +1.91.1 run --manifest-path proof-output-checker/Cargo.toml -- \
             openvm/app.vk "$fixture_dir/valid.app.proof" \
             expected-app-exe-commit.txt "$fixture_dir/expected-public-digest.txt"
+          /usr/bin/time -f 'V3_SPIKE_SPEND_PROVE_SECONDS=%e MAX_RSS_KIB=%M' cargo +1.91.1 openvm prove app --input "$fixture_dir/spend-valid.json" --proof "$fixture_dir/spend-valid.app.proof"
+          stat --format='V3_SPIKE_SPEND_PROOF_BYTES=%s' "$fixture_dir/spend-valid.app.proof"
+          sha256sum "$fixture_dir/spend-valid.app.proof"
+          /usr/bin/time -f 'V3_SPIKE_SPEND_VERIFY_SECONDS=%e MAX_RSS_KIB=%M' cargo +1.91.1 openvm verify app --proof "$fixture_dir/spend-valid.app.proof"
+          cargo +1.91.1 run --manifest-path proof-output-checker/Cargo.toml -- \
+            openvm/app.vk "$fixture_dir/spend-valid.app.proof" \
+            expected-app-exe-commit.txt "$fixture_dir/expected-spend-public-digest.txt"
 
       - name: Ensure guest build did not alter locked dependencies
         run: git diff --exit-code -- proof/openvm/v3-nullifier-spike/Cargo.lock
