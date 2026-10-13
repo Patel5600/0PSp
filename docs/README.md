@@ -34,7 +34,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 24. [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — scenario estimator and the need for measured backend results.
 25. [CHp4.22 SmallWood R1CS adapter scaling audit](audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — memory-scaling evidence and rejection of the dense generic adapter.
 26. [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — circuit-row model and Aurora candidate screen.
-27. [CHp4.27 authorization and proof-backend candidate screen](audit/chp4.27-authorization-and-backend-candidate-screen.md) — evidence against premature Ringtail/LoTRS selection and the current OpenVM/Aurora feasibility path.
+27. [CHp4.27 authorization and proof-backend candidate screen](audit/chp4.27-authorization-and-backend-candidate-screen.md) — Ringtail/LoTRS limitations, threshold ML-DSA-87 as a conditional experiment candidate (audit/license conflicts unresolved), and OpenVM/Aurora proof-backend feasibility.
 28. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
 29. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
