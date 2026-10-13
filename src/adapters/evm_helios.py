@@ -29,7 +29,7 @@ from src.adapters.evm_deposit_proof import (
     ProvenEvmDepositInclusion,
     _parse_header,
 )
-from src.adapters.evm_namespace import EvmNamespaceConfig, JsonRpcClient
+from src.adapters.evm_namespace import EvmNamespaceConfig, JsonRpcClient, runtime_code_fingerprint
 from src.adapters.evm_trie import EthereumEncodingError, rlp_decode, rlp_encode_bytes, rlp_encode_list
 from src.primitives.namespace_v3 import NamespaceIdV3
 
@@ -341,7 +341,7 @@ class HeliosMainnetLightClient:
 
     def call(self, method: str, params: list[object]) -> object:
         """Expose only chain identity and header reads from the supervised local client."""
-        if method not in {"eth_chainId", "eth_getBlockByNumber"}:
+        if method not in {"eth_chainId", "eth_getBlockByNumber", "eth_getCode"}:
             raise HeliosConsensusError(f"Helios trust adapter does not permit RPC method {method!r}")
         if not isinstance(params, list):
             raise TypeError("params must be a list")
@@ -351,6 +351,18 @@ class HeliosMainnetLightClient:
             len(params) != 2 or type(params[1]) is not bool or not isinstance(params[0], str)
         ):
             raise HeliosConsensusError("eth_getBlockByNumber parameters are malformed")
+        if method == "eth_getCode":
+            if (
+                len(params) != 2
+                or not isinstance(params[0], str)
+                or re.fullmatch(r"0x[0-9a-fA-F]{40}", params[0]) is None
+                or not isinstance(params[1], str)
+                or not (
+                    params[1] in {"latest", "safe", "finalized"}
+                    or _QUANTITY_RE.fullmatch(params[1]) is not None
+                )
+            ):
+                raise HeliosConsensusError("eth_getCode parameters are malformed")
         return self.rpc.call(method, params)
 
     def stop(self) -> None:
@@ -692,6 +704,13 @@ class HeliosAuthenticatedDepositVerifier:
             raise ValueError("namespace config does not match the authenticated-header journal's pinned manifest")
         if policy.namespace_id != journal.namespace_id or policy.chain_id != namespace_config.chain_id:
             raise ValueError("deposit policy, namespace journal and chain configuration disagree")
+        if (
+            policy.deposit_contract_address != namespace_config.protocol_address
+            or policy.asset_address != namespace_config.asset_address
+            or policy.expected_runtime_code_fingerprint != namespace_config.expected_protocol_code_fingerprint
+        ):
+            raise ValueError("deposit event/code policy must match the namespace's pinned protocol and asset")
+        self._policy = policy
         self._journal = journal
         self._inclusion_verifier = EvmDepositInclusionVerifier(policy, journal)
 
@@ -718,4 +737,22 @@ class HeliosAuthenticatedDepositVerifier:
             receipt_log_ordinal=receipt_log_ordinal,
             expected_beneficiary=expected_beneficiary,
         )
+        try:
+            code_result = self._journal.light_client.call(
+                "eth_getCode",
+                [
+                    "0x" + self._policy.deposit_contract_address.hex(),
+                    hex(inclusion.block_number),
+                ],
+            )
+            if not isinstance(code_result, str) or _DATA_RE.fullmatch(code_result) is None:
+                raise HeliosConsensusError("Helios returned malformed contract code at the deposit block")
+            runtime_code = bytes.fromhex(code_result[2:])
+            observed_fingerprint = runtime_code_fingerprint(runtime_code)
+        except HeliosConsensusError:
+            raise
+        except Exception:
+            raise HeliosConsensusError("could not authenticate protocol runtime code at the deposit block") from None
+        if observed_fingerprint != self._policy.expected_runtime_code_fingerprint:
+            raise HeliosConsensusError("protocol runtime code at the deposit block differs from the pinned manifest")
         return HeliosAuthenticatedEvmDeposit(inclusion, authenticated_header)
