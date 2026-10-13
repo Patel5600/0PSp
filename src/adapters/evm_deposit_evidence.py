@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 from dataclasses import dataclass
+from typing import Protocol
 from src.adapters.evm_namespace import (
     EVM_ADDRESS_BYTES,
     EVM_HASH_BYTES,
