@@ -274,6 +274,40 @@ def test_concurrent_spends_from_retained_anchor_both_commit(tmp_path):
 
 
 
+def test_concurrent_duplicate_nullifier_anchored_spends_only_one_commits(tmp_path):
+    path = tmp_path / "duplicate-nullifier-race.sqlite3"
+    gate = threading.Barrier(2)
+
+    def verifying(statement, proof):
+        gate.wait(timeout=5)
+        return proof == b"valid-spend"
+
+    ledger = make_ledger(path, spend_verifier=verifying)
+    ledger.issue(
+        deposit_evidence=b"evidence", commitment=C1, params_id=PARAMS, proof=b"valid-issue"
+    )
+    snapshot = ledger.snapshot()
+    statements = [
+        spend_statement(snapshot, nullifier=NF1, outputs=(b"\\x61" * 48,)),
+        spend_statement(snapshot, nullifier=NF1, outputs=(b"\\x62" * 48,)),
+    ]
+
+    def attempt(statement):
+        try:
+            return ledger.accept_spend(statement=statement, proof=b"valid-spend")
+        except Exception as exc:
+            return exc
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, statements))
+
+    assert sum(not isinstance(result, Exception) for result in results) == 1
+    assert sum(isinstance(result, DuplicateNullifier) for result in results) == 1
+    assert ledger.spent_count() == 1
+    assert ledger.snapshot().state_version == 2
+    ledger.audit_integrity()
+
+
 def test_spend_accepts_retained_historical_anchor_after_state_advance(tmp_path):
     path = tmp_path / "historical-anchor.sqlite3"
 
