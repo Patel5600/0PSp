@@ -182,7 +182,9 @@ class QuorumObservedEvmDeposit:
     block_number: int
     block_hash: bytes
     receipts_root: bytes
+    transactions_root: bytes
     transaction_index: int
+    receipt_log_ordinal: int
     log_index: int
     depositor: bytes
     beneficiary: bytes
@@ -197,7 +199,7 @@ class QuorumObservedEvmDeposit:
     @property
     def deposit_id(self) -> bytes:
         """Namespace-scoped stable ID for one log, not a transaction-level ID."""
-        return self.transaction_hash + self.log_index.to_bytes(8, "big")
+        return self.transaction_hash + self.receipt_log_ordinal.to_bytes(4, "big")
 
     @property
     def finalized_anchor(self) -> bytes:
@@ -217,8 +219,10 @@ class QuorumObservedEvmDeposit:
             + self.transaction_hash
             + self.block_number.to_bytes(8, "big")
             + self.block_hash
+            + self.transactions_root
             + self.receipts_root
             + self.transaction_index.to_bytes(8, "big")
+            + self.receipt_log_ordinal.to_bytes(4, "big")
             + self.log_index.to_bytes(8, "big")
             + self.depositor
             + self.beneficiary
@@ -268,14 +272,18 @@ class EvmDepositEvidenceReader:
         self,
         *,
         transaction_hash: bytes,
-        log_index: int,
+        receipt_log_ordinal: int,
         expected_beneficiary: bytes,
     ) -> QuorumObservedEvmDeposit:
         """Return a normalized candidate only if all pinned local checks succeed."""
         if not isinstance(transaction_hash, bytes) or len(transaction_hash) != EVM_HASH_BYTES:
             raise ValueError("transaction_hash must be exactly 32 bytes")
-        if isinstance(log_index, bool) or not isinstance(log_index, int) or not 0 <= log_index <= U64_MAX:
-            raise ValueError("log_index must be a uint64 integer")
+        if (
+            isinstance(receipt_log_ordinal, bool)
+            or not isinstance(receipt_log_ordinal, int)
+            or not 0 <= receipt_log_ordinal < (1 << 32)
+        ):
+            raise ValueError("receipt_log_ordinal must be a uint32 integer")
         if (
             not isinstance(expected_beneficiary, bytes)
             or len(expected_beneficiary) != EVM_ADDRESS_BYTES
@@ -315,6 +323,7 @@ class EvmDepositEvidenceReader:
             raise EvmDepositEvidenceError("header number does not match the receipt block number")
         header_hash = _data(header.get("hash"), "header.hash", expected_length=32)
         receipts_root = _data(header.get("receiptsRoot"), "header.receiptsRoot", expected_length=32)
+        transactions_root = _data(header.get("transactionsRoot"), "header.transactionsRoot", expected_length=32)
         if not hmac.compare_digest(header_hash, block_hash):
             raise EvmDepositEvidenceError("header hash does not match the receipt block hash")
         if block_number > 0:
@@ -322,6 +331,8 @@ class EvmDepositEvidenceReader:
         if not self._journal.contains_finalized_header(block_number, block_hash):
             raise EvmDepositEvidenceError("receipt block is not in the durable finalized-header ancestry")
 
+        if receipt_log_ordinal >= len(logs):
+            raise EvmDepositEvidenceError("receipt_log_ordinal is outside the receipt's log array")
         selected: dict[str, object] | None = None
         seen_indices: set[int] = set()
         for i, log in enumerate(logs):
@@ -347,11 +358,11 @@ class EvmDepositEvidenceReader:
                 or log_transaction_index != transaction_index
             ):
                 raise EvmDepositEvidenceError("receipt log metadata does not match its containing receipt")
-            if current_index == log_index:
+            if i == receipt_log_ordinal:
                 selected = log
 
         if selected is None:
-            raise EvmDepositEvidenceError("requested log_index is absent from the transaction receipt")
+            raise EvmDepositEvidenceError("requested receipt_log_ordinal is absent from the transaction receipt")
 
         emitter = _data(selected.get("address"), "deposit log address", expected_length=EVM_ADDRESS_BYTES)
         if not hmac.compare_digest(emitter, self._policy.deposit_contract_address):
@@ -396,8 +407,10 @@ class EvmDepositEvidenceReader:
             block_number=block_number,
             block_hash=block_hash,
             receipts_root=receipts_root,
+            transactions_root=transactions_root,
             transaction_index=transaction_index,
-            log_index=log_index,
+            receipt_log_ordinal=receipt_log_ordinal,
+            log_index=_quantity(selected.get("logIndex"), "selected log.logIndex"),
             depositor=depositor,
             beneficiary=beneficiary,
             amount=amount,
