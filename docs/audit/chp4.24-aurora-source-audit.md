@@ -80,6 +80,24 @@ This establishes partial control-flow tracing only. It does **not** establish th
 
 The analysis *A note on adding zero-knowledge to STARKs* (IACR ePrint 2024/1037) is a required review input for small-field ZK masking and degree-bound pitfalls. It is not evidence by itself that this pinned Aurora implementation is exploitable: https://eprint.iacr.org/2024/1037.
 
+## First isolated executable attempt: pristine source fails to compile
+
+GitHub Actions run `38363326321`, job `aurora-upstream-candidate`, checked out the pinned upstream revision and recursive submodules successfully, installed declared OS dependencies, recorded the environment, and completed CMake configuration. The build then failed before any target test ran.
+
+Compiler evidence from the job log:
+
+```
+libiop/algebra/utils.hpp:40:1: error: ‘size_t’ does not name a type
+   40 | size_t gcd(const size_t a, const size_t b);
+compilation terminated due to -Wfatal-errors.
+```
+
+The upstream file includes `<cstdint>` and `<vector>` but does not explicitly include `<cstddef>`, despite using the bare `size_t` name. The error occurred compiling `libiop/algebra/utils.cpp`; the test step was skipped because the build step failed.
+
+**Pristine pinned build: NO-GO.** No Aurora proof or serialization tests passed or failed in this run; they were never executed.
+
+A subsequent isolated diagnostic CI attempt adds exactly one temporary include, `#include <cstddef>`, to the checkout's `libiop/algebra/utils.hpp`, records before/after SHA-256 and the diff, and then retries the build/tests. This overlay is not an upstream commit and is not silently represented as an upstream fix. Its purpose is to discover whether additional build/runtime blockers appear. Even a successful patched build would leave the pristine-build portability issue and the transcript-serialization findings open; a maintained fix must be deliberately reviewed and carried by an approved source fork or upstream revision.
+
 ## Required executable work, serial order
 
 ### 1. Dependency and build closure
