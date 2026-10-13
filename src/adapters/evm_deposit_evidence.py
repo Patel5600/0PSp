@@ -181,6 +181,7 @@ class QuorumObservedEvmDeposit:
     transaction_hash: bytes
     block_number: int
     block_hash: bytes
+    receipts_root: bytes
     transaction_index: int
     log_index: int
     depositor: bytes
@@ -216,6 +217,7 @@ class QuorumObservedEvmDeposit:
             + self.transaction_hash
             + self.block_number.to_bytes(8, "big")
             + self.block_hash
+            + self.receipts_root
             + self.transaction_index.to_bytes(8, "big")
             + self.log_index.to_bytes(8, "big")
             + self.depositor
@@ -300,6 +302,23 @@ class EvmDepositEvidenceReader:
         logs = receipt.get("logs")
         if not isinstance(logs, list):
             raise EvmDepositEvidenceError("receipt.logs must be a list")
+
+        # A later inclusion-proof implementation must bind a raw receipt trie
+        # proof to the receiptsRoot authenticated by the finalized execution header.
+        try:
+            header = self._rpc.call("eth_getBlockByNumber", [hex(block_number), False])
+        except Exception:
+            raise EvmDepositEvidenceError("could not obtain the receipt block header from the RPC quorum") from None
+        if not isinstance(header, dict):
+            raise EvmDepositEvidenceError("receipt block header is absent")
+        if _quantity(header.get("number"), "header.number") != block_number:
+            raise EvmDepositEvidenceError("header number does not match the receipt block number")
+        header_hash = _data(header.get("hash"), "header.hash", expected_length=32)
+        receipts_root = _data(header.get("receiptsRoot"), "header.receiptsRoot", expected_length=32)
+        if not hmac.compare_digest(header_hash, block_hash):
+            raise EvmDepositEvidenceError("header hash does not match the receipt block hash")
+        if block_number > 0:
+            _data(header.get("parentHash"), "header.parentHash", expected_length=32)
         if not self._journal.contains_finalized_header(block_number, block_hash):
             raise EvmDepositEvidenceError("receipt block is not in the durable finalized-header ancestry")
 
@@ -376,6 +395,7 @@ class EvmDepositEvidenceReader:
             transaction_hash=receipt_tx_hash,
             block_number=block_number,
             block_hash=block_hash,
+            receipts_root=receipts_root,
             transaction_index=transaction_index,
             log_index=log_index,
             depositor=depositor,
