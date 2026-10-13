@@ -515,7 +515,10 @@ mod tests {
             hmac_sha3_384(&key, &message),
             fixed(NULLIFIER_HEX),
         );
-        assert_ne!(verify_v3_nullifier_witness(&valid_witness()).unwrap(), [0u8; 32]);
+        assert_eq!(
+            verify_v3_nullifier_witness(&valid_witness()).unwrap(),
+            fixed::<32>("0e56393a40f9cb5480bce7830aaed68573f828953d1b711f10064893c62fde21"),
+        );
     }
 
     #[test]
