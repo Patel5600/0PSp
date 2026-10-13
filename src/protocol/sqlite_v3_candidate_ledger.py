@@ -970,8 +970,8 @@ class SQLiteV3CandidateLedger:
                     raise SQLiteV3LedgerIntegrityError("V3 output index is not append-only")
                 tree.append(bytes(output))
                 new_root = tree.root
-                if new_root != bytes(root_after) or tree.count != current_count + 1:
-                    raise SQLiteV3LedgerIntegrityError("V3 output append/root/count mismatch")
+                if tree.count != current_count + 1:
+                    raise SQLiteV3LedgerIntegrityError("V3 output append/count mismatch")
                 if (bytes(root_after), bytes(head_after)) != (new_root, new_head):
                     raise SQLiteV3LedgerIntegrityError(
                         "persisted V3 spend record post-state root/head mismatch"
