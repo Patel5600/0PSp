@@ -31,6 +31,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.10-namespace-rpc-finality-hardening.md"),
     Path("docs/audit/chp4.11-evm-deposit-evidence-contract.md"),
     Path("docs/audit/chp4.12-evm-trie-inclusion-verifier.md"),
+    Path("docs/audit/chp4.13-helios-authenticated-finality.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -111,6 +112,13 @@ REQUIRED_TOKENS = {
         "verify_mpt_inclusion",
         "Keccak256",
         "receipt trie inclusion",
+        "DepositAuthorization",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.13-helios-authenticated-finality.md"): (
+        "HeliosAuthenticatedDepositVerifier",
+        "weak-subjectivity checkpoint",
+        "eth_getProof",
         "DepositAuthorization",
         "NO-GO",
     ),
