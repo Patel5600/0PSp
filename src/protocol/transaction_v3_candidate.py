@@ -24,8 +24,9 @@ HASH_BYTES = 48
 OUTPUT_ENTROPY_BYTES = 32
 MAX_OUTPUTS_V3_CANDIDATE = 1024
 MAX_TX_FIELDS_V3_CANDIDATE_BYTES = 1_000_000
-# Provisional ML-DSA-style context for an exact transaction digest. This is
-# candidate-only, <=255 bytes, and must not be treated as an approved V3 suite.
+# Prefix for a candidate ML-DSA-style context. The canonical auth_scheme_id is
+# appended with a uint16 little-endian length; the final context must be <=255 B.
+# This is candidate-only and is not an approved V3 suite.
 TX_AUTH_CONTEXT_V3_CANDIDATE = b"0PSP-TX-AUTH-v3-CANDIDATE"
 
 
