@@ -40,7 +40,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 - [CHp4.16 Ethereum proof differential tests](audit/chp4.16-ethereum-proof-differential-tests.md) — test-only comparison with independent libraries.
 - [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — single-node SQLite state transitions and tree reconciliation; trusted authorization/proof integration remain open.
 - [CHp4.18 canonical V2 spend transaction/digest](audit/chp4.18-canonical-spend-transaction-v2.md) — frozen host/API encoding; the actual proof must constrain it.
-- [CHp4.25 Namespace V2/V3 composite gate](audit/chp4.25-namespace-v2-v3-end-to-end-gate.md) — exact-height Mainnet smoke harness and code/state-root consistency tests. The live intended-deployment smoke has **not** been run; proof binding and independent review remain NO-GO.
+- [CHp4.25 Namespace V2/V3 composite gate](audit/chp4.25-namespace-v2-v3-end-to-end-gate.md) — independent expected-namespace pin, exact-height Mainnet smoke harness, and code/state-root consistency tests. The live intended-deployment smoke has **not** been run; proof binding and independent review remain NO-GO.
 
 **Separate workstream, not merged into this snapshot:** [CHp4.24 Aurora/libiop source-audit PR #28](https://github.com/Patel5600/0PSp/pull/28) is open and unmerged. It documents blockers in the pinned candidate; it does not certify Aurora or select an accepted production proof backend.
 
