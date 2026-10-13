@@ -99,7 +99,12 @@ def _vote_key(method: str, result: object) -> tuple[object, ...]:
             None if receipts_root_value is None
             else _data(receipts_root_value, "block.receiptsRoot", 32)
         )
-        return ("block", number, block_hash, parent_hash, receipts_root)
+        transactions_root_value = result.get("transactionsRoot")
+        transactions_root = (
+            None if transactions_root_value is None
+            else _data(transactions_root_value, "block.transactionsRoot", 32)
+        )
+        return ("block", number, block_hash, parent_hash, receipts_root, transactions_root)
     if method == "eth_getTransactionReceipt":
         if result is None:
             return ("missing-receipt",)
