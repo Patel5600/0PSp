@@ -39,6 +39,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.18-canonical-spend-transaction-v2.md"),
     Path("docs/audit/chp4.20-zk-backend-feasibility.md"),
     Path("docs/audit/chp4.21-keccak-zk-cost-model.md"),
+    Path("docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md"),
     Path("docs/security/production-gate-matrix.md"),
 )
 REQUIRED_TOKENS = {
@@ -180,6 +181,13 @@ REQUIRED_TOKENS = {
         "23,543,088",
         "External cryptographic audit",
         "Complete 0PSP production remains **NO-GO**",
+    ),
+    Path("docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md"): (
+        "PACSFromR1CS.get_theta_",
+        "286,182,604,800",
+        "NO-GO",
+        "External cryptographic audit",
+        "Overall 0PSP production",
     ),
     Path("docs/security/production-gate-matrix.md"): (
         "Current overall production status: NO-GO",
