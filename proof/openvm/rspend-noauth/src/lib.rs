@@ -333,6 +333,24 @@ fn verify_membership(
     current == *root
 }
 
+/// Reject output nullifiers that collide with the consumed input or another
+/// output in this transaction. This catches exact V2 tuple reuse as well as
+/// any actual 48-byte nullifier collision within this transaction. It does not
+/// enforce global output identity uniqueness across transactions.
+fn ensure_unique_output_nullifier(
+    candidate: &[u8; 48],
+    input_nullifier: &[u8; 48],
+    prior_output_nullifiers: &[[u8; 48]],
+) -> Result<(), String> {
+    if candidate == input_nullifier {
+        return Err("output nullifier reuses the consumed input nullifier".into());
+    }
+    if prior_output_nullifiers.iter().any(|seen| seen == candidate) {
+        return Err("two outputs derive the same V2 nullifier".into());
+    }
+    Ok(())
+}
+
 fn transaction_digest(fields: &[u8]) -> Result<[u8; 48], String> {
     if fields.len() > u32::MAX as usize {
         return Err("TxFieldsV2 length exceeds uint32".into());
@@ -396,6 +414,7 @@ pub fn verify_noauth_witness(witness: &[u8]) -> Result<[u8; 32], String> {
     }
 
     let mut output_sum = 0u64;
+    let mut output_nullifiers: Vec<[u8; 48]> = Vec::with_capacity(tx.outputs.len());
     for commitment in &tx.outputs {
         let pk = r.vec_u32("output public key", MAX_PUBLIC_KEY_BYTES)?;
         let value = r.u64_le("output value")?;
@@ -405,6 +424,9 @@ pub fn verify_noauth_witness(witness: &[u8]) -> Result<[u8; 32], String> {
         if commitment_v2(&tx.params_id, &tx.namespace, &pk, value, &coin_id, &r_nf, &rho)? != *commitment {
             return Err("CommitV2 output opening mismatch".into());
         }
+        let output_nullifier = nullifier_v2(&tx.namespace, &coin_id, &r_nf);
+        ensure_unique_output_nullifier(&output_nullifier, &tx.nullifier, &output_nullifiers)?;
+        output_nullifiers.push(output_nullifier);
         output_sum = output_sum.checked_add(value)
             .ok_or_else(|| "output value sum overflows uint64".to_string())?;
     }
@@ -450,6 +472,28 @@ mod tests {
     fn guest_profile_is_explicitly_non_authorizing() {
         assert_ne!(TEST_POLICY_ID, b"0PSP-THRESHOLD-MLDSA65-v1");
         assert!(TEST_POLICY_ID.starts_with(b"0PSP-OPENVM-PARTIAL-NOAUTH"));
+    }
+
+    #[test]
+    fn rejects_output_nullifier_equal_to_consumed_input() {
+        let input = [0x11; 48];
+        assert!(ensure_unique_output_nullifier(&input, &input, &[]).is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_output_nullifiers() {
+        let input = [0x11; 48];
+        let first_output = [0x22; 48];
+        assert!(ensure_unique_output_nullifier(&first_output, &input, &[]).is_ok());
+        assert!(ensure_unique_output_nullifier(&first_output, &input, &[first_output]).is_err());
+    }
+
+    #[test]
+    fn accepts_distinct_output_nullifier() {
+        let input = [0x11; 48];
+        let prior = [0x22; 48];
+        let candidate = [0x33; 48];
+        assert!(ensure_unique_output_nullifier(&candidate, &input, &[prior]).is_ok());
     }
 
     #[test]
