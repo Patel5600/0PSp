@@ -63,16 +63,19 @@ class NamespaceRpc:
 
 
 class DepositRpc:
-    def __init__(self, receipt=None, *, code=PROTOCOL_CODE, failure=False):
+    def __init__(self, receipt=None, *, code=PROTOCOL_CODE, failure=False, chain_id=CHAIN_ID):
         self.receipt = deepcopy(receipt if receipt is not None else make_receipt())
         self.code = code
         self.failure = failure
+        self.chain_id = chain_id
         self.calls = []
 
     def call(self, method, params):
         self.calls.append((method, params))
         if self.failure:
             raise RuntimeError("endpoint token must not escape")
+        if method == "eth_chainId":
+            return hex(self.chain_id)
         if method == "eth_getTransactionReceipt":
             return deepcopy(self.receipt)
         if method == "eth_getBlockByNumber":
