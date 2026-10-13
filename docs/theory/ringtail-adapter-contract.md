@@ -1,6 +1,6 @@
 # Ringtail Adapter Contract for 0PSP V2
 
-**Status:** interface/verification contract only. Ringtail is not integrated into 0PSP. Do not describe a host-side verifier as part of the zero-knowledge proof.
+**Status:** historical V2 candidate interface/verification contract only. Ringtail is not selected or integrated into 0PSP. CHp4.27 identifies threshold ML-DSA-87 as the leading V3 authorization experiment candidate, subject to an unresolved audit-status warning and package-license scope. Do not describe a host-side verifier as part of the zero-knowledge proof.
 
 > **RFC-02 decision boundary (2026-10-11):** Treat this as the committee-signature authorization path only. The repository's policy has not yet frozen that every spend must require a committee signature. If that policy is required, the spend proof must bind verification to the same hidden `pk` committed by the coin. If a self-spend mode is considered, this adapter contract does not prove that it is an equivalent substitute. Use [the current spend relation specification](spend-relation-spec.md); no Ringtail production adapter or in-circuit verifier exists.
 
