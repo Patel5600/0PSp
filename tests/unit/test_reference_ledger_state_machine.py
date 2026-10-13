@@ -28,6 +28,7 @@ from src.protocol.reference_ledger import (
 
 NS = derive_namespace_id_v3(b"test-ledger", b"test-deployment", b"test-asset")
 ANCHOR = bytes([0x22]) * 32
+LEDGER_STATE = bytes([0x23]) * 48
 PARAMS = b"v2-test-params"
 PROOF = b"test-proof"
 
@@ -195,7 +196,7 @@ def statement(nullifier: bytes, outputs: tuple[bytes, ...] = (b"O" * 48,)) -> Sp
         nullifier=nullifier,
         transaction_fields=fields,
         transaction_digest=digest,
-        ledger_state=ANCHOR,
+        ledger_state=LEDGER_STATE,
         authorization_policy=policy,
         new_commitments=outputs,
     )
