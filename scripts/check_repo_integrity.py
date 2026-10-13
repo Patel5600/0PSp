@@ -29,6 +29,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.8-namespace-v2-evm-adapter.md"),
     Path("docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md"),
     Path("docs/audit/chp4.10-namespace-rpc-finality-hardening.md"),
+    Path("docs/audit/chp4.11-evm-deposit-evidence-contract.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -97,6 +98,13 @@ REQUIRED_TOKENS = {
         "not a light client",
         "Production:",
         "NO-GO",
+    ),
+    Path("docs/audit/chp4.11-evm-deposit-evidence-contract.md"): (
+        "QuorumObservedEvmDeposit",
+        "receipt_log_ordinal",
+        "transactionsRoot",
+        "receipt-trie inclusion",
+        "Production remains NO-GO",
     ),
 }
 
