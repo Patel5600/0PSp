@@ -18,7 +18,7 @@ The public namespace is a 48-byte SHAKE256-384 digest of the domain/version and 
     uint16_le(32) || deployment_id[32] ||
     uint16_le(32) || asset_id[32]
 
-CHp4.9 supersedes CHp4.8's EVM identity derivation. The frozen Namespace V2 core is unchanged, but the current EVM adapter uses typed Namespace V3 and hashes the full canonical ledger/deployment/asset descriptors directly into one SHAKE256-384 output. Python and native implementations have matching known-answer vectors, and the reference ledger requires NamespaceIdV3 at its context boundary. This is code-level identity mapping, not a trustless light client or production minting contract. The actual deposit/event verifier, proof verifier, durable ledger and chain finality/reorg handling remain unimplemented.
+CHp4.9 supersedes CHp4.8's EVM identity derivation. The frozen Namespace V2 core is unchanged, but the current EVM adapter uses typed Namespace V3 and hashes the full canonical ledger/deployment/asset descriptors directly into one SHAKE256-384 output. Python and native implementations have matching known-answer vectors, and the reference ledger requires NamespaceIdV3 at its context boundary. CHp4.10 adds a read-only strict-majority RPC transport, a file-backed SQLite checkpoint-to-finalized header journal with parent-hash checks and fail-closed reorg/regression handling, and a startup wrapper requiring the finalized tag. These mechanisms corroborate RPC observations; they are not a consensus light client. Chain-specific deposit/event verification, the actual proof verifier, durable issuance/spend ledger and cross-system reorg/recovery handling remain unimplemented.
 
 ### Coin identity and minting
 
@@ -45,7 +45,7 @@ CI now performs:
 3. Python namespace/nullifier/commitment V2 vectors and native/reference agreement tests.
 4. Optimized disassembly capture for the combined native V1/V2/nullifier/commitment library.
 5. ASan/UBSan runs for native V1/V2 test executables; compile-only validation of separate V2 nullifier and commitment timing screens.
-6. Full Python unit/property tests.
+6. Full Python unit/property tests, including namespace RPC-quorum and durable finality-journal regression tests.
 
 Local commands:
 
