@@ -6,6 +6,7 @@ from src.adapters.evm_deposit_evidence import EvmDepositEvidencePolicy
 from src.adapters.evm_deposit_proof import (
     EvmDepositInclusionError,
     EvmDepositInclusionVerifier,
+    _parse_receipt,
 )
 from src.adapters.evm_trie import (
     keccak256,
@@ -178,10 +179,9 @@ def test_supports_matching_known_typed_transaction_and_receipt_envelopes(tx_type
 
 
 def test_rejects_mismatched_typed_transaction_and_receipt_envelopes():
-    verifier, args, *_ = make_case(tx_type=2)
-    args["raw_receipt"] = b"\x01" + args["raw_receipt"][1:]
-    with pytest.raises(EvmDepositInclusionError, match="receipt trie inclusion|envelope types differ|leaf value"):
-        verifier.verify(**args)
+    _verifier, _args, _hash, _tx, raw_receipt, _tp, _rp = make_case(tx_type=1)
+    with pytest.raises(EvmDepositInclusionError, match="envelope types differ"):
+        _parse_receipt(raw_receipt, expected_type=2)
 
 
 def test_rejects_unjournaled_header_and_noncanonical_header_rlp():
