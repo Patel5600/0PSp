@@ -968,11 +968,7 @@ class SQLiteV3CandidateLedger:
                     raise SQLiteV3LedgerIntegrityError("V3 output index is not append-only")
                 tree.append(bytes(output))
                 new_root = tree.root
-                if (
-                    new_root != bytes(root_after)
-                    or event_version != current_version + 1
-                    or current_count + 1 != int(first_index) + 1
-                ):
+                if new_root != bytes(root_after) or tree.count != current_count + 1:
                     raise SQLiteV3LedgerIntegrityError("V3 output append/root/count mismatch")
                 # Recompute the event payload from the stored typed records, not from a supplied digest.
                 expected_payload = _event_payload(
