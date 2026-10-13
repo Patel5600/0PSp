@@ -38,6 +38,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.17-durable-merkle-ledger.md"),
     Path("docs/audit/chp4.18-canonical-spend-transaction-v2.md"),
     Path("docs/audit/chp4.20-zk-backend-feasibility.md"),
+    Path("docs/audit/chp4.21-keccak-zk-cost-model.md"),
     Path("docs/security/production-gate-matrix.md"),
 )
 REQUIRED_TOKENS = {
@@ -172,6 +173,13 @@ REQUIRED_TOKENS = {
         "External audit:** NOT PERFORMED",
         "Complete 0PSP production",
         "NO-GO",
+    ),
+    Path("docs/audit/chp4.21-keccak-zk-cost-model.md"): (
+        "SHAKE256-384",
+        "153,600",
+        "23,543,088",
+        "External cryptographic audit",
+        "Complete 0PSP production remains **NO-GO**",
     ),
     Path("docs/security/production-gate-matrix.md"): (
         "Current overall production status: NO-GO",
