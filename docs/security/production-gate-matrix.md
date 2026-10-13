@@ -1,6 +1,6 @@
 # 0PSP Production Gate Matrix
 
-**Maintained against:** main at `ccb56a9c3dcbb8f87fc1d45f6d7381063ba4ecbd` (CHp4.22 SmallWood adapter scaling audit merged 2026-10-13).  
+**Candidate update:** CHp4.25 branch from main at `13487d2f859460fc93fd2701023ce8f2cd60fd6a`; this file is not yet merged to main.  
 **Current overall production status: NO-GO.**  
 **External cryptographic audit:** NOT PERFORMED, and deliberately tracked separately as requested. That does not convert missing implementation or proof obligations into GO.
 
@@ -14,6 +14,7 @@ Every gate below has a binary production status. **GO** means the exact gate des
 |---|---|---|---|
 | Namespace V2 frozen core | **GO** | Frozen formula and known-answer tests; unchanged by CHp4.9+ | No change planned; any formula change requires a new version and review |
 | Namespace V3 direct-hash EVM descriptor encoding | **GO** for the deterministic codec only | Canonical length-prefixed tuple, typed NamespaceIdV3, Python/native KAT parity | A real deployment manifest is a separate gate; no collision-free claim is made |
+| Composite Namespace V2/V3 EVM-to-proof production path | **NO-GO** | CHp4.25 adds a fail-closed intended-Mainnet smoke runner; no trusted real deployment manifest or live result is recorded. The proof backend and exact Namespace V3 proof constraint remain absent; independent review NOT PERFORMED. | Execute the smoke with independently sourced Mainnet trust pins, bind the exact 48-byte namespace into an accepted issuance/spend proof, run adversarial substitution tests, and close independent-review findings on one release SHA. External audit remains NOT PERFORMED. |
 | CommitV2 / NullifierV2 host/native byte contracts | **GO** for the primitive APIs | Fixed vectors and Python/native parity | The proof backend must still enforce one shared opening; see separate gate |
 | Ethereum Keccak/RLP/MPT reference implementation | **GO** for conformance-tested library behavior only | CHp4.16 differential tests against independent test libraries; substitution and malformed-input tests | No claim of complete cryptographic audit; production composition requires authenticated headers and the approved deployment policy |
 | EIP-1186 account/storage proof algorithm | **GO** for tested verifier behavior only | CHp4.15 account/storage inclusion/exclusion tests; authenticated-header journal integration and exact-block `eth_getProof` request; CHp4.16 differential tests cover Ethereum Keccak/RLP/MPT primitives | Real Mainnet proof acquisition and independent end-to-end review remain NO-GO |
