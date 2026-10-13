@@ -4,9 +4,9 @@
 
 0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and one post-quantum zero-knowledge proof over the complete spend relation. This repository currently implements hash/encoding components and test models. It does **not** yet implement a live minting ledger, a Ringtail adapter, or the end-to-end proof.
 
-## Current security gate (reviewed 2026-10-13; CHp4.23 binary-field Keccak feasibility model under review)
+## Current security gate (2026-10-13; CHp4.25 namespace smoke harness and CHp4.7 identity candidate reviewed)
 
-**Complete protocol: NO-GO.** The current branch documents a research plan; it does not activate minting, select an authorization mode, integrate a ZK backend, or certify side-channel resistance.
+**Complete protocol: NO-GO.** CHp4.25 adds a fail-closed exact-height Mainnet smoke harness, but no intended-deployment smoke has run because the independently approved deployment manifest/trust pins are missing. CHp4.7 adds V3 identity/nullifier reference candidates, but no complete proof relation or production enforcement is integrated. The repository does not activate production minting or establish external audit status.
 
 Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), plus the [binary Production Gate Matrix](docs/security/production-gate-matrix.md). Every mandatory gate is explicitly GO or NO-GO; the complete protocol remains NO-GO until each mandatory gate is evidenced closed.
 - [RFC-01: user-committed issuance](docs/security/rfc-01-user-committed-issuance.md) is blocked on a proof/verified mechanism binding the hidden commitment opening to the deposited public value and on a durable ledger.
