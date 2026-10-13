@@ -18,8 +18,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 8. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — executable reference candidate and hardcoded regressions; ZK enforcement and proof obligations remain open.
 9. [CHp4.8 Namespace V2 EVM adapter — historical initial mapping](audit/chp4.8-namespace-v2-evm-adapter.md) — retained as historical audit; its intermediate-hash EVM identity mapping is superseded.
 10. [CHp4.9 Namespace V3 direct-hash remediation](audit/chp4.9-namespace-v3-direct-hash-remediation.md) — current EVM identity mapping, exact encoding, quantum collision bound, native/Python parity and ledger typing.
-11. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-12. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+11. [CHp4.10 namespace RPC quorum and durable finality journal](audit/chp4.10-namespace-rpc-finality-hardening.md) — majority RPC policy, persistent checkpoint-to-finalized header ancestry, startup wiring and remaining consensus/deposit/proof boundaries.
+12. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+13. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 
