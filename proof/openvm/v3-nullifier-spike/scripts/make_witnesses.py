@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -85,7 +86,14 @@ def main() -> int:
         "trailing-data.witness": witness(trailing=b"\x00"),
     }
     for name, payload in cases.items():
+        # Keep a raw binary copy for local inspection, but OpenVM CLI v2 input files
+        # are JSON objects with an input array. Prefix 01 selects byte-oriented stdin.
         (output / name).write_bytes(payload)
+        json_name = name.removesuffix(".witness") + ".json"
+        (output / json_name).write_text(
+            json.dumps({"input": ["01" + payload.hex()]}) + "\\n",
+            encoding="ascii",
+        )
 
     public_statement = b"".join(
         (
