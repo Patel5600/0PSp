@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import secrets
 from dataclasses import dataclass
 from typing import Final
 
@@ -42,6 +43,19 @@ class NullifierDerivingKeyV3:
 
     def __repr__(self) -> str:
         return "NullifierDerivingKeyV3(<redacted>)"
+
+
+def generate_nullifier_deriving_key_v3() -> NullifierDerivingKeyV3:
+    """Generate recipient-held V3 nullifier key material from the OS CSPRNG.
+
+    This creates key bytes only. It does not persist, encrypt, back up, recover,
+    or zeroize the key, and must not be interpreted as a complete wallet key
+    lifecycle. Python immutable bytes cannot be reliably zeroized by this API.
+    If the operating-system random source fails, the exception propagates and
+    key creation fails closed.
+    """
+    key_bytes = secrets.token_bytes(NULLIFIER_DERIVING_KEY_V3_BYTES)
+    return NullifierDerivingKeyV3(key_bytes)
 
 
 @dataclass(frozen=True, slots=True)
