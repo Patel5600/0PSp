@@ -39,7 +39,7 @@ Rejected. Building a bespoke STARK/FRI/zero-knowledge scheme inside this reposit
 
 ## Exact relation the backend must enforce
 
-For one accepted input note and an ordered list of outputs, the proof must bind the same private witness across every predicate:
+For one accepted input note and an ordered list of outputs, the proof must bind the same private witness across every predicate. The exact **same-witness NullifierV2** relation is mandatory:
 
 - **Input opening:** recompute the frozen namespace-bound CommitV2 from the input public key, value, coin ID, 36-byte nullifier secret, commitment randomness, and parameter ID.
 - **Membership:** prove the exact input commitment is present at the selected index in the frozen depth-63 namespace-bound append-only Merkle tree, using the canonical sibling ordering and node domains.
