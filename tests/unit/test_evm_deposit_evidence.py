@@ -77,14 +77,12 @@ class DepositRpc:
             return deepcopy(self.receipt)
         if method == "eth_getBlockByNumber":
             height = int(params[0], 16)
-            if height == CHECKPOINT_HEIGHT:
-                return {
-                    "number": hex(height),
-                    "hash": as_hex(BLOCK_HASH),
-                    "parentHash": as_hex(b"\\x43" * 32),
-                    "receiptsRoot": as_hex(RECEIPTS_ROOT),
-                }
-            return None
+            return {
+                "number": hex(height),
+                "hash": self.receipt["blockHash"],
+                "parentHash": as_hex(bytes([0x43]) * 32),
+                "receiptsRoot": as_hex(RECEIPTS_ROOT),
+            }
         if method == "eth_getCode":
             return as_hex(self.code)
         raise AssertionError(method)
