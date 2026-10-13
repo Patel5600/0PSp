@@ -11,7 +11,8 @@ from src.primitives.namespace import NamespaceId
 from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.nullifier import Nullifier as NullifierV2
 from src.primitives.note_types_v3 import CoinCommitmentV3
-from src.primitives.nullifier_v3 import NullifierV3
+from src.primitives.nullifier_v3 import NullifierKeyCommitmentV3, NullifierV3
+from src.protocol.note_public_key_bundle_v3 import NotePublicKeyBundleV3
 from src.protocol.transaction_v3_candidate import (
     TX_AUTH_CONTEXT_V3_CANDIDATE,
     TX_FIELDS_V3_CANDIDATE_DOMAIN,
@@ -88,20 +89,47 @@ def test_authorization_digest_binds_every_public_transaction_dimension(
     assert transaction_digest_v3_candidate(base) != transaction_digest_v3_candidate(altered)
 
 
-def test_authorization_input_uses_digest_and_fixed_versioned_context() -> None:
+def _auth_bundle(scheme_id: bytes = b"test-auth-scheme-v1") -> NotePublicKeyBundleV3:
+    return NotePublicKeyBundleV3(
+        auth_scheme_id=scheme_id,
+        auth_public_key=b"test-recipient-public-key",
+        nullifier_key_commitment=NullifierKeyCommitmentV3(b"\\x08" * 48),
+    )
+
+
+def test_authorization_input_binds_digest_and_canonical_scheme_id() -> None:
     tx = statement()
-    message, context = authorization_input_v3_candidate(tx)
+    bundle = _auth_bundle()
+    message, context = authorization_input_v3_candidate(tx, bundle)
 
     assert message == transaction_digest_v3_candidate(tx)
-    assert context == TX_AUTH_CONTEXT_V3_CANDIDATE
-    assert context == b"0PSP-TX-AUTH-v3-CANDIDATE"
+    assert context.startswith(TX_AUTH_CONTEXT_V3_CANDIDATE)
+    assert context == (
+        TX_AUTH_CONTEXT_V3_CANDIDATE
+        + len(bundle.auth_scheme_id).to_bytes(2, "little")
+        + bundle.auth_scheme_id
+    )
     assert 0 < len(context) <= 255
-    assert authorization_input_v3_candidate(tx.encode()) == (message, context)
+    assert authorization_input_v3_candidate(tx.encode(), bundle.encode()) == (message, context)
 
     altered = statement(fee=tx.fee + 1)
-    assert authorization_input_v3_candidate(altered)[0] != message
-    # The context is protocol-domain separation and does not vary by field.
-    assert authorization_input_v3_candidate(altered)[1] == context
+    altered_message, altered_context = authorization_input_v3_candidate(altered, bundle)
+    assert altered_message != message
+    assert altered_context == context
+
+    other_scheme = _auth_bundle(b"other-auth-scheme-v1")
+    other_message, other_context = authorization_input_v3_candidate(tx, other_scheme)
+    assert other_message == message
+    assert other_context != context
+
+
+def test_authorization_input_rejects_noncanonical_bundle_and_oversized_scheme_context() -> None:
+    with pytest.raises(TransactionV3CandidateError, match="canonical V3 bundle"):
+        authorization_input_v3_candidate(statement(), b"not-a-bundle")
+
+    oversized_scheme = _auth_bundle(b"x" * 229)
+    with pytest.raises(TransactionV3CandidateError, match="context exceeds 255 bytes"):
+        authorization_input_v3_candidate(statement(), oversized_scheme)
 
 
 def test_decoder_rejects_trailing_bytes_wrong_version_and_wrong_domain() -> None:
