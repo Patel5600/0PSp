@@ -7,7 +7,7 @@ import threading
 import pytest
 
 from src.primitives.namespace_v3 import NamespaceIdV3, derive_namespace_id_v3
-from src.protocol.commitment_tree import verify_member
+from src.protocol.commitment_tree import CommitmentTree, verify_member
 from src.protocol.reference_ledger import (
     DepositAuthorization,
     DuplicateCommitment,
@@ -395,9 +395,7 @@ def test_fresh_ledger_initializes_empty_state_and_audits_on_startup(tmp_path):
     assert snapshot.namespace_id == NS
     assert snapshot.state_version == 0
     assert snapshot.commitment_count == 0
-    assert snapshot.commitment_root == __import__(
-        "src.protocol.commitment_tree", fromlist=["CommitmentTree"]
-    ).CommitmentTree(NS).root
+    assert snapshot.commitment_root == CommitmentTree(NS).root
     assert ledger.issued_count() == 0
     assert ledger.spent_count() == 0
     ledger.audit_integrity()
