@@ -276,7 +276,7 @@ def test_wrong_namespace_deposit_is_rejected_before_issuance_verifier() -> None:
             deposit_id=b"D" * 32,
             authorized_value=100,
             finalized_anchor=ANCHOR,
-        beneficiary_address=bytes([0x55]) * 20,
+            beneficiary_address=bytes([0x55]) * 20,
         )
 
     ledger = ReferenceLedger(
@@ -343,7 +343,7 @@ def test_raw_namespace_bytes_from_deposit_adapter_fail_before_proof() -> None:
             deposit_id=b"D" * 32,
             authorized_value=100,
             finalized_anchor=ANCHOR,
-        beneficiary_address=bytes([0x55]) * 20,
+            beneficiary_address=bytes([0x55]) * 20,
         )
 
     ledger = ReferenceLedger(
