@@ -1,7 +1,7 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
 **Last reviewed:** 2026-10-13  
-**Main baseline for this remediation:** `13487d2f859460fc93fd2701023ce8f2cd60fd6a` (CHp4.23 merged 2026-10-13). CHp4.26 changes on `fix/historical-anchor-concurrency-2026-10-13` are **not merged**; exact-head CI is pending.  
+**Main baseline for this remediation:** `13487d2f859460fc93fd2701023ce8f2cd60fd6a` (CHp4.23 merged 2026-10-13). CHp4.26 changes on `fix/historical-anchor-concurrency-2026-10-13` are **not merged**; PR #32's exact-head checks and review control merge readiness.  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
