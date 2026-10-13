@@ -10,8 +10,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 from dataclasses import dataclass
-from typing import Protocol
-
 from src.adapters.evm_namespace import (
     EVM_ADDRESS_BYTES,
     EVM_HASH_BYTES,
@@ -31,11 +29,6 @@ DEPOSIT_EVENT_DATA_BYTES = 32
 
 class EvmDepositEvidenceError(RuntimeError):
     """A candidate EVM deposit observation is malformed or violates pinned policy."""
-
-
-class EvmDepositRpc(Protocol):
-    def call(self, method: str, params: list[object]) -> object:
-        """Read-only JSON-RPC request, normally through QuorumJsonRpcTransport."""
 
 
 class FinalizedHeaderLookup(Protocol):
@@ -249,7 +242,7 @@ class EvmDepositEvidenceReader:
     def __init__(
         self,
         policy: EvmDepositEvidencePolicy,
-        rpc: EvmDepositRpc,
+        rpc: QuorumJsonRpcTransport,
         finality_journal: FinalizedHeaderLookup,
     ) -> None:
         if not isinstance(policy, EvmDepositEvidencePolicy):
