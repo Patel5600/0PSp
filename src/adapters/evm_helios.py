@@ -369,6 +369,7 @@ class HeliosMainnetLightClient:
                 or not isinstance(params[0], str)
                 or re.fullmatch(r"0x[0-9a-fA-F]{40}", params[0]) is None
                 or not isinstance(params[1], list)
+                or len(params[1]) > 128
                 or any(
                     not isinstance(slot, str)
                     or re.fullmatch(r"0x(?:[0-9a-fA-F]{2}){32}", slot) is None
