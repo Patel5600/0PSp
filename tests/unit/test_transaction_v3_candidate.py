@@ -93,7 +93,7 @@ def _auth_bundle(scheme_id: bytes = b"test-auth-scheme-v1") -> NotePublicKeyBund
     return NotePublicKeyBundleV3(
         auth_scheme_id=scheme_id,
         auth_public_key=b"test-recipient-public-key",
-        nullifier_key_commitment=NullifierKeyCommitmentV3(b"\\x08" * 48),
+        nullifier_key_commitment=NullifierKeyCommitmentV3(b"\x08" * 48),
     )
 
 
