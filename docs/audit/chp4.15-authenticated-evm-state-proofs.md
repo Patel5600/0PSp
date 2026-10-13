@@ -3,7 +3,7 @@
 **Status:** implementation candidate; exact-PR CI and independent review required.  
 **Namespace V2 / V3:** unchanged.  
 **Deposit path:** CHp4.11 event profile, CHp4.12 transaction/receipt MPT inclusion, CHp4.13 Helios Mainnet finalized-header ancestry, CHp4.14 movement-signal consistency, and CHp4.15 EIP-1186 account/storage proof verification.  
-**Production:** **NO-GO**. This increment proves account/storage values at an authenticated block boundary. It does not establish that a particular transaction caused a state change, that funds were retained, or that mint authorization is safe.
+**Production:** **NO-GO**. This increment proves account/storage values as authenticated **block-boundary state**. It does not establish that a particular transaction caused a state change, that funds were retained, or that mint authorization is safe.
 
 ## 1. Purpose
 
@@ -11,7 +11,7 @@ CHp4.14 correctly stopped short of claiming custody from event logs. The next us
 
 ## 2. Implemented verifier
 
-- `src/adapters/evm_state_proof.py`
+- `src/adapters/evm_state_proof.py` exposes `verify_eip1186_account_proof`.
   - Derives the state root, block number and block hash from raw execution-header RLP.
   - Verifies the account trie path at `Keccak256(address)`.
   - Reconstructs the canonical account leaf from nonce, balance, storage root and code hash, then verifies the exact encoded account value.
@@ -20,7 +20,7 @@ CHp4.14 correctly stopped short of claiming custody from event logs. The next us
   - Checks response address, fixed-width roots/hashes, canonical QUANTITY/DATA encodings, exact requested slot set, duplicate slots, and optional runtime-code bytes against the account's proven code hash.
   - Includes a helper for Solidity address-keyed mapping slots, explicitly conditional on a reviewed storage layout.
 - `src/adapters/evm_trie.py`
-  - Adds Merkle-Patricia exclusion verification for empty branch children, divergent extension/leaf paths, and the empty trie root.
+  - Adds `verify_mpt_exclusion` for empty branch children, divergent extension/leaf paths, and the empty trie root.
   - Rejects malformed/non-canonical RLP, wrong parent references, and unused trailing proof nodes.
 - `src/adapters/evm_helios.py`
   - Adds a strict allowlisted `eth_getProof` call shape.
