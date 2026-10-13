@@ -1,6 +1,6 @@
 # CHp4.18 — Canonical V2 Spend Transaction and Digest
 
-**Status:** implementation candidate; exact-PR CI required.  
+**Status:** merged to `main` at `72e843ee06a721a93dcc09fd9fe7b9efc45d6021`; exact-main Functional checks and Repository integrity watch passed on 2026-10-13. Internal review scope: host/API canonical encoding only.  
 **Compatibility:** existing Namespace V2/V3, CommitV2 and NullifierV2 byte contracts are unchanged.  
 **Production:** **NO-GO** until the canonical host encoding is constrained by the actual proof backend and the authorization/value-conservation relation is instantiated.
 
