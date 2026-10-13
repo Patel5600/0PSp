@@ -29,8 +29,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 19. [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — fixed depth-63 tree, transactional SQLite issue/spend transitions, replay protection, and startup integrity reconciliation; authorization and proof backend remain unimplemented.
 20. [CHp4.18 canonical V2 spend transaction and digest](audit/chp4.18-canonical-spend-transaction-v2.md) — fixed TxFieldsV2 wire encoding, TxDigestV2 KAT, strict decoding and ledger API binding; the ZK circuit/backend must still constrain the same relation.
 21. [CHp4.20 proof-backend feasibility](audit/chp4.20-zk-backend-feasibility.md) — backend selection criteria, rejected production assumptions, and the exact shared-witness relation still required.
-22. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-20. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+22. [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — tested scenario estimator, explicit exclusions, and the measured-backend feasibility work still required.
+23. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+24. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 
