@@ -2,7 +2,7 @@ name: Functional checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, chp4.24-aurora-ci-retry]
   pull_request:
   workflow_dispatch:
 
@@ -71,7 +71,7 @@ jobs:
         run: python -m pytest tests/ -q
 
   aurora-upstream-candidate:
-    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'chp4.24-aurora') }}
+    if: ${{ (github.event_name == 'pull_request' && startsWith(github.head_ref, 'chp4.24-aurora')) || (github.event_name == 'push' && github.ref_name == 'chp4.24-aurora-ci-retry') }}
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     steps:
