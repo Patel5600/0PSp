@@ -60,7 +60,7 @@ This is a materially better candidate for the next authorization experiment than
 
 ### Candidate authorization message and context
 
-The new host-only module `src/protocol/transaction_v3_candidate.py` defines the exact canonical field encoding, a domain-separated 48-byte SHAKE256 digest, and `authorization_input_v3_candidate()`, which returns the digest as the message plus the fixed context `0PSP-TX-AUTH-v3-CANDIDATE`. The context is within ML-DSA's 255-byte context limit. Tests mutate the namespace, root, input nullifier, state head, policy, fee, entropy and ordered outputs and verify that the signed message changes; round-trip, trailing-data and malformed-input tests are also present.
+The host-only module `src/protocol/transaction_v3_candidate.py` defines a canonical V3 candidate field encoding and a domain-separated 48-byte SHAKE256 digest. `authorization_input_v3_candidate()` parses the canonical BundleV3 and appends its exact `auth_scheme_id` to the context prefix using a uint16 little-endian length. It rejects malformed bundles and any scheme ID that would exceed ML-DSA's 255-byte context bound. This prevents a caller from reusing an identical context while silently changing the declared scheme ID. Tests cover transaction-field mutation, scheme-ID context separation, malformed bundle bytes and oversized contexts.
 
 This defines an explicit host/API contract for the next threshold-signature experiment, **not** a frozen signature scheme or proof. It does not validate any signature and no V3 circuit/guest constrains these fields. The eventual proof must check the signature against the exact hidden authorization public key committed by BundleV3 and the same message/context; a standalone host check is not sufficient where the key is hidden.
 
