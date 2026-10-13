@@ -71,7 +71,7 @@ jobs:
         run: python -m pytest tests/ -q
 
   aurora-upstream-candidate:
-    if: ${{ github.event_name == 'pull_request' && github.head_ref == 'chp4.24-aurora-source-audit' }}
+    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'chp4.24-aurora') }}
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     steps:
