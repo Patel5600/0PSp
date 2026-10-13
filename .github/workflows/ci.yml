@@ -127,6 +127,61 @@ jobs:
           git -C vendor/libiop-audit diff -- libiop/algebra/utils.hpp | tee audit-results/compatibility-overlay.diff
           echo "DIAGNOSTIC ONLY: pristine pinned build failed without this one-line include overlay; no upstream commit was changed."
 
+      - name: Apply isolated proof-of-work serialization patch and exercise ZK test mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("vendor/libiop-audit")
+          source_path = root / "libiop/bcs/bcs_common.tcc"
+          source = source_path.read_text()
+
+          serialize_old = r'''    serialize_vec_of_MT_proofs(out, t.MT_set_membership_proofs_);
+              out << "\n";
+              return out;'''
+          serialize_new = r'''    serialize_vec_of_MT_proofs(out, t.MT_set_membership_proofs_);
+              out << "\n";
+              serialize_Field_Elem_vec<FieldT>(out, std::vector<FieldT>{t.proof_of_work_});
+              out << "\n";
+              return out;'''
+          if source.count(serialize_old) != 1:
+              raise SystemExit("Expected exactly one prime-field serializer anchor; refusing broad patch")
+          source = source.replace(serialize_old, serialize_new, 1)
+
+          deserialize_old = r'''    deserialize_vec_of_MT_proofs(in, t.MT_set_membership_proofs_);
+              in.get(delimiter);
+              assert(delimiter == '\n');
+              return in;'''
+          deserialize_new = r'''    deserialize_vec_of_MT_proofs(in, t.MT_set_membership_proofs_);
+              in.get(delimiter);
+              assert(delimiter == '\n');
+              std::vector<FieldT> proof_of_work_vec;
+              deserialize_Field_Elem_vec<FieldT>(in, proof_of_work_vec);
+              in.get(delimiter);
+              assert(delimiter == '\n');
+              if (proof_of_work_vec.size() != 1) {
+                  in.setstate(std::ios::failbit);
+                  return in;
+              }
+              t.proof_of_work_ = proof_of_work_vec[0];
+              return in;'''
+          if source.count(deserialize_old) != 1:
+              raise SystemExit("Expected exactly one prime-field deserializer anchor; refusing broad patch")
+          source = source.replace(deserialize_old, deserialize_new, 1)
+          source_path.write_text(source)
+
+          test_path = root / "libiop/tests/snark/test_serialization.cpp"
+          test = test_path.read_text()
+          old_flag = "        const bool make_zk = false;"
+          if test.count(old_flag) != 1:
+              raise SystemExit("Expected hard-coded make_zk test flag not found exactly once")
+          test_path.write_text(test.replace(old_flag, "        const bool make_zk = (i == 1);", 1))
+          print("Diagnostic only: added proof_of_work_ to the existing prime-field text serializer and corrected the test loop to exercise non-ZK and ZK modes.")
+          PY
+          git -C vendor/libiop-audit diff --check
+          git -C vendor/libiop-audit diff -- libiop/bcs/bcs_common.tcc libiop/tests/snark/test_serialization.cpp | tee audit-results/pow-serialization-diagnostic.diff
       - name: Configure pinned source with upstream defaults
         shell: bash
         run: |
