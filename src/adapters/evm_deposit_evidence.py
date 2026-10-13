@@ -19,6 +19,7 @@ from src.adapters.evm_namespace import (
     EvmNamespaceBinding,
     runtime_code_fingerprint,
 )
+from src.adapters.evm_rpc_policy import QuorumJsonRpcTransport
 from src.primitives.namespace_v3 import NamespaceIdV3
 
 U64_MAX = (1 << 64) - 1
@@ -247,8 +248,8 @@ class EvmDepositEvidenceReader:
     ) -> None:
         if not isinstance(policy, EvmDepositEvidencePolicy):
             raise TypeError("policy must be an EvmDepositEvidencePolicy")
-        if not callable(getattr(rpc, "call", None)):
-            raise TypeError("rpc must provide call(method, params)")
+        if not isinstance(rpc, QuorumJsonRpcTransport):
+            raise TypeError("rpc must be a QuorumJsonRpcTransport; a single endpoint is not accepted")
         if not callable(getattr(finality_journal, "contains_finalized_header", None)):
             raise TypeError("finality_journal must provide contains_finalized_header(height, hash)")
         journal_namespace = getattr(finality_journal, "namespace_id", None)
