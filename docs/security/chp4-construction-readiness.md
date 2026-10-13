@@ -84,7 +84,7 @@ On an idle test machine, the V2 diagnostic can be built/run manually:
 
 The two local diagnostics compare fixed versus random values in randomized order, repeat trials, and use same-input controls. The commitment screen tests `r_nf` and `rho_C` separately. Neither is the official dudect implementation. It has not established a timing result for a controlled target. A clean result would still not prove constant-time behavior or absence of other side channels, and timing diagnostics are not run in shared CI because its scheduler/virtualization noise makes timing conclusions unreliable.
 
-The old security-budget, phase-1 and nullifier-relation scripts contain historical CHP3/V1 diagnostics. Their success does not validate V2 minting, commitment hiding, Ringtail, zero knowledge or overall protocol security.
+The old security-budget, phase-1 and nullifier-relation scripts contain historical CHP3/V1 diagnostics. Their success does not validate V2 minting, commitment hiding, any threshold-signature candidate, zero knowledge or overall protocol security.
 
 ## Evidence versus claims
 
@@ -105,7 +105,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Optimized native binaries | CI disassembly artifact includes V1/V2 nullifier and commitment objects | Review and provider internals OPEN |
 | Constant-time behavior | Separate V2 nullifier and commitment screens compile in CI but have not been run on a controlled target | **NOT ESTABLISHED** |
 | Absence of exploitable side channels | No complete platform or full-protocol leakage assessment | **NOT ESTABLISHED** |
-| Threshold signature inside proof | No pinned Ringtail adapter | OPEN |
+| Threshold signature inside proof | No selected production scheme or verifier. ML-DSA-87 threshold signing is the leading experiment candidate, but the pinned upstream release has an audit-status warning conflict and a GPL-3.0 package-license scope issue; no proof-cost evidence exists. | OPEN |
 | Complete single-relation ZK proof | No backend instantiated | OPEN |
 | Quantum soundness/anonymity/composition | No composed reduction or independent cryptanalysis | OPEN |
 | Production readiness | Several mathematical, ledger and implementation gates remain | **NO-GO** |
@@ -114,7 +114,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 
 1. Implement actual canonical ledger/deployment/asset adapters and a durable atomic mint registry.
 2. Freeze canonical public-key and parameter encodings and complete the commitment hiding theorem, including the quantum random-oracle model and all public outputs.
-3. Pin and review Ringtail source, parameters, license and key-generation assumptions; integrate its signature verification into the same hidden-witness relation.
+3. Evaluate the pinned `qp-rusty-crystals-threshold` v3.0.0 ML-DSA-87 candidate against its exact audit-report scope and package license; pin dependencies, test standard-verifier interoperability and signer/seed-reuse failures, and measure verification inside the candidate proof backend. Keep Ringtail as prior art only unless it wins the same evidence-based comparison. No signature scheme is selected until authorization policy and the same-hidden-witness proof cost are reviewed.
 4. Instantiate a single post-quantum ZK argument for membership, commitment opening, threshold authorization, V2 nullifier and state/policy predicates.
 5. Complete knowledge-soundness, zero-knowledge, spend-soundness, replay/double-spend, unlinkability and composition arguments with concrete parameters.
 6. Review release binaries, OpenSSL provider internals, secret lifetime and errors; run controlled per-target timing/leakage tests for every sensitive routine.
@@ -122,4 +122,4 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 
 The Python reference and ctypes FFI are not a secret-safe production boundary. The native V2 nullifier and commitment use OpenSSL EVP and allocate an EVP context per call; both use OpenSSL RAND_bytes for new secrets/salts, and each output is cleared on supported failure paths. Fixed-size checks, sanitizers and wrapper disassembly do not prove constant-time execution. The selected provider, compiler output, memory allocation, hardware, FFI/callers and complete prover remain under review.
 
-**Release decision: NO-GO.** The V2 component checkpoint is stronger and testable, but the live ledger, commitment theorem, Ringtail integration, complete proof, composed security argument and full-path side-channel assurance are still open.
+**Release decision: NO-GO.** The V2 component checkpoint is stronger and testable, but the live ledger, commitment theorem, selected threshold-authorization integration, complete proof, composed security argument and full-path side-channel assurance are still open.
