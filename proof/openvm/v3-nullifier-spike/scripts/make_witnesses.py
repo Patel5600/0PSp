@@ -31,7 +31,7 @@ NULLIFIER = bytes.fromhex(
     "af3bc2a43c3a965325df2ba084bcf6f93"
 )
 EXPECTED_KEY_COMMITMENT = bytes.fromhex(
-    "75e79fc862d236ecb76a362a08edd81c910d5cb9d95"
+    "75e79fc862d236ecb76a362a08edd81c910aaf660d5cb9d95"
     "fabe8a8f35cfa67fee3371e044cd7abc802c655de4ccde8"
 )
 
@@ -99,10 +99,23 @@ def main() -> int:
         )
     )
     public_digest = hashlib.shake_256(public_statement).digest(48)[:32]
+    expected_digest_kat = "0e56393a40f9cb5480bce7830aaed68573f828953d1b711f10064893c62fde21"
+    if public_digest.hex() != expected_digest_kat:
+        raise ValueError("public statement digest KAT mismatch")
     (output / "expected-public-digest.txt").write_text(public_digest.hex() + "\n", encoding="ascii")
 
-    if len(BUNDLE) != 123 or len(COMMITMENT) != 48 or len(NULLIFIER) != 48:
-        raise ValueError("fixture constant lengths are inconsistent")
+    derived_key_commitment = hashlib.shake_256(
+        b"0PSP-NULLIFIER-KEY-COMMIT-v3-SHAKE256"
+        + b"\x03"
+        + len(KEY).to_bytes(2, "little")
+        + KEY
+    ).digest(48)
+    if derived_key_commitment != EXPECTED_KEY_COMMITMENT:
+        raise ValueError("fixed nullifier-key commitment KAT no longer matches")
+    if BUNDLE[-48:] != derived_key_commitment or len(BUNDLE) != 123:
+        raise ValueError("canonical BundleV3 fixture is inconsistent")
+    if len(COMMITMENT) != 48 or len(NULLIFIER) != 48:
+        raise ValueError("commitment/nullifier KAT length is inconsistent")
     if len(valid) != len(witness()):
         raise ValueError("valid witness is not deterministic")
     print(f"created {len(cases)} witnesses; expected public digest {public_digest.hex()}")
