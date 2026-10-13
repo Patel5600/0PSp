@@ -99,3 +99,25 @@ def test_mpt_rejects_empty_and_wrong_shape_proofs():
     malformed = [rlp_encode_list([rlp_encode_bytes(b"not-a-valid-path"), rlp_encode_bytes(b"v"), rlp_encode_bytes(b"extra")])]
     with pytest.raises(EthereumEncodingError):
         verify_mpt_inclusion(root, b"k", b"v", malformed)
+
+@pytest.mark.parametrize("value", [b"small", b"V" * 80])
+def test_branch_node_verifies_embedded_and_hashed_child_references(value):
+    key = b"\x12"  # nibble path [1, 2]
+    leaf = rlp_encode_list([
+        rlp_encode_bytes(bytes([0x32])),  # odd leaf path: flag 3, nibble 2
+        rlp_encode_bytes(value),
+    ])
+    branch_items = [rlp_encode_bytes(b"") for _ in range(17)]
+    if len(leaf) < 32:
+        branch_items[1] = leaf  # Embedded child is an RLP list, not a byte string.
+    else:
+        branch_items[1] = rlp_encode_bytes(keccak256(leaf))
+    branch = rlp_encode_list(branch_items)
+    assert verify_mpt_inclusion(keccak256(branch), key, value, [branch, leaf])
+
+
+def test_branch_node_rejects_missing_nibble_child():
+    key = b"\x12"
+    branch = rlp_encode_list([rlp_encode_bytes(b"") for _ in range(17)])
+    with pytest.raises(EthereumEncodingError, match="does not contain"):
+        verify_mpt_inclusion(keccak256(branch), key, b"value", [branch])
