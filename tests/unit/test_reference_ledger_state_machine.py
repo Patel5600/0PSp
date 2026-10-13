@@ -11,6 +11,7 @@ from threading import Barrier
 import pytest
 
 from src.primitives.namespace_v3 import derive_namespace_id_v3
+from src.protocol.transaction_v2 import encode_spend_transaction_v2
 from src.protocol.reference_ledger import (
     AcceptedSpend,
     DepositAuthorization,
