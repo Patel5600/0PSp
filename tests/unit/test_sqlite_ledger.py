@@ -414,3 +414,26 @@ def test_fresh_ledger_initializes_empty_state_and_audits_on_startup(tmp_path):
     assert ledger.issued_count() == 0
     assert ledger.spent_count() == 0
     ledger.audit_integrity()
+
+def test_sqlite_ledger_rejects_v3_candidate_before_verifier(tmp_path):
+    verifier_called = False
+
+    def verifier(_statement, _proof):
+        nonlocal verifier_called
+        verifier_called = True
+        return True
+
+    ledger = make_ledger(
+        tmp_path / "v3-candidate-rejected.sqlite3",
+        spend_verifier=verifier,
+    )
+    before = ledger.snapshot()
+    v2_statement = spend_statement(before, outputs=(C2,))
+    v3_candidate = SpendStatement(**{**v2_statement.__dict__, "version": 3})
+
+    with pytest.raises(InvalidInput, match="only protocol V2"):
+        ledger.accept_spend(statement=v3_candidate, proof=b"not-a-production-proof")
+
+    assert verifier_called is False
+    assert ledger.snapshot() == before
+
