@@ -195,7 +195,7 @@ def test_rejects_missing_extra_duplicate_or_noncanonical_storage_proof_entries()
         verify_eip1186_account_proof(
             raw_header_rlp=raw_header, address=ADDRESS,
             response={**response, "storageProof": [response["storageProof"][0], duplicate]},
-            expected_storage_slots=[SLOT, SLOT],
+            expected_storage_slots=[SLOT, b"\x08" * 32],
         )
     noncanonical = dict(response)
     noncanonical["balance"] = "0x00"
