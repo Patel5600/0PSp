@@ -333,3 +333,31 @@ def test_audit_rejects_orphaned_spend_row_without_event(tmp_path) -> None:
         match="no matching ledger event",
     ):
         ledger.audit_integrity()
+
+@pytest.mark.parametrize(
+    ("column", "tampered"),
+    [
+        ("commit_root_after", b"\\xE1" * 48),
+        ("state_head_after", b"\\xE2" * 48),
+    ],
+)
+def test_audit_rejects_persisted_post_state_root_or_head_substitution(
+    tmp_path,
+    column: str,
+    tampered: bytes,
+) -> None:
+    ledger, *_ = make_environment(tmp_path)
+    ledger.accept_spend(statement_for(ledger, output=OUTPUT_A), proof=VALID_PROOF)
+
+    # The table/column names come from this fixed test parametrization only.
+    with sqlite3.connect(tmp_path / "candidate.sqlite3") as conn:
+        conn.execute(
+            f"UPDATE v3_spent_nullifiers SET {column}=? WHERE nullifier=?",
+            (tampered, NULLIFIER_A),
+        )
+
+    with pytest.raises(
+        SQLiteV3LedgerIntegrityError,
+        match="post-state root/head mismatch",
+    ):
+        ledger.audit_integrity()
