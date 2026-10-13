@@ -34,6 +34,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 24. [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — characteristic-two SHAKE row model, Aurora/libiop candidate screening, and the next proof prototype gate.
 25. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
 26. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+27. [CHp4.26 historical-anchor concurrency remediation](audit/chp4.26-historical-anchor-concurrency-remediation.md) — bounded 256-state root/head anchors, atomic revalidation, uniqueness-preserving commits, schema migration and remaining NO-GO gates.
 
 ## Repository map
 
