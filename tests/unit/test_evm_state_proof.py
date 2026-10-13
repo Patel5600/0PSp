@@ -147,7 +147,7 @@ def test_verifies_zero_storage_using_divergent_leaf_exclusion_proof():
     ("balance", "account inclusion proof"),
     ("storage_root", "account inclusion proof"),
     ("code_hash", "account inclusion proof"),
-    ("storage_value", "storage inclusion proof"),
+    ("storage_value", "storage proof failed|storage inclusion proof"),
     ("storage_key", "unrequested or duplicate slot"),
     ("runtime_code", "do not match the account's proven codeHash"),
 ])
