@@ -367,7 +367,7 @@ class SQLiteLedger:
                 genesis = self._expected_meta()
                 conn.execute(
                     "INSERT INTO ledger_meta (singleton, schema_version, namespace_id, params_id, policy_id, profile_id, "
-                    "state_version, state_head, commitment_count, commitment_root) VALUES (?,?,?,?,?,?,?,?,0,?)",
+                    "state_version, state_head, commitment_count, commitment_root) VALUES (1,?,?,?,?,?,?,?,0,?)",
                     genesis,
                 )
             else:
