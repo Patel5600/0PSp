@@ -114,71 +114,19 @@ jobs:
           set -euo pipefail
           file=vendor/libiop-audit/libiop/algebra/utils.hpp
           mkdir -p audit-results
+          printf '#include <%s>\n' cstddef > audit-results/one-include.txt
           sha256sum "$file" | tee audit-results/utils-header-before.sha256
-          if grep -q '^#include <cstddef>        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S vendor/libiop-audit -B vendor/libiop-audit/build -DCMAKE_BUILD_TYPE=Release 2>&1 | tee audit-results/configure.log
-
-      - name: Build Aurora and transcript serialization targets
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --build vendor/libiop-audit/build --parallel 2 --target test_aurora_snark test_aurora_protocol test_serialization 2>&1 | tee audit-results/build.log
-
-      - name: Run focused Aurora and serialization tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          ctest --test-dir vendor/libiop-audit/build --output-on-failure --timeout 1800 -R '^(test_aurora_snark|test_aurora_protocol|test_serialization)$' 2>&1 | tee audit-results/ctest.log
-
-      - name: Upload immutable source, build and test evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: chp4-aurora-source-audit
-          path: |
-            audit-results/
-            vendor/libiop-audit/build/Testing/Temporary/LastTest.log
-          if-no-files-found: warn
-          retention-days: 30
- "$file"; then
+          if grep -Fq "$(cat audit-results/one-include.txt)" "$file"; then
             echo "Expected upstream include gap was not present; refusing to patch unexpectedly." >&2
             exit 1
           fi
-          grep -q '^#define LIBIOP_ALGEBRA_UTILS_HPP_        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S vendor/libiop-audit -B vendor/libiop-audit/build -DCMAKE_BUILD_TYPE=Release 2>&1 | tee audit-results/configure.log
-
-      - name: Build Aurora and transcript serialization targets
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake --build vendor/libiop-audit/build --parallel 2 --target test_aurora_snark test_aurora_protocol test_serialization 2>&1 | tee audit-results/build.log
-
-      - name: Run focused Aurora and serialization tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          ctest --test-dir vendor/libiop-audit/build --output-on-failure --timeout 1800 -R '^(test_aurora_snark|test_aurora_protocol|test_serialization)$' 2>&1 | tee audit-results/ctest.log
-
-      - name: Upload immutable source, build and test evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: chp4-aurora-source-audit
-          path: |
-            audit-results/
-            vendor/libiop-audit/build/Testing/Temporary/LastTest.log
-          if-no-files-found: warn
-          retention-days: 30
- "$file"
-          sed -i '/^#define LIBIOP_ALGEBRA_UTILS_HPP_$/a #include <cstddef>' "$file"
+          grep -q '^#define LIBIOP_ALGEBRA_UTILS_HPP_$' "$file"
+          sed -i "/^#define LIBIOP_ALGEBRA_UTILS_HPP_$/r audit-results/one-include.txt" "$file"
           sha256sum "$file" | tee audit-results/utils-header-after.sha256
           git -C vendor/libiop-audit diff --check
           git -C vendor/libiop-audit diff -- libiop/algebra/utils.hpp | tee audit-results/compatibility-overlay.diff
           echo "DIAGNOSTIC ONLY: pristine pinned build failed without this one-line include overlay; no upstream commit was changed."
+
       - name: Configure pinned source with upstream defaults
         shell: bash
         run: |
