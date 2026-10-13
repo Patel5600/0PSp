@@ -314,6 +314,8 @@ def verify_mpt_exclusion(root_hash: bytes, key: bytes, proof_nodes: Sequence[byt
         raise ValueError("proof contains more than 128 nodes")
     if any(not isinstance(node, bytes) or not node for node in proof_nodes):
         raise ValueError("each supplied proof node must be non-empty encoded bytes")
+    if any(len(node) > 8 * 1024 * 1024 for node in proof_nodes) or sum(map(len, proof_nodes)) > 16 * 1024 * 1024:
+        raise ValueError("proof exceeds the configured encoded-byte safety bound")
     if root_hash == keccak256(rlp_encode_bytes(b"")):
         if proof_nodes:
             raise EthereumEncodingError("empty trie root must use an empty absence proof")
