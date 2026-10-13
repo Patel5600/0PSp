@@ -76,6 +76,23 @@ The OpenVM CLI distinguishes application-level, aggregated STARK and EVM proof p
 
 **Decision:** OpenVM 2.0 is now a concrete feasibility candidate worth testing against the actual relation, but its reported 100-bit profile is below the current 128-bit research target. Do not silently lower that target. The experiment must show whether a documented configuration meets the required security target without trading away witness hiding, soundness, transparency, or reproducibility.
 
+## FRI query-count sanity check (not a security approval)
+
+The upstream [Plonky3 FRI prover source](https://github.com/Plonky3/Plonky3/blob/main/fri/src/prover.rs) documents two Reed–Solomon proximity terms: `rate^num_queries` under the conjectured proximity bound, or `rate^(num_queries/2)` under the proven bound. For rate \(\rho=1/8\), the FRI term alone is:
+
+| Query count \(N_q\) | Conjectured term \(\rho^{N_q}\) | Proven term \(\rho^{N_q/2}\) |
+|---:|---:|---:|
+| 80 | \(2^{-240}\) | \(2^{-120}\) |
+| 86 | \(2^{-258}\) | \(2^{-129}\) |
+| 88 | \(2^{-264}\) | \(2^{-132}\) |
+| 96 | \(2^{-288}\) | \(2^{-144}\) |
+
+This table is **not** a composed soundness theorem. The proven \(2^{-129}\) FRI proximity term at \(N_q=86\) leaves essentially no margin for the other soundness terms and cannot, by itself, substantiate a 128-bit post-quantum claim. The total analysis must also account for constraint-composition error, extension-field/challenge collisions, commitment binding, transcript/Fiat–Shamir security in the stated quantum random-oracle model, grinding under a quantum adversary, batched-query collisions, and the actual zero-knowledge masking mechanism. Plonky3 explicitly recommends query-count margin for shared challenge batching and birthday collisions.
+
+A \(2^{-16}\) proof-of-work target must not be mechanically added as “16 more security bits.” Its attack cost and its effect in the proof's soundness reduction differ, and a quantum search can change the work factor. The exact transcript schedule, allowed adversary query budget, grinding placement, hash output size, extension field and reduction theorem must be included in the concrete calculation.
+
+**Current status:** 0PSP has not parameterized or verified a Plonky3 FRI profile for the complete relation. PR #31 uses the OpenVM v2.0.2 partial NOAUTH guest; the project’s existing candidate screen records OpenVM's stated 100-bit PQ profile as below the current 128-bit target. No FRI setting change, field-extension choice, or PoW arithmetic closes this gate without a pinned build, full composed bound and an end-to-end proof/verification test. See the upstream [FRI parameter implementation](https://github.com/Plonky3/Plonky3/blob/main/fri/src/prover.rs) and the [Fiat–Shamir-in-QROM analysis](https://eprint.iacr.org/2023/1071.pdf).
+
 ## 3. The next experiment
 
 Use immutable sources and one explicit security profile. No broad production refactor should begin before this short feasibility spike passes.
