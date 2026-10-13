@@ -21,8 +21,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 11. [CHp4.10 namespace RPC quorum and durable finality journal](audit/chp4.10-namespace-rpc-finality-hardening.md) — majority RPC policy, persistent checkpoint-to-finalized header ancestry, startup wiring and remaining consensus/deposit/proof boundaries.
 12. [CHp4.11 EVM deposit evidence contract](audit/chp4.11-evm-deposit-evidence-contract.md) — fixed event ABI profile, canonical evidence fields, receipt-local log identity, beneficiary binding, and receipt/transaction-trie authentication requirements.
 13. [CHp4.12 EVM transaction/receipt trie inclusion verifier](audit/chp4.12-evm-trie-inclusion-verifier.md) — strict Keccak/RLP/MPT primitives, raw-header root binding and same-index transaction/receipt proofs; consensus authentication and mint authorization remain open.
-14. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-15. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+14. [CHp4.13 Ethereum Mainnet light-client finality integration](audit/chp4.13-helios-authenticated-finality.md) — supervised digest-pinned Helios process, beacon weak-subjectivity pin, execution checkpoint ancestry and trie-proof wiring; no production authorization or independent audit is claimed.
+15. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+16. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 
