@@ -22,7 +22,7 @@ The verifier returns ProvenEvmDepositInclusion, which is deliberately named and 
   - Strict canonical RLP decoder: rejects non-minimal string prefixes, malformed length encodings, truncation, trailing bytes and excessive nesting.
   - Canonical RLP integer encoding for transaction-trie keys.
   - Hex-prefix compact-path decoding.
-  - Merkle-Patricia inclusion verification for branch, extension and leaf nodes, including hashed and embedded child references, with unused proof nodes rejected.
+  - Merkle-Patricia inclusion verification for branch, extension and leaf nodes, including hashed and embedded child references, with unused proof nodes rejected. The core verifier entry point is verify_mpt_inclusion.
 - src/adapters/evm_deposit_proof.py
   - Validates the raw execution header's supported 15-to-21-field schema and binds its trie roots to the header hash.
   - Checks raw transaction hash and transaction trie inclusion.
