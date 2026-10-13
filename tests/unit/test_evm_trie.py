@@ -82,7 +82,7 @@ def test_single_leaf_mpt_inclusion_and_adversarial_substitution():
     value = b"authenticated receipt bytes"
     root, proof = leaf_proof(key, value)
     assert verify_mpt_inclusion(root, key, value, proof)
-    with pytest.raises(EthereumEncodingError, match="expected trie value"):
+    with pytest.raises(EthereumEncodingError, match="leaf value"):
         verify_mpt_inclusion(root, key, b"substituted", proof)
     with pytest.raises(EthereumEncodingError, match="node hash"):
         verify_mpt_inclusion(b"\x00" * 32, key, value, proof)
