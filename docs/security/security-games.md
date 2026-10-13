@@ -31,4 +31,4 @@ Use: definition, candidate assumption, conditional lemma, proof completed and ch
 
 ## Current status
 
-The nullifier and coin commitment are functional hash helpers, not proof verifiers. Ringtail adapter and single anonymous proof are not integrated. All security games remain OPEN; no production or novelty claim is approved.
+The nullifier and coin commitment are functional hash helpers, not proof verifiers. No threshold-authorization adapter or complete anonymous proof is integrated. ML-DSA-87 threshold signing is only the leading experiment candidate in CHp4.27; its audit-status/license conflict and proof-cost feasibility remain open. All security games remain OPEN; no production or novelty claim is approved.
