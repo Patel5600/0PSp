@@ -20,6 +20,9 @@ HASH_BYTES = 48
 OUTPUT_ENTROPY_BYTES = 32
 MAX_OUTPUTS_V3_CANDIDATE = 1024
 MAX_TX_FIELDS_V3_CANDIDATE_BYTES = 1_000_000
+# Provisional ML-DSA-style context for an exact transaction digest. This is
+# candidate-only, <=255 bytes, and must not be treated as an approved V3 suite.
+TX_AUTH_CONTEXT_V3_CANDIDATE = b"0PSP-TX-AUTH-v3-CANDIDATE"
 
 
 class TransactionV3CandidateError(ValueError):
@@ -225,3 +228,24 @@ def transaction_digest_v3_candidate(
         + fields
     )
     return hashlib.shake_256(preimage).digest(HASH_BYTES)
+
+def authorization_input_v3_candidate(
+    statement_or_encoded: TxFieldsV3Candidate | bytes,
+) -> tuple[bytes, bytes]:
+    """Return (message, context) for threshold-authorization experiments only.
+
+    For the leading ML-DSA-87 threshold candidate, use the 48-byte canonical
+    transaction digest as the signed message and the fixed version/domain
+    context as the scheme context. This separation follows the ML-DSA API
+    shape; it does not select the scheme, pin its public-key/signature codec,
+    validate a signature, or make this candidate production-normative. The
+    eventual ZK relation must verify the signature against the same hidden
+    authorization key in BundleV3 and this exact message/context pair.
+    """
+    message = transaction_digest_v3_candidate(statement_or_encoded)
+    context = TX_AUTH_CONTEXT_V3_CANDIDATE
+    if len(context) > 255:
+        # Defensive assertion at the integration boundary; ML-DSA contexts
+        # are limited to 255 bytes by FIPS 204.
+        raise TransactionV3CandidateError("candidate authorization context exceeds 255 bytes")
+    return message, context
