@@ -14,7 +14,10 @@ from src.protocol.trusted_state_v3 import (
     validate_transaction_state_binding_v3,
     verify_v3_candidate_spend_preflight,
 )
-from src.protocol.transaction_v3_candidate import TxFieldsV3Candidate
+from src.protocol.transaction_v3_candidate import (
+    V3_NK_POSSESSION_POLICY_CANDIDATE,
+    TxFieldsV3Candidate,
+)
 
 PARAMS = b"candidate-v3"
 NS = NamespaceIdV3(b"\x01" * 48)
@@ -36,7 +39,7 @@ def transaction(**overrides: object) -> TxFieldsV3Candidate:
         "commitment_root": ROOT,
         "input_nullifier": NullifierV3(b"\x04" * 48),
         "ledger_state_head": STATE_HEAD,
-        "authorization_policy_id": b"candidate-auth-v3",
+        "authorization_policy_id": V3_NK_POSSESSION_POLICY_CANDIDATE,
         "fee": 9,
         "output_entropy": b"\x05" * 32,
         "output_commitments": (
@@ -241,3 +244,42 @@ def test_state_snapshot_constructor_rejects_wrong_hash_widths() -> None:
         snapshot_for(transaction(), commitment_root=b"short")
     with pytest.raises(TrustedStateRejected, match="ledger_state_head"):
         snapshot_for(transaction(), ledger_state_head=b"short")
+
+def test_unknown_authorization_policy_fails_before_state_or_proof_verifier() -> None:
+    from src.protocol.transaction_v3_candidate import TransactionV3CandidateError
+
+    tx = transaction(authorization_policy_id=b"unreviewed-policy-v3")
+    state_calls: list[bytes] = []
+    proof_calls: list[bytes] = []
+
+    def state_verifier(evidence: StateAnchorEvidenceV3) -> VerifiedStateSnapshotV3:
+        state_calls.append(evidence.evidence)
+        return snapshot_for(tx)
+
+    def proof_verifier(_statement: TxFieldsV3Candidate, proof: bytes) -> bool:
+        proof_calls.append(proof)
+        return True
+
+    with pytest.raises(TrustedStateRejected, match="NK-possession policy"):
+        validate_transaction_state_binding_v3(tx, EVIDENCE, state_verifier)
+
+    with pytest.raises(TrustedStateRejected, match="NK-possession policy"):
+        verify_v3_candidate_spend_preflight(
+            tx,
+            proof=b"dummy-proof",
+            state_evidence=EVIDENCE,
+            verify_state_anchor=state_verifier,
+            verify_spend_proof=proof_verifier,
+        )
+
+    assert state_calls == []
+    assert proof_calls == []
+
+
+def test_exact_nk_possession_policy_is_preserved_in_bound_transaction() -> None:
+    tx = transaction()
+    binding = validate_transaction_state_binding_v3(
+        tx, EVIDENCE, verifier_for(snapshot_for(tx))
+    )
+    assert binding.statement.authorization_policy_id == V3_NK_POSSESSION_POLICY_CANDIDATE
+
