@@ -7,8 +7,10 @@ from types import SimpleNamespace
 
 import pytest
 
+import src.adapters.evm_helios as helios_module
 from src.adapters.evm_helios import (
     ETHEREUM_MAINNET_GENESIS_HASH,
+    HeliosAuthenticatedDepositVerifier,
     HeliosAuthenticatedHeaderJournal,
     HeliosConsensusError,
     HeliosFinalityCatchupRequired,
@@ -16,12 +18,17 @@ from src.adapters.evm_helios import (
     HeliosMainnetLightClient,
     execution_header_rlp_from_json,
 )
-from src.adapters.evm_namespace import EvmNamespaceConfig
+from src.adapters.evm_deposit_evidence import EvmDepositEvidencePolicy
+from src.adapters.evm_deposit_proof import ProvenEvmDepositInclusion
+from src.adapters.evm_namespace import EvmNamespaceConfig, runtime_code_fingerprint
 from src.adapters.evm_trie import keccak256, rlp_encode_bytes, rlp_encode_list
 from src.primitives.namespace_v3 import derive_namespace_id_v3
 
 EMPTY_TRIE_ROOT = bytes.fromhex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 EMPTY_OMMERS_HASH = bytes.fromhex("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347")
+TEST_PROTOCOL_ADDRESS = b"\x22" * 20
+TEST_PROTOCOL_CODE = bytes.fromhex("60006000556001600055")
+TEST_EVENT_TOPIC = b"\x55" * 32
 NS = derive_namespace_id_v3(b"ledger", b"deployment", b"asset")
 ZERO32 = bytes(32)
 
@@ -130,10 +137,11 @@ class FakeProcess:
 
 
 class FakeRpc:
-    def __init__(self, blocks, *, final_height, chain_id=1):
+    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE):
         self.blocks = blocks
         self.final_height = final_height
         self.chain_id = chain_id
+        self.code = code
         self.calls = []
 
     def call(self, method, params):
@@ -145,6 +153,8 @@ class FakeRpc:
             assert full_transactions is False
             number = self.final_height if tag == "finalized" else int(tag, 16)
             return self.blocks.get(number)
+        if method == "eth_getCode":
+            return "0x" + self.code.hex()
         raise AssertionError(method)
 
 
@@ -167,8 +177,8 @@ def make_namespace_config(checkpoint_height, checkpoint_hash):
         genesis_hash=ETHEREUM_MAINNET_GENESIS_HASH,
         checkpoint_block_number=checkpoint_height,
         checkpoint_hash=checkpoint_hash,
-        protocol_address=b"\x22" * 20,
-        expected_protocol_code_fingerprint=b"\x33" * 48,
+        protocol_address=TEST_PROTOCOL_ADDRESS,
+        expected_protocol_code_fingerprint=runtime_code_fingerprint(TEST_PROTOCOL_CODE),
         asset_address=None,
         expected_asset_code_fingerprint=None,
     )
@@ -373,3 +383,111 @@ def test_authenticated_journal_fails_closed_on_finality_regression_reorg_and_cat
     with pytest.raises(HeliosConsensusError, match="conflicts with durable authenticated history"):
         journal.advance_to_finalized()
     rpc.blocks[3] = original
+
+
+def test_authenticated_deposit_verifier_checks_pinned_runtime_code_at_proven_block(tmp_path, monkeypatch):
+    blocks = make_fake_chain(final_height=3)
+    header2, raw2, hash2 = make_header(2, bytes.fromhex(blocks[1]["hash"][2:]))
+    config = make_namespace_config(1, bytes.fromhex(blocks[1]["hash"][2:]))
+    client = fake_light_client(tmp_path, blocks, final_height=3)
+    journal = HeliosAuthenticatedHeaderJournal(
+        tmp_path / "deposit-code.sqlite3",
+        namespace_config=config,
+        namespace_id=NS,
+        light_client=client,
+        max_headers_per_sync=10,
+    )
+    policy = EvmDepositEvidencePolicy(
+        namespace_id=NS,
+        chain_id=1,
+        deposit_contract_address=config.protocol_address,
+        expected_runtime_code_fingerprint=config.expected_protocol_code_fingerprint,
+        event_topic0=TEST_EVENT_TOPIC,
+        asset_address=None,
+    )
+    fake_inclusion = ProvenEvmDepositInclusion(
+        namespace_id=NS,
+        chain_id=1,
+        deposit_id=b"\x61" * 36,
+        transaction_hash=b"\x62" * 32,
+        transaction_index=4,
+        receipt_log_ordinal=0,
+        block_number=2,
+        block_hash=hash2,
+        finalized_anchor=(2).to_bytes(8, "big") + hash2,
+        deposit_contract_address=TEST_PROTOCOL_ADDRESS,
+        asset_address=None,
+        depositor=b"\x63" * 20,
+        beneficiary=b"\x64" * 20,
+        amount=12,
+    )
+
+    class FakeInclusionVerifier:
+        def __init__(self, _policy, _journal):
+            pass
+        def verify(self, **_kwargs):
+            return fake_inclusion
+
+    monkeypatch.setattr(helios_module, "EvmDepositInclusionVerifier", FakeInclusionVerifier)
+    verifier = HeliosAuthenticatedDepositVerifier(policy, config, journal)
+    result = verifier.verify(
+        raw_header_rlp=raw2,
+        raw_transaction=b"raw tx fixture",
+        transaction_proof=[b"tx proof fixture"],
+        raw_receipt=b"raw receipt fixture",
+        receipt_proof=[b"receipt proof fixture"],
+        transaction_index=4,
+        receipt_log_ordinal=0,
+        expected_beneficiary=b"\x64" * 20,
+    )
+    assert result.inclusion == fake_inclusion
+    assert result.authenticated_header.block_hash == hash2
+    assert result.assurance_level == "HELIOS_FINALIZED_HEADER_ANCESTRY_AND_TRANSACTION_RECEIPT_TRIES_VERIFIED"
+
+    # Wrong runtime at this historical block must fail closed even though the
+    # header and trie verifier output are otherwise accepted.
+    client._rpc.code = bytes.fromhex("6001600055")
+    with pytest.raises(HeliosConsensusError, match="differs from the pinned manifest"):
+        verifier.verify(
+            raw_header_rlp=raw2,
+            raw_transaction=b"raw tx fixture",
+            transaction_proof=[b"tx proof fixture"],
+            raw_receipt=b"raw receipt fixture",
+            receipt_proof=[b"receipt proof fixture"],
+            transaction_index=4,
+            receipt_log_ordinal=0,
+            expected_beneficiary=b"\x64" * 20,
+        )
+
+
+def test_authenticated_deposit_policy_must_match_pinned_namespace_manifest(tmp_path):
+    blocks = make_fake_chain(final_height=3)
+    checkpoint_hash = bytes.fromhex(blocks[1]["hash"][2:])
+    config = make_namespace_config(1, checkpoint_hash)
+    client = fake_light_client(tmp_path, blocks, final_height=3)
+    journal = HeliosAuthenticatedHeaderJournal(
+        tmp_path / "policy-mismatch.sqlite3",
+        namespace_config=config,
+        namespace_id=NS,
+        light_client=client,
+    )
+    wrong_policy = EvmDepositEvidencePolicy(
+        namespace_id=NS,
+        chain_id=1,
+        deposit_contract_address=b"\x99" * 20,
+        expected_runtime_code_fingerprint=config.expected_protocol_code_fingerprint,
+        event_topic0=TEST_EVENT_TOPIC,
+        asset_address=None,
+    )
+    with pytest.raises(ValueError, match="must match the namespace's pinned protocol and asset"):
+        HeliosAuthenticatedDepositVerifier(wrong_policy, config, journal)
+
+
+def test_helios_rpc_adapter_allows_only_valid_historical_code_reads(tmp_path):
+    blocks = make_fake_chain(final_height=3)
+    client = fake_light_client(tmp_path, blocks, final_height=3)
+    assert client.call("eth_getCode", ["0x" + TEST_PROTOCOL_ADDRESS.hex(), "0x2"]) == "0x" + TEST_PROTOCOL_CODE.hex()
+    with pytest.raises(HeliosConsensusError, match="eth_getCode parameters are malformed"):
+        client.call("eth_getCode", ["0x1234", "0x2"])
+    with pytest.raises(HeliosConsensusError, match="does not permit"):
+        client.call("eth_sendRawTransaction", ["0xdeadbeef"])
