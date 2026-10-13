@@ -277,6 +277,27 @@ def test_v3_is_additive_and_does_not_change_frozen_v2_nullifier() -> None:
     )
 
 
+def test_v3_transfer_identity_rejects_legacy_namespace_type() -> None:
+    from src.protocol.output_identity import derive_output_identity_v3_candidate
+
+    bundle = _bundle().encode()
+    commitment = _commit(bundle)
+    with pytest.raises(TypeError, match="NamespaceIdV3"):
+        derive_output_identity_v3_candidate(
+            namespace_id=NamespaceId(bytes([0x11]) * 48),
+            parent_coin_id=COIN,
+            parent_r_nf=R_NF,
+            parent_public_key_bundle=bundle,
+            parent_commitment=commitment,
+            parent_nullifier_key=KEY,
+            spend_key_witness=b"parent-spend-witness",
+            recipient_key_bundle=bundle,
+            transaction_entropy=bytes(32),
+            output_index=0,
+            params_id=TRANSFER_PARAMS_ID,
+        )
+
+
 def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
     from src.protocol.output_identity import (
         derive_output_identity_v3_candidate,
@@ -343,7 +364,7 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
             **{**common, "parent_r_nf": NullifierSecret(bytes([0x34]) * 36)}
         ),
         derive_output_identity_v3_candidate(
-            output_index=0, **{**common, "namespace_id": NamespaceId(bytes([0x12]) * 48)}
+            output_index=0, **{**common, "namespace_id": NamespaceIdV3(bytes([0x12]) * 48)}
         ),
         derive_output_identity_v3_candidate(
             output_index=0, **{**common, "params_id": b"other-params"}
