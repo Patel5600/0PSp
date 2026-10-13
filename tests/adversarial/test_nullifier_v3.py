@@ -15,6 +15,7 @@ from src.primitives.coin_commitment_v3 import (
     verify_coin_opening_v3,
 )
 from src.primitives.namespace import NamespaceId, ScopedCoinId
+from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.nullifier import (
     Nullifier as NullifierV2,
     NullifierSecret,
@@ -32,7 +33,7 @@ from src.protocol.note_public_key_bundle_v3 import (
     decode_note_public_key_bundle_v3,
 )
 
-NS = NamespaceId(bytes([0x11]) * 48)
+NS = NamespaceIdV3(bytes([0x11]) * 48)
 COIN = ScopedCoinId(bytes([0x22]) * 32)
 R_NF = NullifierSecret(bytes([0x33]) * 36)
 KEY = NullifierDerivingKeyV3(bytes([0x44]) * 48)
@@ -135,6 +136,20 @@ def test_v2_and_v3_primitive_results_are_type_distinct() -> None:
     assert isinstance(cm_v2, CoinCommitmentV2)
     assert isinstance(cm_v3, CoinCommitmentV3)
     assert type(cm_v2) is not type(cm_v3)
+
+
+def test_v3_primitives_reject_legacy_namespace_type() -> None:
+    legacy_namespace = NamespaceId(bytes([0x11]) * 48)
+    bundle = _bundle().encode()
+    with pytest.raises(TypeError, match="NamespaceIdV3"):
+        commit_coin_v3(
+            legacy_namespace, bundle, 500, COIN, R_NF, SALT_A, PARAMS_ID
+        )
+    commitment = _commit(bundle)
+    with pytest.raises(TypeError, match="NamespaceIdV3"):
+        compute_nullifier_v3(
+            legacy_namespace, PARAMS_ID, bundle, commitment, COIN, R_NF, KEY
+        )
 
 
 def test_v3_nullifier_rejects_a_v2_commitment_object() -> None:
