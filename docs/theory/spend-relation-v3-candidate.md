@@ -28,6 +28,16 @@ The reference API exposes `generate_nullifier_deriving_key_v3()`, which requests
 
 The detailed encodings, conditional argument, reference code and adversarial vectors are in [CHp4.7](../audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md). Hash outputs remain finite: no global mathematical injectivity or zero-collision guarantee is claimed.
 
+Before the relation predicates, the ML-DSA-87 experiment target is:
+
+```text
+(m_auth, ctx_auth) = authorization_input_v3_candidate(TxFieldsV3Candidate)
+MLDSA87.Verify(pk_auth, m_auth, ctx_auth, sigma_auth) = 1
+pk_auth = CanonicalMLDSA87PublicKey(BundleV3.auth_public_key)
+```
+
+The `auth_scheme_id`/policy identifiers, canonical ML-DSA-87 public-key/signature codec, signature exposure policy, and threshold key-generation/DKG evidence are not yet frozen. The tagged upstream release has conflicting audit-status statements and a subcrate license-scope conflict; it is a benchmark target only until those findings are reconciled. Proof verification must bind `pk_auth` to the same BundleV3 committed by the note. A standalone ordinary signature verifier is insufficient if it checks a different or public key.
+
 ## 2. V3 reference relation target
 
 For each V3 note, require:
@@ -50,7 +60,7 @@ nu3 = HMAC-SHA3-384(
 
 The circuit must enforce the key-commitment opening and the exact `BundleV3`/`C3`/tuple/`nu3` relations under one witness. If intended-payee authenticity is required, it must also verify an independently anchored recipient-authorization or authenticated recovery-key statement over this exact bundle; a self-signature alone is insufficient. `KeyCommitV3(nk)` must equal the commitment encoded in that bundle, `C3` must open under the same bundle and tuple, and `nu3` must equal the public nullifier using that exact `C3` as an input. Changing `rho_C` changes `C3`, and therefore changes the HMAC input; a same-nullifier result for different commitments is only a finite-output PRF collision, not deterministic reuse. Use separate version-typed values for `CoinCommitmentV3` and `NullifierV3`; do not pass V2 objects to V3 APIs or accept a V2 nullifier in a V3 ledger transition. All outputs must be derived from a one-use anchor plus canonical output index and the complete output list must be bound to the transaction digest. A second output with the same source anchor/output slot must fail the output-derivation/state-transition relation. Commitment-binding also means different commitments do not deterministically share a V3 nullifier even if their other hidden fields are repeated. A nullifier collision across distinct identities remains a computational failure event that consensus prevents from being spent twice, not an impossible event.
 
-This is a formal target and Python reference, not an implemented circuit. The host-only candidate transaction codec now lives in `src/protocol/transaction_v3_candidate.py`; it binds params, namespace, prior commitment root, input V3 nullifier, state head, authorization policy, fee, public output entropy, ordered V3 output commitments and a domain-separated digest. The digest is a candidate authorization message, not an approved production transcript. The proof backend must constrain these exact bytes and the verifier must bind every field to trusted ledger state. The address-signature scheme/codec, authenticated chain adapter, encrypted note recovery, durable consensus ledger, native V3 implementation, circuit-cost measurements and independent review remain open. Production remains **NO-GO**.
+This is a formal target and Python reference, not an implemented circuit. The host-only candidate transaction codec lives in `src/protocol/transaction_v3_candidate.py`; it binds params, namespace, prior commitment root, input V3 nullifier, state head, authorization policy, fee, public output entropy, ordered V3 output commitments and a domain-separated digest. For the ML-DSA-87 threshold experiment only, `authorization_input_v3_candidate(fields)` returns `(m_auth, ctx_auth)` where `m_auth = TxDigestV3Candidate(fields)` and `ctx_auth = b"0PSP-TX-AUTH-v3-CANDIDATE"`. The candidate relation must require `MLDSA87.Verify(pk_auth, m_auth, ctx_auth, sigma_auth) = 1`, with `pk_auth` decoded from the exact `BundleV3.auth_public_key` and `sigma_auth` produced by the threshold protocol. Whether the signature is public or kept as a private witness must be decided explicitly; the default research assumption is a private witness so the proof can hide it, but this has not been analyzed for transcript leakage. This equation is a feasibility target, not an approved scheme or proof. The backend must constrain the exact transaction bytes and verify the signature against the same hidden authorization key committed in the same V3 note. The public key/signature codec, audit-scope discrepancy, license scope, key-generation/DKG model, intended-payee authentication anchor, authenticated chain adapter, encrypted note recovery, durable consensus ledger, native V3 implementation, circuit-cost measurements and independent review remain open. Production remains **NO-GO**.
 
 ## 3. Test status and adversarial boundaries
 
