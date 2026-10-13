@@ -130,3 +130,9 @@ def test_mpt_enforces_bounded_proof_and_key_sizes():
         verify_mpt_inclusion(root, b"k", b"", proof)
     with pytest.raises(ValueError, match="more than 128"):
         verify_mpt_inclusion(root, b"k", b"value", proof * 129)
+
+def test_mpt_rejects_empty_extension_path():
+    key = b"\x12"
+    node = rlp_encode_list([rlp_encode_bytes(b"\x00"), rlp_encode_bytes(b"\x01")])
+    with pytest.raises(EthereumEncodingError, match="extension path must not be empty"):
+        verify_mpt_inclusion(keccak256(node), key, b"value", [node])
