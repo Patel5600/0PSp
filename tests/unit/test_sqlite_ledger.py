@@ -67,16 +67,28 @@ def make_ledger(path, *, namespace=NS, params=PARAMS, policy=POLICY, profile=PRO
 
 
 def spend_statement(snapshot, *, nullifier=NF1, outputs=(C2,), root=None, head=None,
-                    fields=b"canonical transaction"):
+                    fields=None, fee=0):
+    actual_root = snapshot.commitment_root if root is None else root
+    actual_head = snapshot.state_head if head is None else head
+    canonical_fields, digest = encode_spend_transaction_v2(
+        params_id=PARAMS,
+        namespace_id=NS,
+        commitment_root=actual_root,
+        nullifier=nullifier,
+        ledger_state=actual_head,
+        authorization_policy_id=POLICY,
+        fee=fee,
+        new_commitments=tuple(outputs),
+    )
     return SpendStatement(
         version=2,
         params_id=PARAMS,
         namespace_id=NS,
-        commitment_root=snapshot.commitment_root if root is None else root,
+        commitment_root=actual_root,
         nullifier=nullifier,
-        transaction_fields=fields,
-        transaction_digest=TX_DIGEST,
-        ledger_state=snapshot.state_head if head is None else head,
+        transaction_fields=canonical_fields if fields is None else fields,
+        transaction_digest=digest,
+        ledger_state=actual_head,
         authorization_policy=POLICY,
         new_commitments=tuple(outputs),
     )
