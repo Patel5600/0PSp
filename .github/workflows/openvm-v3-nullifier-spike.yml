@@ -66,6 +66,13 @@ jobs:
           python3 scripts/make_witnesses.py "$fixture_dir"
           test "$(cat "$fixture_dir/expected-public-digest.txt")" = "0e56393a40f9cb5480bce7830aaed68573f828953d1b711f10064893c62fde21"
 
+      - name: Test proof-output checker and resolve its host-only dependency graph
+        run: |
+          cargo +1.91.1 test --manifest-path proof-output-checker/Cargo.toml
+          echo "V3_SPIKE_PROOF_CHECKER_CARGO_LOCK_BEGIN"
+          cat proof-output-checker/Cargo.lock
+          echo "V3_SPIKE_PROOF_CHECKER_CARGO_LOCK_END"
+
       - name: Execute valid and adversarial witness fixtures in OpenVM
         run: |
           set -euo pipefail
@@ -94,6 +101,9 @@ jobs:
           stat --format='V3_SPIKE_APP_PROOF_BYTES=%s' "$fixture_dir/valid.app.proof"
           sha256sum "$fixture_dir/valid.app.proof"
           /usr/bin/time -f 'V3_SPIKE_APP_VERIFY_SECONDS=%e MAX_RSS_KIB=%M' cargo +1.91.1 openvm verify app --proof "$fixture_dir/valid.app.proof"
+          cargo +1.91.1 run --manifest-path proof-output-checker/Cargo.toml -- \
+            openvm/app.vk "$fixture_dir/valid.app.proof" \
+            expected-app-exe-commit.txt "$fixture_dir/expected-public-digest.txt"
 
       - name: Ensure guest build did not alter locked dependencies
         run: git diff --exit-code -- proof/openvm/v3-nullifier-spike/Cargo.lock
