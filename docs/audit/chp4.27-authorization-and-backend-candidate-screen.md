@@ -40,6 +40,24 @@ The README itself warns that the attack-cost figures do **not** substantiate 128
 
 **Decision:** useful comparison baseline, not an approved authorization scheme for the current target.
 
+### Threshold ML-DSA-87 — strongest authorization candidate found so far
+
+Pinned upstream release: [`threshold-v3.0.0`](https://github.com/Quantus-Network/qp-rusty-crystals/tree/threshold-v3.0.0), commit [`5d3d252fbc7975586e13e7576652f37ad1395c05`](https://github.com/Quantus-Network/qp-rusty-crystals/commit/5d3d252fbc7975586e13e7576652f37ad1395c05). Crate: [`qp-rusty-crystals-threshold 3.0.0`](https://docs.rs/crate/qp-rusty-crystals-threshold/3.0.0).
+
+This is a materially better candidate for the next authorization experiment than the Ringtail proof-of-concept or LoTRS's presently reported sub-128-bit estimates:
+- The tagged README says the implementation uses FIPS 204 ML-DSA and that the produced signature is compatible with a standard ML-DSA verifier.
+- The release exposes ML-DSA-87 by default and documents threshold signing/DKG for that profile, with configurations (2 \le t \le n \le 6).
+- The API explicitly takes both a message and a context (maximum 255 bytes); signature verification rejects an overlong context and malformed public key/signature encodings.
+- The tagged source contains a critical warning that reusing a per-round seed can enable full key recovery. A production adapter would need a reviewed OS-CSPRNG/nonce lifecycle and must never expose deterministic caller-controlled signing seeds.
+
+**Important evidence conflict:** the same tagged `threshold/README.md` claims the threshold signing protocol and DKG have been audited for ML-DSA-87, but `threshold/src/lib.rs` in that exact release still says the implementation “has not undergone a security audit” and is for research/experimentation only. Until the audit report, scope, commit and findings can be mapped to this exact release and reconciled with that warning, treat the project’s audit claim as vendor-reported, not as independently established acceptance evidence. The README also says resharing is not audited; 0PSP must not require that feature in its first integration.
+
+**License blocker:** the tagged `threshold/Cargo.toml` declares `GPL-3.0`, while the same repository-root `LICENSE` file is Apache-2.0. This metadata conflict must be resolved with the maintainers/legal review before adding a dependency. No code from this crate has been copied into 0PSP, and it has not been added to Cargo dependencies.
+
+**Protocol-fit blocker:** a standard ML-DSA signature can be verified outside a proof only when its public key is available. 0PSP intends the note's authorization key to remain hidden inside the note bundle, so the selected proof must constrain verification of the threshold signature against that *same hidden key* and the exact canonical V3 authorization message. That verification cost, witness-hiding behavior, canonical public-key encoding, signature serialization, concrete 128-bit post-quantum security claim for the selected configuration, and full 0PSP integration are all unmeasured. The library's availability does not solve those composition obligations.
+
+**Decision:** make ML-DSA-87 threshold signing the **leading experiment candidate, not the selected production scheme**. Freeze no scheme ID or key codec yet. Next evidence must include the exact audit report, license reconciliation, pinned clean-build/conformance run, signature/context KATs, adversarial threshold/seed-reuse/session tests, and a measured proof of signature verification against the hidden note key.
+
 ### OpenVM 2.0 as a proof-backend candidate
 
 Pinned upstream release used by the partial research guest: https://github.com/openvm-org/openvm/tree/v2.0.2  
