@@ -315,3 +315,43 @@ def test_reader_input_and_policy_shapes_are_strict():
     )
     with pytest.raises(ValueError, match="namespace differ"):
         EvmDepositEvidenceReader(wrong_namespace, rpc, journal)
+
+
+def test_deposit_id_uses_receipt_local_ordinal_not_global_log_index():
+    receipt = make_receipt()
+    second_log = deepcopy(receipt["logs"][0])
+    second_log["logIndex"] = "0x12"
+    receipt["logs"].append(second_log)
+    _binding, _policy, _rpc, _journal, reader = make_reader(receipt=receipt)
+    first = reader.inspect(
+        transaction_hash=TX_HASH,
+        receipt_log_ordinal=0,
+        expected_beneficiary=BENEFICIARY,
+    )
+    second = reader.inspect(
+        transaction_hash=TX_HASH,
+        receipt_log_ordinal=1,
+        expected_beneficiary=BENEFICIARY,
+    )
+    assert first.log_index == 17
+    assert second.log_index == 18
+    assert first.deposit_id == TX_HASH + (0).to_bytes(4, "big")
+    assert second.deposit_id == TX_HASH + (1).to_bytes(4, "big")
+    assert first.deposit_id != second.deposit_id
+
+
+def test_reader_rejects_chain_mismatch_and_non_quorum_transport():
+    _binding, policy, rpc, journal, _reader = make_reader()
+    for _name, provider in rpc._providers:
+        provider.chain_id = 2
+    reader = EvmDepositEvidenceReader(policy, rpc, journal)
+    with pytest.raises(EvmDepositEvidenceError, match="chain ID does not match"):
+        reader.inspect(
+            transaction_hash=TX_HASH,
+            receipt_log_ordinal=0,
+            expected_beneficiary=BENEFICIARY,
+        )
+
+    single = rpc._providers[0][1]
+    with pytest.raises(TypeError, match="QuorumJsonRpcTransport"):
+        EvmDepositEvidenceReader(policy, single, journal)
