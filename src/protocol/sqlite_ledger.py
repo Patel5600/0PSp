@@ -729,58 +729,208 @@ class SQLiteLedger:
             ).fetchone()[0])
 
     def audit_integrity(self, *, rebuild_merkle_root: bool = True) -> None:
-        """Check append indices, full Merkle root and the append-only state-head chain.
+        """Reconcile metadata, every tree node, transition record, and event-chain entry.
 
-        This detects inconsistency/torn edits, not a malicious administrator who
-        rewrites the complete database and recomputes every unanchored hash.
+        This detects accidental/torn edits and partial record corruption. Because
+        the chain head is stored in the same local database, it cannot detect an
+        attacker who rewrites every row and recomputes a new internally consistent
+        database; use an external signed/anchored checkpoint for that threat model.
         """
         with closing(self._connect()) as conn:
+            # The database is single-namespace by design. Unexpected rows scoped to
+            # another namespace are corruption, not harmless unrelated records.
+            expected_namespace = self._namespace.data
+            for table in ("commitments", "issuance_records", "spent_nullifiers"):
+                namespaces = {
+                    bytes(row[0])
+                    for row in conn.execute(f"SELECT DISTINCT namespace_id FROM {table}")
+                }
+                if any(value != expected_namespace for value in namespaces):
+                    raise LedgerIntegrityError(f"{table} contains a row outside the pinned namespace")
+
             version, head, count, root = self._meta(conn)
-            commitments = conn.execute(
-                "SELECT commitment, commitment_index FROM commitments WHERE namespace_id=? ORDER BY commitment_index",
-                (self._namespace.data,),
+            commitment_rows = conn.execute(
+                "SELECT namespace_id,commitment,commitment_index,source_kind,source_id,state_version "
+                "FROM commitments ORDER BY commitment_index"
             ).fetchall()
-            if len(commitments) != count:
-                raise LedgerIntegrityError("commitment count differs from the metadata")
+            if len(commitment_rows) != count:
+                raise LedgerIntegrityError("commitment count differs from metadata")
+
+            commitments_by_version: dict[int, list[tuple[bytes, int, str, bytes]]] = {}
+            commitments_by_index: dict[int, tuple[bytes, str, bytes, int]] = {}
             tree = CommitmentTree(self._namespace)
-            for expected_index, (commitment, index) in enumerate(commitments):
-                if int(index) != expected_index:
+            for expected_index, row in enumerate(commitment_rows):
+                namespace, commitment, raw_index, source_kind, source_id, raw_version = row
+                namespace, commitment, source_id = bytes(namespace), bytes(commitment), bytes(source_id)
+                index, row_version = int(raw_index), int(raw_version)
+                if namespace != expected_namespace:
+                    raise LedgerIntegrityError("commitment row namespace differs from metadata")
+                if index != expected_index:
                     raise LedgerIntegrityError("commitment indices are not contiguous and append-only")
-                tree.append(bytes(commitment))
+                if source_kind not in {"issuance", "spend"}:
+                    raise LedgerIntegrityError("commitment has an unknown source kind")
+                if not 1 <= row_version <= version:
+                    raise LedgerIntegrityError("commitment references an invalid state version")
+                commitments_by_version.setdefault(row_version, []).append(
+                    (commitment, index, source_kind, source_id)
+                )
+                commitments_by_index[index] = (commitment, source_kind, source_id, row_version)
+
+            roots_by_version: dict[int, bytes] = {0: tree.root}
+            for state_version in range(1, version + 1):
+                entries = commitments_by_version.get(state_version)
+                if not entries:
+                    raise LedgerIntegrityError("a ledger state version contains no appended commitment")
+                # Indices were checked globally above; every transition's outputs
+                # therefore occupy one canonical contiguous interval.
+                for commitment, index, _kind, _source_id in entries:
+                    if tree.append(commitment) != index:
+                        raise LedgerIntegrityError("reconstructed tree index differs from the persisted append index")
+                roots_by_version[state_version] = tree.root
+            if set(commitments_by_version) != set(range(1, version + 1)):
+                raise LedgerIntegrityError("commitment rows refer to missing or unexpected state versions")
             if rebuild_merkle_root and tree.root != root:
                 raise LedgerIntegrityError("recomputed commitment tree root differs from ledger metadata")
-            stored_root = self._node(conn, TREE_DEPTH, 0)
-            if stored_root != root:
+
+            # Do not check only the root node. A corrupted sibling node can leave
+            # the stored root untouched while making membership witnesses invalid.
+            expected_nodes = {
+                (level, node_index): node_hash_value
+                for level, level_nodes in enumerate(tree._levels)
+                for node_index, node_hash_value in level_nodes.items()
+            }
+            stored_nodes = {
+                (int(level), int(node_index)): bytes(node_hash_value)
+                for level, node_index, node_hash_value in conn.execute(
+                    "SELECT level,node_index,node_hash FROM merkle_nodes"
+                )
+            }
+            if stored_nodes != expected_nodes:
+                raise LedgerIntegrityError("persisted Merkle nodes differ from the reconstructed append-only tree")
+            if self._node(conn, TREE_DEPTH, 0) != root:
                 raise LedgerIntegrityError("persisted Merkle root node differs from ledger metadata")
 
-            expected_version = 0
-            expected_head = _genesis_head(self._namespace, self._params_id, self._policy_id, self._profile_id)
-            for row in conn.execute(
+            issue_rows = conn.execute(
+                "SELECT namespace_id,commitment,deposit_id,value_u64_be,finalized_anchor,beneficiary_address,"
+                "params_id,commitment_index,state_version,evidence_fingerprint,state_head_after,commitment_root_after "
+                "FROM issuance_records ORDER BY state_version"
+            ).fetchall()
+            spend_rows = conn.execute(
+                "SELECT namespace_id,nullifier,transaction_digest,transaction_fields,commitment_root_before,"
+                "state_head_before,state_head_after,commitment_root_after,state_version "
+                "FROM spent_nullifiers ORDER BY state_version"
+            ).fetchall()
+            issues_by_version: dict[int, tuple[object, ...]] = {}
+            spends_by_version: dict[int, tuple[object, ...]] = {}
+            for row in issue_rows:
+                row_version = int(row[8])
+                if row_version in issues_by_version or not 1 <= row_version <= version:
+                    raise LedgerIntegrityError("issuance records contain a duplicate or invalid state version")
+                issues_by_version[row_version] = row
+            for row in spend_rows:
+                row_version = int(row[8])
+                if row_version in spends_by_version or not 1 <= row_version <= version:
+                    raise LedgerIntegrityError("spend records contain a duplicate or invalid state version")
+                spends_by_version[row_version] = row
+            if len(issue_rows) + len(spend_rows) != version:
+                raise LedgerIntegrityError("every ledger state version must map to exactly one issuance or spend record")
+
+            event_rows = conn.execute(
                 "SELECT state_version,event_type,event_id,event_payload,event_digest,previous_head,new_head "
                 "FROM ledger_events ORDER BY state_version"
-            ):
-                event_version, event_type, event_id, payload, digest, previous, new = row
-                expected_version += 1
-                payload, digest, previous, new = bytes(payload), bytes(digest), bytes(previous), bytes(new)
-                if int(event_version) != expected_version:
+            ).fetchall()
+            if len(event_rows) != version:
+                raise LedgerIntegrityError("ledger event count differs from the state version")
+
+            expected_head = _genesis_head(
+                self._namespace, self._params_id, self._policy_id, self._profile_id
+            )
+            for expected_version, event in enumerate(event_rows, start=1):
+                event_version, event_type, event_id, event_payload, event_digest, previous, new = event
+                event_version = int(event_version)
+                event_id, event_payload = bytes(event_id), bytes(event_payload)
+                event_digest, previous, new = bytes(event_digest), bytes(previous), bytes(new)
+                if event_version != expected_version:
                     raise LedgerIntegrityError("ledger event versions are not contiguous")
-                if payload != bytes(payload):
-                    raise LedgerIntegrityError("event payload encoding mismatch")
-                if _event_digest(payload) != digest:
+                if _event_digest(event_payload) != event_digest:
                     raise LedgerIntegrityError("ledger event digest does not match its canonical payload")
                 if previous != expected_head:
                     raise LedgerIntegrityError("ledger event chain has a broken previous head")
-                calculated = _next_head(expected_version, expected_head, digest)
-                if new != calculated:
+                calculated_head = _next_head(expected_version, expected_head, event_digest)
+                if new != calculated_head:
                     raise LedgerIntegrityError("ledger event chain head does not recompute")
-                expected_head = calculated
-            if expected_version != version or expected_head != head:
-                raise LedgerIntegrityError("ledger meta head/version differs from reconstructed event chain")
-            expected_count = conn.execute(
-                "SELECT COUNT(*) FROM issuance_records WHERE namespace_id=?", (self._namespace.data,)
-            ).fetchone()[0] + conn.execute(
-                "SELECT COUNT(*) FROM spent_nullifiers WHERE namespace_id=?", (self._namespace.data,)
-            ).fetchone()[0]
-            if int(expected_count) != version:
-                raise LedgerIntegrityError("one or more state versions lacks a matching issuance or spend record")
 
+                has_issue = expected_version in issues_by_version
+                has_spend = expected_version in spends_by_version
+                if has_issue == has_spend:
+                    raise LedgerIntegrityError("state version must have exactly one matching transition record")
+
+                entries = commitments_by_version.get(expected_version, [])
+                if event_type == "issue":
+                    if not has_issue or has_spend:
+                        raise LedgerIntegrityError("issuance event has no unique issuance record")
+                    row = issues_by_version[expected_version]
+                    (namespace, commitment, deposit_id, value_be, anchor, beneficiary, params_id,
+                     raw_index, raw_row_version, evidence_fingerprint, head_after, root_after) = row
+                    namespace, commitment, deposit_id = bytes(namespace), bytes(commitment), bytes(deposit_id)
+                    value_be, anchor, beneficiary, params_id = bytes(value_be), bytes(anchor), bytes(beneficiary), bytes(params_id)
+                    evidence_fingerprint, head_after, root_after = bytes(evidence_fingerprint), bytes(head_after), bytes(root_after)
+                    index, row_version = int(raw_index), int(raw_row_version)
+                    if namespace != expected_namespace or params_id != self._params_id:
+                        raise LedgerIntegrityError("issuance record namespace or parameter ID differs from pinned configuration")
+                    if len(value_be) != 8 or len(beneficiary) != 20 or beneficiary == bytes(20):
+                        raise LedgerIntegrityError("issuance record contains malformed value or beneficiary encoding")
+                    if not anchor or len(anchor) > 256 or not deposit_id or len(deposit_id) > 128 or len(evidence_fingerprint) != 48:
+                        raise LedgerIntegrityError("issuance record contains malformed deposit evidence metadata")
+                    if row_version != expected_version or len(entries) != 1:
+                        raise LedgerIntegrityError("issuance transition must append exactly one commitment at its state version")
+                    if event_id != deposit_id:
+                        raise LedgerIntegrityError("issuance event ID differs from its deposit record")
+                    mapped = commitments_by_index.get(index)
+                    if mapped != (commitment, "issuance", deposit_id, expected_version):
+                        raise LedgerIntegrityError("issuance record does not match its commitment-tree leaf")
+                    if head_after != new or root_after != roots_by_version[expected_version]:
+                        raise LedgerIntegrityError("issuance record's post-state head/root differs from reconstructed state")
+                    payload_expected = _event_payload_issue(
+                        self._namespace, commitment, deposit_id, int.from_bytes(value_be, "big"),
+                        anchor, beneficiary, params_id, evidence_fingerprint, index,
+                    )
+                elif event_type == "spend":
+                    if not has_spend or has_issue:
+                        raise LedgerIntegrityError("spend event has no unique spend record")
+                    row = spends_by_version[expected_version]
+                    (namespace, nullifier, transaction_digest, transaction_fields, root_before,
+                     head_before, head_after, root_after, raw_row_version) = row
+                    namespace, nullifier = bytes(namespace), bytes(nullifier)
+                    transaction_digest, transaction_fields = bytes(transaction_digest), bytes(transaction_fields)
+                    root_before, head_before, head_after, root_after = bytes(root_before), bytes(head_before), bytes(head_after), bytes(root_after)
+                    row_version = int(raw_row_version)
+                    if namespace != expected_namespace:
+                        raise LedgerIntegrityError("spend record namespace differs from pinned namespace")
+                    if len(nullifier) != 48 or not transaction_digest or len(transaction_digest) > 128:
+                        raise LedgerIntegrityError("spend record contains malformed nullifier or transaction digest")
+                    if row_version != expected_version or not entries:
+                        raise LedgerIntegrityError("spend transition must append one or more output commitments")
+                    if event_id != nullifier:
+                        raise LedgerIntegrityError("spend event ID differs from its nullifier record")
+                    if root_before != roots_by_version[expected_version - 1] or root_after != roots_by_version[expected_version]:
+                        raise LedgerIntegrityError("spend record's before/after commitment root differs from reconstructed tree state")
+                    if head_before != expected_head or head_after != new:
+                        raise LedgerIntegrityError("spend record's before/after state head differs from reconstructed event chain")
+                    first_index = entries[0][1]
+                    outputs = tuple(entry[0] for entry in entries)
+                    if any(entry[2] != "spend" or entry[3] != nullifier for entry in entries):
+                        raise LedgerIntegrityError("spend outputs do not match their source nullifier")
+                    payload_expected = _event_payload_spend(
+                        self._namespace, nullifier, transaction_digest, transaction_fields,
+                        self._policy_id, root_before, first_index, outputs,
+                    )
+                else:
+                    raise LedgerIntegrityError("ledger event has an unknown transition type")
+
+                if event_payload != payload_expected:
+                    raise LedgerIntegrityError("ledger event payload does not match its issuance/spend record")
+                expected_head = calculated_head
+
+            if expected_head != head or len(event_rows) != version:
+                raise LedgerIntegrityError("ledger meta head/version differs from reconstructed event chain")
