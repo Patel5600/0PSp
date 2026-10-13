@@ -680,7 +680,7 @@ class HeliosAuthenticatedEvmDeposit:
 
     @property
     def assurance_level(self) -> str:
-        return "HELIOS_FINALIZED_HEADER_ANCESTRY_AND_TRANSACTION_RECEIPT_TRIES_VERIFIED"
+        return "HELIOS_FINALIZED_HEADER_TRIES_AND_ASSET_MOVEMENT_SIGNAL_VERIFIED_NOT_CUSTODY_AUTHORIZATION"
 
 
 class HeliosAuthenticatedDepositVerifier:
