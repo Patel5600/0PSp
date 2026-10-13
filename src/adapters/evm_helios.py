@@ -340,8 +340,8 @@ class HeliosMainnetLightClient:
             raise
 
     def call(self, method: str, params: list[object]) -> object:
-        """Expose only chain identity and header reads from the supervised local client."""
-        if method not in {"eth_chainId", "eth_getBlockByNumber", "eth_getCode"}:
+        """Expose only pinned-chain headers, code, and proof-backed account state reads."""
+        if method not in {"eth_chainId", "eth_getBlockByNumber", "eth_getCode", "eth_getProof"}:
             raise HeliosConsensusError(f"Helios trust adapter does not permit RPC method {method!r}")
         if not isinstance(params, list):
             raise TypeError("params must be a list")
@@ -363,6 +363,21 @@ class HeliosMainnetLightClient:
                 )
             ):
                 raise HeliosConsensusError("eth_getCode parameters are malformed")
+        if method == "eth_getProof":
+            if (
+                len(params) != 3
+                or not isinstance(params[0], str)
+                or re.fullmatch(r"0x[0-9a-fA-F]{40}", params[0]) is None
+                or not isinstance(params[1], list)
+                or any(
+                    not isinstance(slot, str)
+                    or re.fullmatch(r"0x(?:[0-9a-fA-F]{2}){32}", slot) is None
+                    for slot in params[1]
+                )
+                or not isinstance(params[2], str)
+                or _QUANTITY_RE.fullmatch(params[2]) is None
+            ):
+                raise HeliosConsensusError("eth_getProof requires an address, 32-byte storage keys, and an exact block number")
         return self.rpc.call(method, params)
 
     def stop(self) -> None:
@@ -653,6 +668,55 @@ class HeliosAuthenticatedHeaderJournal:
             observed_finalized_number=finalized.number, observed_finalized_hash=finalized.block_hash,
             light_client_binary_sha256=self.light_client.config.binary_sha256,
         )
+
+    def verify_account_state(
+        self,
+        raw_header_rlp: bytes,
+        address: bytes,
+        storage_slots: tuple[bytes, ...] | list[bytes] = (),
+    ):
+        """Fetch and verify EIP-1186 state at an authenticated finalized execution header.
+
+        This proves account/storage values at a block boundary. It does not establish
+        transaction-level causation or custody by itself; those require an approved,
+        audited contract/asset policy.
+        """
+        from src.adapters.evm_state_proof import verify_eip1186_account_proof
+
+        authenticated = self.authenticate_header(raw_header_rlp)
+        if not isinstance(address, bytes) or len(address) != 20:
+            raise ValueError("address must be exactly 20 bytes")
+        if not isinstance(storage_slots, (tuple, list)):
+            raise TypeError("storage_slots must be a tuple or list")
+        slots = tuple(storage_slots)
+        if any(not isinstance(slot, bytes) or len(slot) != 32 for slot in slots):
+            raise ValueError("each storage slot must be exactly 32 bytes")
+        if len(set(slots)) != len(slots):
+            raise ValueError("storage slots must be unique")
+        response = self.light_client.call(
+            "eth_getProof",
+            [
+                "0x" + address.hex(),
+                ["0x" + slot.hex() for slot in slots],
+                hex(authenticated.number),
+            ],
+        )
+        code_result = self.light_client.call(
+            "eth_getCode", ["0x" + address.hex(), hex(authenticated.number)]
+        )
+        if not isinstance(code_result, str) or _DATA_RE.fullmatch(code_result) is None:
+            raise HeliosConsensusError("Helios returned malformed code bytes for the proven account")
+        try:
+            runtime_code = bytes.fromhex(code_result[2:])
+            return verify_eip1186_account_proof(
+                raw_header_rlp=authenticated.raw_header_rlp,
+                address=address,
+                response=response,
+                expected_storage_slots=slots,
+                runtime_code=runtime_code,
+            )
+        except (TypeError, ValueError) as exc:
+            raise HeliosConsensusError(f"account state proof failed: {exc}") from None
 
     def contains_finalized_header(self, block_number: int, block_hash: bytes) -> bool:
         if (
