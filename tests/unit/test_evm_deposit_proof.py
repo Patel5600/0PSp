@@ -76,7 +76,7 @@ def make_case(*, beneficiary=BENEFICIARY, amount=AMOUNT, receipt_status=b"\x01",
         raw_tx = enc([b"", b"\x01", b"\x52\x08", CONTRACT, b"", b"", b"\x1c", b"\x01", b"\x01"])
     else:
         raw_receipt = bytes([tx_type]) + enc(receipt_payload)
-        raw_tx = bytes([tx_type]) + enc([b"\x01"] * (11 if tx_type == 2 else 9))
+        raw_tx = bytes([tx_type]) + enc([b"\x01"] * {1: 11, 2: 12, 3: 14, 4: 13}[tx_type])
     key = rlp_encode_uint(INDEX)
     tx_root, tx_proof = leaf_proof(key, raw_tx)
     receipt_root, receipt_proof = leaf_proof(key, raw_receipt)
@@ -140,11 +140,11 @@ def test_rejects_proof_or_public_field_substitution(mutation, match):
     verifier, args, _hash, _tx, _receipt, _tp, _rp = make_case()
     args = dict(args)
     if mutation == "transaction":
-        args["raw_transaction"] = args["raw_transaction"] + b"\x00"
+        args["raw_transaction"] = enc([b"\x02"] * 9)
     elif mutation == "receipt":
-        args["raw_receipt"] = args["raw_receipt"] + b"\x00"
+        args["raw_receipt"] = enc([b"\x01", b"\x52\x08", bytes(256), []])
     elif mutation == "header":
-        args["raw_header_rlp"] = enc([b"\xaa"] * 15)
+        header_fields = __import__("src.adapters.evm_trie", fromlist=["rlp_decode"]).rlp_decode(args["raw_header_rlp"])\n        header_fields[11] = b"\x02"\n        args["raw_header_rlp"] = enc(header_fields)
     elif mutation == "index":
         args["transaction_index"] = INDEX + 1
     elif mutation == "beneficiary":
