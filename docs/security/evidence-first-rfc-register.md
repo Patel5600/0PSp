@@ -1,6 +1,6 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
-**Last reviewed:** 2026-10-12  
+**Last reviewed:** 2026-10-13  
 **Main baseline reviewed:** `0225fc35bd4581c64216d18d9923a76a013dc886` (2026-10-12)  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
@@ -18,7 +18,7 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
-| Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; Namespace V3 direct-hash KAT and native/Python parity; full canonical chain/deployment/asset descriptors feed one SHAKE256-384 output; typed V3 reference-ledger boundary | Intended-chain smoke test, RPC/consensus policy, durable finality/reorg/deposit adapter, actual proof binding, and independent review |
+| Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; Namespace V3 direct-hash KAT and native/Python parity; full canonical chain/deployment/asset descriptors feed one SHAKE256-384 output; typed V3 reference-ledger boundary; CHp4.10 candidate adds strict-majority RPC policy and a file-backed finalized-header ancestry journal | CI evidence for CHp4.10 candidate; intended-chain smoke test, authenticated consensus/light-client trust strategy, chain-specific deposit/event verifier and reorg-aware mint-ledger recovery, actual proof binding, and independent review |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
@@ -46,7 +46,7 @@ Namespace V2 remains frozen, including its known-answer vector. The earlier CHp4
 
 The current adapter at `src/adapters/evm_namespace.py` retains the full canonical ledger, deployment and asset descriptors and hashes their length-prefixed tuple directly with SHAKE256-384 under the Namespace V3 domain/version. No 256-bit intermediate identity digest participates in namespace identity. Under an idealized generic quantum random-oracle collision model, the 384-bit output has BHT-style query scale about 2^128. This remains a computational model/estimate, not injectivity or a complete protocol proof.
 
-The reference ledger now requires a typed `NamespaceIdV3` for its configured namespace, issuance authorization, and spend statement, rejecting a mismatched ID before invoking injected proof callbacks. Runtime-code fingerprints are 48 bytes and checkpoint/code values are validation-only, not identity inputs. JSON-RPC is not a light client; the chain/deposit adapter, consensus/finality and durable ledger remain incomplete. See [CHp4.9](../audit/chp4.9-namespace-v3-direct-hash-remediation.md) for equations, assumptions, tests and remaining release gates.
+The reference ledger now requires a typed `NamespaceIdV3` for its configured namespace, issuance authorization, and spend statement, rejecting a mismatched ID before invoking injected proof callbacks. Runtime-code fingerprints are 48 bytes and checkpoint/code values are validation-only, not identity inputs. CHp4.10 adds `QuorumJsonRpcTransport`, `SqliteEvmFinalityJournal` and `EvmNamespaceRuntime` as a hardened provider-observation path. Provider quorum is not a light client; the intended-chain smoke test, authenticated consensus strategy, chain-specific deposit verification and reorg-aware mint ledger remain incomplete. The actual proof circuit must still bind the exact V3 namespace bytes. See [CHp4.9](../audit/chp4.9-namespace-v3-direct-hash-remediation.md) and [CHp4.10](../audit/chp4.10-namespace-rpc-finality-hardening.md).
 
 ## CHp4.2 formal relation and adversarial test boundary
 
