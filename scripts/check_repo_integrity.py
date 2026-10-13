@@ -36,6 +36,8 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.15-authenticated-evm-state-proofs.md"),
     Path("docs/audit/chp4.16-ethereum-proof-differential-tests.md"),
     Path("docs/audit/chp4.17-durable-merkle-ledger.md"),
+    Path("docs/audit/chp4.18-canonical-spend-transaction-v2.md"),
+    Path("docs/security/production-gate-matrix.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -153,6 +155,19 @@ REQUIRED_TOKENS = {
         "audit_integrity()",
         "DepositAuthorization",
         "NO-GO",
+    ),
+    Path("docs/audit/chp4.18-canonical-spend-transaction-v2.md"): (
+        "TxFieldsV2",
+        "TxDigestV2",
+        "Canonical V2",
+        "Production",
+        "NO-GO",
+    ),
+    Path("docs/security/production-gate-matrix.md"): (
+        "Current overall production status: NO-GO",
+        "Canonical TxFieldsV2 host codec",
+        "External audit",
+        "Complete 0PSP production release",
     ),
 }
 
