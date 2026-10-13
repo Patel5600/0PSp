@@ -165,6 +165,98 @@ def test_live_smoke_binds_exact_code_to_authenticated_state_and_keeps_composite_
     assert report["composite_production_gate"] == "NO-GO"
 
 
+
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("block_number", FINALIZED_NUMBER + 1, "different block or address"),
+        ("block_hash", bytes.fromhex("99" * 32), "different block or address"),
+        ("address", bytes.fromhex("66" * 20), "different block or address"),
+        ("code_hash", bytes.fromhex("77" * 32), "code hash differs"),
+    ],
+)
+def test_live_smoke_fails_closed_on_mismatched_authenticated_account_state(
+    monkeypatch, field: str, value: object, match: str
+) -> None:
+    config, state = _install_fakes(monkeypatch)
+
+    original = smoke.HeliosAuthenticatedHeaderJournal
+
+    class MutatedStateJournal(original):
+        def verify_account_state(self, raw_header_rlp, address):
+            verified = super().verify_account_state(raw_header_rlp, address)
+            return SimpleNamespace(
+                block_number=value if field == "block_number" else verified.block_number,
+                block_hash=value if field == "block_hash" else verified.block_hash,
+                address=value if field == "address" else verified.address,
+                code_hash=value if field == "code_hash" else verified.code_hash,
+            )
+
+    monkeypatch.setattr(smoke, "HeliosAuthenticatedHeaderJournal", MutatedStateJournal)
+
+    with pytest.raises(RuntimeError, match=match):
+        smoke.run_live_smoke(config)
+    assert state == {"started": True, "stopped": True}
+
+
+def test_live_smoke_fails_closed_when_runtime_fingerprint_disagrees_with_manifest(monkeypatch) -> None:
+    env = valid_env()
+    env["PSP_PROTOCOL_RUNTIME_FINGERPRINT"] = "99" * 48
+    config = smoke.load_configuration(env)
+    state = {"started": False, "stopped": False}
+
+    class FakeClient:
+        def __init__(self, _config):
+            pass
+
+        def start(self):
+            state["started"] = True
+
+        def stop(self):
+            state["stopped"] = True
+
+        def call(self, method, params):
+            if method == "eth_getBlockByNumber":
+                return {"number": hex(FINALIZED_NUMBER), "hash": "0x" + FINALIZED_HASH.hex()}
+            if method == "eth_getCode":
+                return "0x" + PROTOCOL_CODE.hex()
+            raise AssertionError(f"unexpected RPC method {method}")
+
+    class FakeAdapter:
+        def __init__(self, _config, _client):
+            pass
+
+        def resolve(self):
+            return SimpleNamespace(namespace_id=NamespaceIdV3(bytes.fromhex("ab" * 48)))
+
+    class FakeJournal:
+        def __init__(self, _path, **kwargs):
+            pass
+
+        def advance_to_finalized(self):
+            return SimpleNamespace(number=FINALIZED_NUMBER + 10, block_hash=bytes.fromhex("88" * 32))
+
+        def contains_finalized_header(self, _number, _block_hash):
+            return True
+
+        def verify_account_state(self, raw_header_rlp, address):
+            return SimpleNamespace(
+                block_number=FINALIZED_NUMBER,
+                block_hash=FINALIZED_HASH,
+                address=address,
+                code_hash=keccak256(PROTOCOL_CODE),
+            )
+
+    monkeypatch.setattr(smoke, "HeliosMainnetLightClient", FakeClient)
+    monkeypatch.setattr(smoke, "EvmNamespaceAdapter", FakeAdapter)
+    monkeypatch.setattr(smoke, "HeliosAuthenticatedHeaderJournal", FakeJournal)
+    monkeypatch.setattr(smoke, "execution_header_rlp_from_json", lambda _value: RAW_HEADER)
+
+    with pytest.raises(RuntimeError, match="fingerprint"):
+        smoke.run_live_smoke(config)
+    assert state == {"started": True, "stopped": True}
+
+
 def test_live_smoke_stops_client_if_namespace_resolution_fails(monkeypatch) -> None:
     config, state = _install_fakes(monkeypatch, adapter_fails=True)
 
