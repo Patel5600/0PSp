@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -255,6 +256,8 @@ def test_protocol_address_is_part_of_deployment_component_identity() -> None:
     {"asset_epoch": True},
     {"asset_epoch": -1},
     {"code_block_tag": "pending"},
+    {"code_block_tag": "0x00"},
+    {"code_block_tag": "0X1"},
 ])
 def test_manifest_rejects_noncanonical_configuration(kwargs) -> None:
     values = dict(
@@ -270,6 +273,16 @@ def test_manifest_rejects_noncanonical_configuration(kwargs) -> None:
     values.update(kwargs)
     with pytest.raises(ValueError):
         EvmNamespaceConfig(**values)
+
+
+def test_manifest_accepts_a_canonical_exact_block_tag_for_authenticated_code_binding() -> None:
+    config, rpc, _adapter = build_adapter()
+    exact_config = replace(config, code_block_tag=hex(CHECKPOINT_HEIGHT))
+
+    binding = EvmNamespaceAdapter(exact_config, rpc).resolve()
+
+    assert binding.namespace_id.data
+    assert ("eth_getCode", ["0x" + PROTOCOL_ADDRESS.hex(), hex(CHECKPOINT_HEIGHT)]) in rpc.calls
 
 
 def test_native_asset_rejects_token_fingerprint_and_token_requires_one() -> None:
