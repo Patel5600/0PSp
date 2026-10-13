@@ -19,7 +19,7 @@ class HeaderRpc:
         self.headers = {}
         for height in range(12):
             block_hash = bytes([height + 1]) * 32
-            parent_hash = None if height == 0 else self.headers[height - 1]["hash"]
+            parent_hash = None if height == 0 else bytes([height]) * 32
             self.headers[height] = {
                 "number": hex(height),
                 "hash": "0x" + block_hash.hex(),
