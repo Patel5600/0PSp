@@ -361,3 +361,31 @@ def test_audit_rejects_persisted_post_state_root_or_head_substitution(
         match="post-state root/head mismatch",
     ):
         ledger.audit_integrity()
+
+@pytest.mark.parametrize(
+    ("column", "tampered"),
+    [
+        ("source_id", bytes([0xA3]) * 48),
+        ("state_version", 2),
+    ],
+)
+def test_audit_rejects_commitment_source_metadata_substitution(
+    tmp_path,
+    column: str,
+    tampered: bytes | int,
+) -> None:
+    ledger, *_ = make_environment(tmp_path)
+    ledger.accept_spend(statement_for(ledger, output=OUTPUT_A), proof=VALID_PROOF)
+
+    # Only fixed column names from the test parametrization are interpolated.
+    with sqlite3.connect(tmp_path / "candidate.sqlite3") as conn:
+        conn.execute(
+            f"UPDATE v3_commitments SET {column}=? WHERE commitment=?",
+            (tampered, OUTPUT_A),
+        )
+
+    with pytest.raises(
+        SQLiteV3LedgerIntegrityError,
+        match="source metadata disagrees",
+    ):
+        ledger.audit_integrity()
