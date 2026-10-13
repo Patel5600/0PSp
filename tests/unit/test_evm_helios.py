@@ -137,11 +137,12 @@ class FakeProcess:
 
 
 class FakeRpc:
-    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE):
+    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE, code_overrides=None):
         self.blocks = blocks
         self.final_height = final_height
         self.chain_id = chain_id
         self.code = code
+        self.code_overrides = dict(code_overrides or {})
         self.calls = []
 
     def call(self, method, params):
@@ -154,7 +155,8 @@ class FakeRpc:
             number = self.final_height if tag == "finalized" else int(tag, 16)
             return self.blocks.get(number)
         if method == "eth_getCode":
-            return "0x" + self.code.hex()
+            code = self.code_overrides.get(params[0].lower(), self.code)
+            return "0x" + code.hex()
         raise AssertionError(method)
 
 
@@ -171,7 +173,8 @@ def make_fake_chain(final_height=3):
     return blocks
 
 
-def make_namespace_config(checkpoint_height, checkpoint_hash):
+def make_namespace_config(checkpoint_height, checkpoint_hash, *, asset_address=None,
+                          expected_asset_code_fingerprint=None):
     return EvmNamespaceConfig(
         chain_id=1,
         genesis_hash=ETHEREUM_MAINNET_GENESIS_HASH,
@@ -179,12 +182,12 @@ def make_namespace_config(checkpoint_height, checkpoint_hash):
         checkpoint_hash=checkpoint_hash,
         protocol_address=TEST_PROTOCOL_ADDRESS,
         expected_protocol_code_fingerprint=runtime_code_fingerprint(TEST_PROTOCOL_CODE),
-        asset_address=None,
-        expected_asset_code_fingerprint=None,
+        asset_address=asset_address,
+        expected_asset_code_fingerprint=expected_asset_code_fingerprint,
     )
 
 
-def fake_light_client(tmp_path, blocks, *, final_height=3):
+def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CODE, code_overrides=None):
     binary = tmp_path / "helios"
     binary.write_bytes(b"test executable; the process is mocked")
     config = HeliosMainnetConfig(
@@ -196,7 +199,9 @@ def fake_light_client(tmp_path, blocks, *, final_height=3):
     )
     light_client = HeliosMainnetLightClient(config)
     light_client._process = FakeProcess()
-    light_client._rpc = FakeRpc(blocks, final_height=final_height)
+    light_client._rpc = FakeRpc(
+        blocks, final_height=final_height, code=code, code_overrides=code_overrides
+    )
     light_client._started = True
     return light_client
 
@@ -420,6 +425,9 @@ def test_authenticated_deposit_verifier_checks_pinned_runtime_code_at_proven_blo
         depositor=b"\x63" * 20,
         beneficiary=b"\x64" * 20,
         amount=12,
+        transaction_to=TEST_PROTOCOL_ADDRESS,
+        transaction_value=12,
+        asset_movement_kind="NATIVE_TX_VALUE_MATCHED",
     )
 
     class FakeInclusionVerifier:
@@ -442,7 +450,7 @@ def test_authenticated_deposit_verifier_checks_pinned_runtime_code_at_proven_blo
     )
     assert result.inclusion == fake_inclusion
     assert result.authenticated_header.block_hash == hash2
-    assert result.assurance_level == "HELIOS_FINALIZED_HEADER_ANCESTRY_AND_TRANSACTION_RECEIPT_TRIES_VERIFIED"
+    assert result.assurance_level == "HELIOS_FINALIZED_HEADER_TRIES_AND_ASSET_MOVEMENT_SIGNAL_VERIFIED_NOT_CUSTODY_AUTHORIZATION"
 
     # Wrong runtime at this historical block must fail closed even though the
     # header and trie verifier output are otherwise accepted.
@@ -491,3 +499,84 @@ def test_helios_rpc_adapter_allows_only_valid_historical_code_reads(tmp_path):
         client.call("eth_getCode", ["0x1234", "0x2"])
     with pytest.raises(HeliosConsensusError, match="does not permit"):
         client.call("eth_sendRawTransaction", ["0xdeadbeef"])
+
+
+def test_authenticated_deposit_verifier_pins_token_code_at_deposit_block(tmp_path, monkeypatch):
+    blocks = make_fake_chain(final_height=3)
+    _header2, raw2, hash2 = make_header(2, bytes.fromhex(blocks[1]["hash"][2:]))
+    token_address = b"\x33" * 20
+    token_fingerprint = runtime_code_fingerprint(TEST_PROTOCOL_CODE)
+    config = make_namespace_config(
+        1,
+        bytes.fromhex(blocks[1]["hash"][2:]),
+        asset_address=token_address,
+        expected_asset_code_fingerprint=token_fingerprint,
+    )
+    client = fake_light_client(tmp_path, blocks, final_height=3)
+    journal = HeliosAuthenticatedHeaderJournal(
+        tmp_path / "token-code.sqlite3",
+        namespace_config=config,
+        namespace_id=NS,
+        light_client=client,
+        max_headers_per_sync=10,
+    )
+    policy = EvmDepositEvidencePolicy(
+        namespace_id=NS,
+        chain_id=1,
+        deposit_contract_address=TEST_PROTOCOL_ADDRESS,
+        expected_runtime_code_fingerprint=config.expected_protocol_code_fingerprint,
+        event_topic0=TEST_EVENT_TOPIC,
+        asset_address=token_address,
+    )
+    fake_inclusion = ProvenEvmDepositInclusion(
+        namespace_id=NS,
+        chain_id=1,
+        deposit_id=b"\x71" * 36,
+        transaction_hash=b"\x72" * 32,
+        transaction_index=5,
+        receipt_log_ordinal=1,
+        block_number=2,
+        block_hash=hash2,
+        finalized_anchor=(2).to_bytes(8, "big") + hash2,
+        deposit_contract_address=TEST_PROTOCOL_ADDRESS,
+        asset_address=token_address,
+        depositor=b"\x73" * 20,
+        beneficiary=b"\x74" * 20,
+        amount=19,
+        transaction_to=TEST_PROTOCOL_ADDRESS,
+        transaction_value=0,
+        asset_movement_kind="ERC20_TRANSFER_LOG_MATCHED",
+    )
+
+    class FakeInclusionVerifier:
+        def __init__(self, _policy, _journal):
+            pass
+        def verify(self, **_kwargs):
+            return fake_inclusion
+
+    monkeypatch.setattr(helios_module, "EvmDepositInclusionVerifier", FakeInclusionVerifier)
+    verifier = HeliosAuthenticatedDepositVerifier(policy, config, journal)
+    result = verifier.verify(
+        raw_header_rlp=raw2,
+        raw_transaction=b"raw tx fixture",
+        transaction_proof=[b"tx proof fixture"],
+        raw_receipt=b"raw receipt fixture",
+        receipt_proof=[b"receipt proof fixture"],
+        transaction_index=5,
+        receipt_log_ordinal=1,
+        expected_beneficiary=b"\x74" * 20,
+    )
+    assert result.inclusion.asset_movement_kind == "ERC20_TRANSFER_LOG_MATCHED"
+
+    client._rpc.code_overrides["0x" + token_address.hex()] = bytes.fromhex("6001600055")
+    with pytest.raises(HeliosConsensusError, match="token runtime code at the deposit block differs"):
+        verifier.verify(
+            raw_header_rlp=raw2,
+            raw_transaction=b"raw tx fixture",
+            transaction_proof=[b"tx proof fixture"],
+            raw_receipt=b"raw receipt fixture",
+            receipt_proof=[b"receipt proof fixture"],
+            transaction_index=5,
+            receipt_log_ordinal=1,
+            expected_beneficiary=b"\x74" * 20,
+        )

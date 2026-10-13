@@ -60,10 +60,13 @@ class ProvenEvmDepositInclusion:
     depositor: bytes
     beneficiary: bytes
     amount: int
+    transaction_to: bytes
+    transaction_value: int
+    asset_movement_kind: str
 
     @property
     def assurance_level(self) -> str:
-        return "TRIE_INCLUSION_VERIFIED_AGAINST_QUORUM_FINALIZED_HEADER"
+        return "TRIE_INCLUSION_AND_ASSET_MOVEMENT_SIGNAL_VERIFIED_NOT_CUSTODY_AUTHORIZATION"
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,6 +223,25 @@ class EvmDepositInclusionVerifier:
                 raise EvmDepositInclusionError("transaction trie inclusion proof did not verify")
             if not verify_mpt_inclusion(receipts_root, trie_key, raw_receipt, receipt_proof):
                 raise EvmDepositInclusionError("receipt trie inclusion proof did not verify")
+            # Decode the transaction target/value from the proven raw transaction.
+            # Legacy and typed field offsets are fixed by their envelope schemas.
+            if tx_envelope.tx_type is None:
+                to_index, value_index = 3, 4
+            elif tx_envelope.tx_type == 1:
+                to_index, value_index = 4, 5
+            else:
+                to_index, value_index = 5, 6
+            tx_to_field = tx_envelope.payload[to_index]
+            tx_value_field = tx_envelope.payload[value_index]
+            if not isinstance(tx_to_field, bytes) or len(tx_to_field) != EVM_ADDRESS_BYTES:
+                raise EvmDepositInclusionError("raw transaction target must be the pinned protocol's 20-byte address")
+            if not isinstance(tx_value_field, bytes) or len(tx_value_field) > 32:
+                raise EvmDepositInclusionError("raw transaction value must be a canonical uint256")
+            transaction_to = tx_to_field
+            transaction_value = rlp_integer(tx_value_field, "transaction.value")
+            if not hmac.compare_digest(transaction_to, self._policy.deposit_contract_address):
+                raise EvmDepositInclusionError("raw transaction target differs from the pinned deposit contract")
+
             receipt = _parse_receipt(raw_receipt, tx_envelope.tx_type)
             if receipt_log_ordinal >= len(receipt.logs):
                 raise EvmDepositInclusionError("receipt_log_ordinal is outside the proven receipt logs")
@@ -241,6 +263,43 @@ class EvmDepositInclusionVerifier:
             amount = int.from_bytes(data, "big")
             if not self._policy.min_amount <= amount <= self._policy.max_amount or amount > U64_MAX:
                 raise EvmDepositInclusionError("proven deposit amount is outside the accepted range")
+
+            if self._policy.asset_address is None:
+                # Native-asset v1: the transaction must send exactly the deposited
+                # amount to the pinned protocol contract. Contract custody still
+                # requires a separately reviewed contract-semantics policy.
+                if transaction_value != amount:
+                    raise EvmDepositInclusionError("native deposit amount does not equal the proven transaction value")
+                asset_movement_kind = "NATIVE_TX_VALUE_MATCHED"
+            else:
+                # ERC-20 v1: require a standard Transfer(from=depositor,
+                # to=protocol, value=amount) log from the pinned token in this
+                # same proven receipt. Token semantics and proxy safety still need
+                # independent review; a token can emit deceptive logs.
+                if transaction_value != 0:
+                    raise EvmDepositInclusionError("ERC-20 deposit transaction value must be zero")
+                transfer_topic = keccak256(b"Transfer(address,address,uint256)")
+                matching_transfers = 0
+                for log_address, log_topics, log_data in receipt.logs:
+                    if log_address != self._policy.asset_address or not log_topics or not hmac.compare_digest(log_topics[0], transfer_topic):
+                        continue
+                    if len(log_topics) != 3 or len(log_data) != 32:
+                        raise EvmDepositInclusionError("token Transfer event has a non-canonical topic/data layout")
+                    transfer_from = _address_topic(log_topics[1], "ERC-20 Transfer.from")
+                    transfer_to = _address_topic(log_topics[2], "ERC-20 Transfer.to")
+                    transfer_value = int.from_bytes(log_data, "big")
+                    if (
+                        hmac.compare_digest(transfer_from, depositor)
+                        and hmac.compare_digest(transfer_to, self._policy.deposit_contract_address)
+                        and transfer_value == amount
+                    ):
+                        matching_transfers += 1
+                if matching_transfers != 1:
+                    raise EvmDepositInclusionError(
+                        "proven receipt must contain exactly one matching ERC-20 Transfer to the protocol contract"
+                    )
+                asset_movement_kind = "ERC20_TRANSFER_LOG_MATCHED"
+
             return ProvenEvmDepositInclusion(
                 namespace_id=self._policy.namespace_id,
                 chain_id=self._policy.chain_id,
@@ -256,6 +315,9 @@ class EvmDepositInclusionVerifier:
                 depositor=depositor,
                 beneficiary=beneficiary,
                 amount=amount,
+                transaction_to=transaction_to,
+                transaction_value=transaction_value,
+                asset_movement_kind=asset_movement_kind,
             )
         except EvmDepositInclusionError:
             raise

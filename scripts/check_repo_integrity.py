@@ -32,6 +32,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.11-evm-deposit-evidence-contract.md"),
     Path("docs/audit/chp4.12-evm-trie-inclusion-verifier.md"),
     Path("docs/audit/chp4.13-helios-authenticated-finality.md"),
+    Path("docs/audit/chp4.14-asset-movement-evidence.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -119,6 +120,13 @@ REQUIRED_TOKENS = {
         "HeliosAuthenticatedDepositVerifier",
         "weak-subjectivity checkpoint",
         "eth_getProof",
+        "DepositAuthorization",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.14-asset-movement-evidence.md"): (
+        "NATIVE_TX_VALUE_MATCHED",
+        "ERC20_TRANSFER_LOG_MATCHED",
+        "custody authorization",
         "DepositAuthorization",
         "NO-GO",
     ),
