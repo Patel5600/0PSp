@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import pytest
 
+from src.primitives.namespace_v3 import derive_namespace_id_v3
 from src.protocol.reference_ledger import (
     DepositAuthorization,
     DuplicateDeposit,
     ReferenceLedger,
 )
 
-NS = bytes([0x51]) * 48
+NS = derive_namespace_id_v3(b"adversarial-ledger", b"test-deployment", b"test-asset")
 ANCHOR = bytes([0x61]) * 32
 PARAMS = b"v2-adversarial-params"
 
@@ -27,11 +28,13 @@ def _ledger() -> ReferenceLedger:
             deposit_id=b"chain-id:tx-hash:output-index:7",
             authorized_value=10,
             finalized_anchor=ANCHOR,
+            beneficiary_address=bytes([0x55]) * 20,
         )
 
     # Explicitly a test double. A production verifier must enforce R_mint and
     # prove the hidden opening contains authorized_value without exposing it.
     return ReferenceLedger(
+        expected_namespace_id=NS,
         authorize_deposit=authorize,
         verify_issuance_proof=lambda statement, proof: (
             statement.version == 2 and statement.authorized_value == 10 and proof == b"test-only-proof"
