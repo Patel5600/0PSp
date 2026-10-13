@@ -137,11 +137,12 @@ class FakeProcess:
 
 
 class FakeRpc:
-    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE):
+    def __init__(self, blocks, *, final_height, chain_id=1, code=TEST_PROTOCOL_CODE, code_overrides=None):
         self.blocks = blocks
         self.final_height = final_height
         self.chain_id = chain_id
         self.code = code
+        self.code_overrides = dict(code_overrides or {})
         self.calls = []
 
     def call(self, method, params):
@@ -154,7 +155,8 @@ class FakeRpc:
             number = self.final_height if tag == "finalized" else int(tag, 16)
             return self.blocks.get(number)
         if method == "eth_getCode":
-            return "0x" + self.code.hex()
+            code = self.code_overrides.get(params[0].lower(), self.code)
+            return "0x" + code.hex()
         raise AssertionError(method)
 
 
@@ -171,7 +173,8 @@ def make_fake_chain(final_height=3):
     return blocks
 
 
-def make_namespace_config(checkpoint_height, checkpoint_hash):
+def make_namespace_config(checkpoint_height, checkpoint_hash, *, asset_address=None,
+                          expected_asset_code_fingerprint=None):
     return EvmNamespaceConfig(
         chain_id=1,
         genesis_hash=ETHEREUM_MAINNET_GENESIS_HASH,
@@ -179,12 +182,12 @@ def make_namespace_config(checkpoint_height, checkpoint_hash):
         checkpoint_hash=checkpoint_hash,
         protocol_address=TEST_PROTOCOL_ADDRESS,
         expected_protocol_code_fingerprint=runtime_code_fingerprint(TEST_PROTOCOL_CODE),
-        asset_address=None,
-        expected_asset_code_fingerprint=None,
+        asset_address=asset_address,
+        expected_asset_code_fingerprint=expected_asset_code_fingerprint,
     )
 
 
-def fake_light_client(tmp_path, blocks, *, final_height=3):
+def fake_light_client(tmp_path, blocks, *, final_height=3, code=TEST_PROTOCOL_CODE, code_overrides=None):
     binary = tmp_path / "helios"
     binary.write_bytes(b"test executable; the process is mocked")
     config = HeliosMainnetConfig(
@@ -196,7 +199,9 @@ def fake_light_client(tmp_path, blocks, *, final_height=3):
     )
     light_client = HeliosMainnetLightClient(config)
     light_client._process = FakeProcess()
-    light_client._rpc = FakeRpc(blocks, final_height=final_height)
+    light_client._rpc = FakeRpc(
+        blocks, final_height=final_height, code=code, code_overrides=code_overrides
+    )
     light_client._started = True
     return light_client
 
