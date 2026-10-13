@@ -62,6 +62,15 @@ A successful live run reports:
 
 For token mode, the same exact-height state proof is required for the token account. The script emits a zero exit status only if these smoke checks pass. Its JSON report intentionally continues to set composite_production_gate to NO-GO, proof_binding to NO-GO_NOT_INSTANTIATED_BY_THIS_SMOKE, independent_security_review to NOT_PERFORMED, and external_cryptographic_audit to NOT_PERFORMED. It does not verify a deposit transaction, receipt, custody behavior, mint authorization, or issuance/spend proof.
 
+## CI evidence for the code commit
+
+The code and tests at exact commit `3646c25fa17e85747ea8ce9a9753ecad82ce6119` completed both repository workflows successfully on 2026-10-13:
+
+- [Functional checks](https://github.com/Patel5600/0PSp/actions/runs/38368842230): **success**. The job completed native build/tests, ASan/UBSan checks, probe builds, diagnostics, and the repository's unit/property test command.
+- [Repository integrity watch](https://github.com/Patel5600/0PSp/actions/runs/38368842102): **success**.
+
+These checks are regression evidence for that exact code commit. They are not evidence that a live Mainnet deployment smoke passed, that RPC operators are operationally independent, that Helios is independently security-reviewed, that the complete proof relation exists, or that any external audit occurred. Subsequent documentation-only commits must be checked separately by CI as well.
+
 ## Why the gate cannot honestly be marked GO yet
 
 1. **Real deployment evidence is missing.** The smoke runner is a new reproducible procedure, not an executed Mainnet test. No actual protocol address, independently sourced runtime fingerprint, execution checkpoint, Helios binary hash, or current beacon checkpoint has been accepted in this change.
