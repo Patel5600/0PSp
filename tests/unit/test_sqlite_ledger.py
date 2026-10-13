@@ -18,6 +18,7 @@ from src.protocol.reference_ledger import (
     ProofRejected,
     SpendStatement,
 )
+from src.protocol.transaction_v2 import encode_spend_transaction_v2
 from src.protocol.sqlite_ledger import (
     LedgerConfigurationMismatch,
     LedgerIntegrityError,
