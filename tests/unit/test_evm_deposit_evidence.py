@@ -167,19 +167,21 @@ def make_reader(*, receipt=None, asset_address=ASSET_ADDRESS, code=PROTOCOL_CODE
 def test_valid_receipt_yields_canonical_quorum_observation_not_authorization():
     binding, _policy, rpc, journal, reader = make_reader()
     observed = reader.inspect(
-        transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY
+        transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY
     )
     assert observed.namespace_id == binding.namespace_id
     assert observed.chain_id == CHAIN_ID
     assert observed.amount == AMOUNT
     assert observed.depositor == DEPOSITOR
     assert observed.beneficiary == BENEFICIARY
-    assert observed.deposit_id == TX_HASH + (17).to_bytes(8, "big")
+    assert observed.receipt_log_ordinal == 0
+    assert observed.log_index == 17
+    assert observed.deposit_id == TX_HASH + (0).to_bytes(4, "big")
     assert observed.finalized_anchor == CHECKPOINT_HEIGHT.to_bytes(8, "big") + BLOCK_HASH
     assert observed.assurance_level == "QUORUM_OBSERVED_NOT_CRYPTOGRAPHICALLY_AUTHENTICATED"
     assert len(observed.evidence_digest) == 48
     assert observed.canonical_bytes() == reader.inspect(
-        transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY
+        transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY
     ).canonical_bytes()
     assert all(
         ("eth_getCode", ["0x" + PROTOCOL_ADDRESS.hex(), hex(CHECKPOINT_HEIGHT)]) in provider.calls
@@ -204,7 +206,7 @@ def test_adversarial_receipt_claims_fail_closed(kwargs, match):
     binding, _policy, _rpc, _journal, reader = make_reader(receipt=make_receipt(**kwargs))
     with pytest.raises(EvmDepositEvidenceError, match=match):
         reader.inspect(
-            transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY
+            transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY
         )
 
 
@@ -212,20 +214,20 @@ def test_reader_rejects_log_absence_duplicate_indices_and_metadata_substitution(
     receipt = make_receipt(log_index=18)
     _, _, _, _, reader = make_reader(receipt=receipt)
     with pytest.raises(EvmDepositEvidenceError, match="log_index is absent"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
     receipt = make_receipt()
     duplicate = deepcopy(receipt["logs"][0])
     receipt["logs"].append(duplicate)
     _, _, _, _, reader = make_reader(receipt=receipt)
     with pytest.raises(EvmDepositEvidenceError, match="duplicate global log indices"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
     receipt = make_receipt()
     receipt["logs"][0]["transactionIndex"] = "0x3"
     _, _, _, _, reader = make_reader(receipt=receipt)
     with pytest.raises(EvmDepositEvidenceError, match="metadata does not match"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
 
 def test_reader_rejects_noncanonical_topics_data_and_amount_overflow():
@@ -233,54 +235,54 @@ def test_reader_rejects_noncanonical_topics_data_and_amount_overflow():
     receipt["logs"][0]["topics"][2] = topic_address(b"\x98" * 20)
     _, _, _, _, reader = make_reader(receipt=receipt)
     with pytest.raises(EvmDepositEvidenceError, match="asset does not match"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
     receipt = make_receipt()
     receipt["logs"][0]["data"] = "0x01"
     _, _, _, _, reader = make_reader(receipt=receipt)
     with pytest.raises(EvmDepositEvidenceError, match="exactly 32 bytes"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
     receipt = make_receipt(amount=1 << 64)
     _, _, _, _, reader = make_reader(receipt=receipt)
     with pytest.raises(EvmDepositEvidenceError, match="outside the configured accepted range"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
 
 def test_reader_rejects_runtime_code_substitution_and_rpc_failure():
     _, _, _, _, reader = make_reader(code=bytes.fromhex("6001600055"))
     with pytest.raises(EvmDepositEvidenceError, match="runtime code at the deposit block"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
     _, _, _, _, reader = make_reader()
     for _name, provider in reader._rpc._providers:
         provider.failure = True
     with pytest.raises(EvmDepositEvidenceError, match="quorum transaction receipt"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
 
 def test_native_asset_requires_zero_address_topic_and_is_encoded_distinctly():
     receipt = make_receipt(asset=bytes(20))
     binding, _, _, _, native_reader = make_reader(receipt=receipt, asset_address=None)
     native = native_reader.inspect(
-        transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY
+        transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY
     )
     assert native.asset_address is None
     assert native.namespace_id == binding.namespace_id
 
     _, _, _, _, token_reader = make_reader(receipt=receipt, asset_address=ASSET_ADDRESS)
     with pytest.raises(EvmDepositEvidenceError, match="asset does not match"):
-        token_reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
+        token_reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
 
 def test_reader_input_and_policy_shapes_are_strict():
     _, policy, rpc, journal, reader = make_reader()
     with pytest.raises(ValueError, match="transaction_hash"):
-        reader.inspect(transaction_hash=b"short", log_index=17, expected_beneficiary=BENEFICIARY)
-    with pytest.raises(ValueError, match="log_index"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=True, expected_beneficiary=BENEFICIARY)
+        reader.inspect(transaction_hash=b"short", receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
+    with pytest.raises(ValueError, match="receipt_log_ordinal"):
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=True, expected_beneficiary=BENEFICIARY)
     with pytest.raises(ValueError, match="expected_beneficiary"):
-        reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=bytes(20))
+        reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=bytes(20))
     with pytest.raises(ValueError, match="event_topic0"):
         EvmDepositEvidencePolicy.from_namespace_binding(
             EvmNamespaceAdapter(
