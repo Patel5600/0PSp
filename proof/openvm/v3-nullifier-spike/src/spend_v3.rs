@@ -15,8 +15,7 @@
 use super::{
     coin_commitment_v3, constant_time_eq, hmac_sha3_384, nullifier_key_commitment_v3,
     nullifier_message_v3, parse_bundle_key_commitment, shake256_384, Reader, COIN_ID_BYTES,
-    COMMITMENT_DOMAIN_V3, HASH_BYTES, KEY_BYTES, NULLIFIER_DOMAIN_V3, RHO_BYTES,
-    R_NF_BYTES, WITNESS_MAGIC,
+    HASH_BYTES, KEY_BYTES, RHO_BYTES, R_NF_BYTES,
 };
 
 pub const SPEND_WITNESS_MAGIC: &[u8] =
@@ -39,6 +38,7 @@ const OUTPUT_COIN_ID_DOMAIN: &[u8] = b"0PSP-OUTPUT-COIN-ID-v3-anchor-index-candi
 const OUTPUT_RNF_DOMAIN: &[u8] = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate";
 const OUTPUT_ID_VERSION: u8 = 0x03;
 const OUTPUT_ENTROPY_BYTES: usize = 32;
+const OUTPUT_ID_VERSION: u8 = 0x03;
 
 #[derive(Clone)]
 struct TxFields {
