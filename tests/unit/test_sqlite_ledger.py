@@ -386,3 +386,18 @@ def test_database_reopen_fails_closed_before_accepting_transitions_if_internal_t
         )
     with pytest.raises(LedgerIntegrityError, match="persisted Merkle nodes"):
         make_ledger(path)
+
+
+def test_fresh_ledger_initializes_empty_state_and_audits_on_startup(tmp_path):
+    path = tmp_path / "fresh-empty.sqlite3"
+    ledger = make_ledger(path)
+    snapshot = ledger.snapshot()
+    assert snapshot.namespace_id == NS
+    assert snapshot.state_version == 0
+    assert snapshot.commitment_count == 0
+    assert snapshot.commitment_root == __import__(
+        "src.protocol.commitment_tree", fromlist=["CommitmentTree"]
+    ).CommitmentTree(NS).root
+    assert ledger.issued_count() == 0
+    assert ledger.spent_count() == 0
+    ledger.audit_integrity()
