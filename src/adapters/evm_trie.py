@@ -198,8 +198,8 @@ def compact_decode_path(encoded: bytes) -> tuple[bool, tuple[int, ...]]:
 
 def _child_reference(value: object) -> bytes:
     if isinstance(value, bytes):
-        if value and len(value) != 32 and len(value) >= 32:
-            raise EthereumEncodingError("invalid trie child hash reference")
+        if value and len(value) != 32:
+            raise EthereumEncodingError("trie child reference must be empty, a 32-byte hash, or an embedded node")
         return value
     if isinstance(value, list):
         encoded = rlp_encode_list([_encode_decoded(item) for item in value])
