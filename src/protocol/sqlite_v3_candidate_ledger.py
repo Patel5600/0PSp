@@ -870,10 +870,11 @@ class SQLiteV3CandidateLedger:
     def audit_integrity(self) -> None:
         """Rebuild the complete local tree/event chain and check the retained anchors."""
         with closing(self._connect()) as conn:
+            conn.execute("BEGIN")
             meta = conn.execute(
                 """SELECT schema_version,namespace_id,params_id,policy_id,profile_id,
                           bootstrap_root,bootstrap_head,bootstrap_count,state_version,state_head,
-                          commitment_count,commitment_root
+                          commitment_count,commitment_root,bootstrap_finalized_anchor
                    FROM v3_ledger_meta WHERE singleton=1"""
             ).fetchone()
             if meta is None:
@@ -885,6 +886,7 @@ class SQLiteV3CandidateLedger:
                 raise SQLiteV3ConfigurationMismatch("candidate ledger configuration changed")
             bootstrap_root, bootstrap_head, bootstrap_count = bytes(meta[5]), bytes(meta[6]), int(meta[7])
             state_version, state_head, commitment_count, commitment_root = int(meta[8]), bytes(meta[9]), int(meta[10]), bytes(meta[11])
+            bootstrap_finalized_anchor = bytes(meta[12])
             bootstrap_rows = conn.execute(
                 "SELECT commitment,commitment_index FROM v3_commitments WHERE source_kind='bootstrap' ORDER BY commitment_index"
             ).fetchall()
@@ -1007,12 +1009,29 @@ class SQLiteV3CandidateLedger:
             ):
                 raise SQLiteV3LedgerIntegrityError("V3 candidate ledger metadata does not match rebuilt state")
             all_commitments = conn.execute(
-                "SELECT commitment_index,commitment FROM v3_commitments ORDER BY commitment_index"
+                "SELECT commitment_index,commitment,source_kind,source_id,state_version "
+                "FROM v3_commitments ORDER BY commitment_index"
             ).fetchall()
             if [int(row[0]) for row in all_commitments] != list(range(commitment_count)):
                 raise SQLiteV3LedgerIntegrityError("candidate commitment indices are not contiguous")
             if [bytes(row[1]) for row in all_commitments] != [tree.commitment_at(i) for i in range(tree.count)]:
                 raise SQLiteV3LedgerIntegrityError("candidate commitment table disagrees with rebuilt tree")
+            expected_commitment_sources = [
+                ("bootstrap", bootstrap_finalized_anchor, 0)
+                for _ in range(bootstrap_count)
+            ]
+            expected_commitment_sources.extend(
+                ("spend", bytes(event[1]), int(event[0]))
+                for event in events
+            )
+            actual_commitment_sources = [
+                (str(row[2]), bytes(row[3]), int(row[4]))
+                for row in all_commitments
+            ]
+            if actual_commitment_sources != expected_commitment_sources:
+                raise SQLiteV3LedgerIntegrityError(
+                    "candidate commitment source metadata disagrees with bootstrap/event history"
+                )
             actual_nodes = {
                 (int(level), int(index), bytes(value))
                 for level, index, value in conn.execute(
@@ -1037,6 +1056,7 @@ class SQLiteV3CandidateLedger:
             expected_anchors = {v: snapshots[v] for v in retained_versions}
             if actual_anchors != expected_anchors:
                 raise SQLiteV3LedgerIntegrityError("retained candidate anchor window mismatches event history")
+            conn.execute("COMMIT")
 
 
 __all__ = [
