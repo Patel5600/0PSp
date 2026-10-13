@@ -5,8 +5,6 @@ prove that a ZK backend constrains the same fields or that any signature is vali
 """
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 
 from src.primitives.namespace import NamespaceId
