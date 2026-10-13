@@ -227,7 +227,9 @@ def test_reader_rejects_log_absence_duplicate_indices_and_metadata_substitution(
     duplicate = deepcopy(receipt["logs"][0])
     receipt["logs"].append(duplicate)
     _, _, _, _, reader = make_reader(receipt=receipt)
-    with pytest.raises(EvmDepositEvidenceError, match="duplicate global log indices"):
+    # Quorum vote canonicalization rejects malformed duplicate indices before
+    # the reader sees a winning receipt, then the reader redacts provider detail.
+    with pytest.raises(EvmDepositEvidenceError, match="quorum transaction receipt"):
         reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
     receipt = make_receipt()
@@ -264,7 +266,7 @@ def test_reader_rejects_runtime_code_substitution_and_rpc_failure():
     _, _, _, _, reader = make_reader()
     for _name, provider in reader._rpc._providers:
         provider.failure = True
-    with pytest.raises(EvmDepositEvidenceError, match="quorum transaction receipt"):
+    with pytest.raises(EvmDepositEvidenceError, match="establish the RPC quorum chain ID"):
         reader.inspect(transaction_hash=TX_HASH, receipt_log_ordinal=0, expected_beneficiary=BENEFICIARY)
 
 
@@ -355,3 +357,24 @@ def test_reader_rejects_chain_mismatch_and_non_quorum_transport():
     single = rpc._providers[0][1]
     with pytest.raises(TypeError, match="QuorumJsonRpcTransport"):
         EvmDepositEvidenceReader(policy, single, journal)
+
+
+@pytest.mark.parametrize("missing_root", ["receiptsRoot", "transactionsRoot"])
+def test_reader_rejects_header_without_required_trie_root(missing_root):
+    _binding, _policy, rpc, _journal, reader = make_reader()
+    for _name, provider in rpc._providers:
+        original = provider.call
+
+        def call(method, params, *, original=original):
+            result = original(method, params)
+            if method == "eth_getBlockByNumber":
+                result.pop(missing_root, None)
+            return result
+
+        provider.call = call
+    with pytest.raises(EvmDepositEvidenceError, match="receipt block header|header"):
+        reader.inspect(
+            transaction_hash=TX_HASH,
+            receipt_log_ordinal=0,
+            expected_beneficiary=BENEFICIARY,
+        )
