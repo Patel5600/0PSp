@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -16,8 +17,8 @@ from typing import Protocol
 from src.primitives.namespace_v3 import NamespaceIdV3
 
 _U64_MAX = (1 << 64) - 1
-_QUANTITY_RE = re.compile(r"0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)\\Z")
-_DATA_RE = re.compile(r"0x(?:[0-9a-fA-F]{2})*\\Z")
+_QUANTITY_RE = re.compile(r"0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)\Z")
+_DATA_RE = re.compile(r"0x(?:[0-9a-fA-F]{2})*\Z")
 
 
 class EvmFinalityError(RuntimeError):
@@ -52,12 +53,12 @@ class FinalitySnapshot:
     caught_up: bool
 
 
-def _parse_quantity(value: object, field: str) -> int:
+def _parse_quantity(value: object, field: str, *, max_value: int = _U64_MAX) -> int:
     if not isinstance(value, str) or _QUANTITY_RE.fullmatch(value) is None:
         raise EvmFinalityError(f"{field} is not a canonical JSON-RPC QUANTITY")
     parsed = int(value[2:], 16)
-    if parsed > _U64_MAX:
-        raise EvmFinalityError(f"{field} exceeds this journal's uint64 height limit")
+    if parsed > max_value:
+        raise EvmFinalityError(f"{field} exceeds its configured integer bound")
     return parsed
 
 
@@ -145,7 +146,7 @@ class SqliteEvmFinalityJournal:
         return conn
 
     def _ensure_schema(self) -> None:
-        with self._connect() as conn:
+        with closing(self._connect()) as conn:
             conn.execute("PRAGMA journal_mode = WAL")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS namespace_meta (
@@ -191,7 +192,7 @@ class SqliteEvmFinalityJournal:
         ):
             raise ValueError("max_headers must be in [1, 100000]")
         try:
-            observed_chain_id = _parse_quantity(rpc.call("eth_chainId", []), "eth_chainId")
+            observed_chain_id = _parse_quantity(rpc.call("eth_chainId", []), "eth_chainId", max_value=(1 << 256) - 1)
         except EvmFinalityError:
             raise
         except Exception:
