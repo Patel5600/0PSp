@@ -73,7 +73,7 @@ def make_fixture(*, nonce=3, balance=1000, storage_value=STORAGE_VALUE, absent_s
         storage_root = keccak256(storage_leaf)
         storage_proof = [storage_leaf]
 
-    account_value = enc([
+    account_value = rlp_encode_list([
         rlp_encode_uint(nonce),
         rlp_encode_uint(balance),
         rlp_encode_bytes(storage_root),
