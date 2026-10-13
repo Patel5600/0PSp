@@ -187,9 +187,12 @@ def verify_output_identity_candidate(
         and hmac.compare_digest(expected.r_nf.data, output_r_nf.data)
     )
 
-# V3 identity derivations are additive candidates; V2/CHp4.6 vectors remain frozen.
-DOMAIN_OUTPUT_COIN_ID_V3 = b"0PSP-OUTPUT-COIN-ID-v3"
-DOMAIN_OUTPUT_RNF_V3 = b"0PSP-OUTPUT-RNF-v3"
+# V3 anchor/index derivation supersedes the earlier non-normative V3 draft that
+# included a spend-key witness (which could make threshold signing circular).
+# New domains prevent silent interchange with that superseded candidate.
+# V2 and CHp4.6 candidate formulas/domains remain untouched.
+DOMAIN_OUTPUT_COIN_ID_V3 = b"0PSP-OUTPUT-COIN-ID-v3-anchor-index-candidate"
+DOMAIN_OUTPUT_RNF_V3 = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate"
 DOMAIN_ISSUANCE_COIN_ID_V3 = b"0PSP-ISSUANCE-COIN-ID-v3"
 DOMAIN_ISSUANCE_RNF_V3 = b"0PSP-ISSUANCE-RNF-v3"
 ISSUANCE_ENTROPY_BYTES = 32
@@ -200,22 +203,17 @@ def _validate_inputs_v3(
     namespace_id: NamespaceIdV3,
     parent_coin_id: ScopedCoinId,
     parent_r_nf: NullifierSecret,
-    spend_key_witness: bytes,
     transaction_entropy: bytes,
     output_index: int,
     params_id: bytes,
 ) -> None:
-    """Validate candidate V3 fields while enforcing namespace type separation."""
+    """Validate V3 anchor/index fields without assuming a full signing key exists."""
     if not isinstance(namespace_id, NamespaceIdV3):
         raise TypeError("namespace_id must be a NamespaceIdV3")
     if not isinstance(parent_coin_id, ScopedCoinId):
         raise TypeError("parent_coin_id must be a ScopedCoinId")
     if not isinstance(parent_r_nf, NullifierSecret):
         raise TypeError("parent_r_nf must be a NullifierSecret")
-    if not isinstance(spend_key_witness, bytes) or not spend_key_witness:
-        raise ValueError("spend_key_witness must be non-empty canonical secret bytes")
-    if len(spend_key_witness) >= (1 << 32):
-        raise ValueError("spend_key_witness encoding is too large")
     if not isinstance(transaction_entropy, bytes) or len(transaction_entropy) != TRANSACTION_ENTROPY_BYTES:
         raise ValueError(
             f"transaction_entropy must be exactly {TRANSACTION_ENTROPY_BYTES} bytes"
@@ -230,7 +228,6 @@ def _validate_inputs_v3(
         raise ValueError(f"output_index must be an integer in [0, {OUTPUT_INDEX_MAX}]")
 
 
-
 def derive_output_identity_v3_candidate(
     *,
     namespace_id: NamespaceIdV3,
@@ -239,22 +236,24 @@ def derive_output_identity_v3_candidate(
     parent_public_key_bundle: bytes,
     parent_commitment: CoinCommitmentV3,
     parent_nullifier_key: NullifierDerivingKeyV3,
-    spend_key_witness: bytes,
     recipient_key_bundle: bytes,
     transaction_entropy: bytes,
     output_index: int,
     params_id: bytes,
 ) -> OutputIdentityCandidate:
-    """Derive a V3 transfer output identity bound to a recipient key bundle.
+    """Derive a V3 transfer output identity from a consumed-note anchor and slot.
 
-    This remains a reference candidate, not a ZK relation. The eventual proof
-    must tie the parent tuple to the input commitment and public nullifier,
-    prove authorization-key witness consistency, constrain the canonical
-    global output index and bind both derived outputs into the V3 commitment.
-    Recipient nullifier-key privacy relies on NullifierV3, not this helper.
+    This non-normative candidate intentionally does not take the full spend
+    key or threshold signature as an input. The transaction digest includes
+    the output commitments, so deriving output identity from a signature over
+    that digest would create a circular dependency. Instead, the eventual
+    proof must bind the parent tuple/key to the registered parent commitment
+    and its V3 nullifier, then constrain this derivation using the exact
+    parent commitment/nullifier, recipient bundle, public transaction entropy,
+    and canonical global output index. The helper itself proves none of that.
     """
     _validate_inputs_v3(
-        namespace_id, parent_coin_id, parent_r_nf, spend_key_witness,
+        namespace_id, parent_coin_id, parent_r_nf,
         transaction_entropy, output_index, params_id,
     )
     if (
@@ -292,8 +291,8 @@ def derive_output_identity_v3_candidate(
             parent_commitment.value,
             parent_coin_id.data,
             parent_r_nf.data,
-            len(spend_key_witness).to_bytes(4, "little"),
-            spend_key_witness,
+            len(parent_public_key_bundle).to_bytes(4, "little"),
+            parent_public_key_bundle,
             len(recipient_key_bundle).to_bytes(4, "little"),
             recipient_key_bundle,
             transaction_entropy,
@@ -379,13 +378,12 @@ def verify_output_identity_v3_candidate(
     parent_public_key_bundle: bytes,
     parent_commitment: CoinCommitmentV3,
     parent_nullifier_key: NullifierDerivingKeyV3,
-    spend_key_witness: bytes,
     recipient_key_bundle: bytes,
     transaction_entropy: bytes,
     output_index: int,
     params_id: bytes,
 ) -> bool:
-    """Reference equality predicate for V3 transfer outputs, not a proof verifier."""
+    """Reference equality predicate for V3 anchor/index outputs, not a proof verifier."""
     if not isinstance(output_coin_id, ScopedCoinId):
         raise TypeError("output_coin_id must be a ScopedCoinId")
     if not isinstance(output_r_nf, NullifierSecret):
@@ -397,7 +395,6 @@ def verify_output_identity_v3_candidate(
         parent_public_key_bundle=parent_public_key_bundle,
         parent_commitment=parent_commitment,
         parent_nullifier_key=parent_nullifier_key,
-        spend_key_witness=spend_key_witness,
         recipient_key_bundle=recipient_key_bundle,
         transaction_entropy=transaction_entropy,
         output_index=output_index,
