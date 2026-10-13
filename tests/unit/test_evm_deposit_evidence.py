@@ -26,6 +26,7 @@ PROTOCOL_CODE = bytes.fromhex("60006000556001600055")
 ASSET_ADDRESS = b"\x22" * 20
 TX_HASH = b"\x33" * 32
 BLOCK_HASH = b"\x44" * 32
+RECEIPTS_ROOT = b"\x88" * 32
 TOPIC0 = b"\x55" * 32
 DEPOSITOR = b"\x66" * 20
 BENEFICIARY = b"\x77" * 20
@@ -74,6 +75,16 @@ class DepositRpc:
             raise RuntimeError("endpoint token must not escape")
         if method == "eth_getTransactionReceipt":
             return deepcopy(self.receipt)
+        if method == "eth_getBlockByNumber":
+            height = int(params[0], 16)
+            if height == CHECKPOINT_HEIGHT:
+                return {
+                    "number": hex(height),
+                    "hash": as_hex(BLOCK_HASH),
+                    "parentHash": as_hex(b"\\x43" * 32),
+                    "receiptsRoot": as_hex(RECEIPTS_ROOT),
+                }
+            return None
         if method == "eth_getCode":
             return as_hex(self.code)
         raise AssertionError(method)
