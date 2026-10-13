@@ -12,6 +12,10 @@ from dataclasses import dataclass
 from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.primitives.nullifier_v3 import NullifierV3
+from src.protocol.note_public_key_bundle_v3 import (
+    NotePublicKeyBundleV3,
+    decode_note_public_key_bundle_v3,
+)
 
 TX_FIELDS_V3_CANDIDATE_DOMAIN = b"0PSP-TX-FIELDS-v3-CANDIDATE-SHAKE256"
 TX_DIGEST_V3_CANDIDATE_DOMAIN = b"0PSP-TX-DIGEST-v3-CANDIDATE-SHAKE256"
@@ -231,21 +235,44 @@ def transaction_digest_v3_candidate(
 
 def authorization_input_v3_candidate(
     statement_or_encoded: TxFieldsV3Candidate | bytes,
+    note_public_key_bundle: NotePublicKeyBundleV3 | bytes,
 ) -> tuple[bytes, bytes]:
-    """Return (message, context) for threshold-authorization experiments only.
+    """Return (message, scheme-bound context) for authorization experiments only.
 
-    For the leading ML-DSA-87 threshold candidate, use the 48-byte canonical
-    transaction digest as the signed message and the fixed version/domain
-    context as the scheme context. This separation follows the ML-DSA API
-    shape; it does not select the scheme, pin its public-key/signature codec,
-    validate a signature, or make this candidate production-normative. The
-    eventual ZK relation must verify the signature against the same hidden
-    authorization key in BundleV3 and this exact message/context pair.
+    The message is the canonical transaction digest. The context binds the
+    exact auth_scheme_id parsed from the same canonical BundleV3 whose key the
+    eventual proof must use. This prevents a host caller from silently
+    selecting a different signature suite while reusing the same context.
+
+    The candidate does not select or validate a signature scheme, verify a
+    signature, authenticate the recipient bundle, or define a production
+    verifier. The complete relation must still prove that the bundle is
+    committed in the spent note and verify authorization under that exact key.
     """
     message = transaction_digest_v3_candidate(statement_or_encoded)
-    context = TX_AUTH_CONTEXT_V3_CANDIDATE
+    if isinstance(note_public_key_bundle, NotePublicKeyBundleV3):
+        encoded_bundle = note_public_key_bundle.encode()
+    elif isinstance(note_public_key_bundle, bytes):
+        encoded_bundle = note_public_key_bundle
+    else:
+        raise TransactionV3CandidateError(
+            "note_public_key_bundle must be a NotePublicKeyBundleV3 or canonical bytes"
+        )
+    try:
+        bundle = decode_note_public_key_bundle_v3(encoded_bundle)
+    except (TypeError, ValueError) as exc:
+        raise TransactionV3CandidateError(
+            "note_public_key_bundle must be canonical V3 bundle bytes"
+        ) from exc
+
+    scheme_id = bundle.auth_scheme_id
+    context = (
+        TX_AUTH_CONTEXT_V3_CANDIDATE
+        + len(scheme_id).to_bytes(2, "little")
+        + scheme_id
+    )
     if len(context) > 255:
-        # Defensive assertion at the integration boundary; ML-DSA contexts
-        # are limited to 255 bytes by FIPS 204.
-        raise TransactionV3CandidateError("candidate authorization context exceeds 255 bytes")
+        raise TransactionV3CandidateError(
+            "candidate authorization context exceeds 255 bytes for auth_scheme_id"
+        )
     return message, context
