@@ -317,3 +317,59 @@ def test_database_file_is_owner_only(tmp_path):
     path = tmp_path / "permissions.sqlite3"
     make_ledger(path)
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_integrity_audit_detects_non_root_merkle_node_corruption(tmp_path):
+    path = tmp_path / "tamper-sibling.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(deposit_evidence=b"e1", commitment=C1, params_id=PARAMS, proof=b"valid-issue")
+    second_authorizer = lambda _: DepositAuthorization(
+        NS, b"evm-deposit-id-0002", 17, ANCHOR, BENEFICIARY
+    )
+    second = make_ledger(path, authorizer=second_authorizer)
+    second.issue(deposit_evidence=b"e2", commitment=C2, params_id=PARAMS, proof=b"valid-issue")
+    # The persisted root node remains untouched, so a root-only check misses this.
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE merkle_nodes SET node_hash=? WHERE level=0 AND node_index=0",
+            (b"\xFA" * 48,),
+        )
+    with pytest.raises(LedgerIntegrityError, match="persisted Merkle nodes"):
+        ledger.audit_integrity()
+
+
+def test_integrity_audit_reconciles_records_with_canonical_event_payload(tmp_path):
+    path = tmp_path / "tamper-record.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(deposit_evidence=b"evidence", commitment=C1, params_id=PARAMS, proof=b"valid-issue")
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE issuance_records SET value_u64_be=? WHERE commitment=?",
+            ((17).to_bytes(8, "big"), C1),
+        )
+    with pytest.raises(LedgerIntegrityError, match="event payload does not match"):
+        ledger.audit_integrity()
+
+
+def test_integrity_audit_rejects_record_head_or_source_link_substitution(tmp_path):
+    path = tmp_path / "tamper-links.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(deposit_evidence=b"evidence", commitment=C1, params_id=PARAMS, proof=b"valid-issue")
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE commitments SET source_id=? WHERE commitment=?",
+            (b"unrelated-deposit", C1),
+        )
+    with pytest.raises(LedgerIntegrityError, match="commitment-tree leaf"):
+        ledger.audit_integrity()
+
+    clean_path = tmp_path / "tamper-head.sqlite3"
+    clean = make_ledger(clean_path)
+    clean.issue(deposit_evidence=b"evidence", commitment=C1, params_id=PARAMS, proof=b"valid-issue")
+    with sqlite3.connect(clean_path) as conn:
+        conn.execute(
+            "UPDATE issuance_records SET state_head_after=? WHERE commitment=?",
+            (b"\xFB" * 48, C1),
+        )
+    with pytest.raises(LedgerIntegrityError, match="post-state head/root"):
+        clean.audit_integrity()
