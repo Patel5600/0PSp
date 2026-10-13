@@ -25,6 +25,8 @@ CHp4.6 derives outputs from the input tuple, a sender-known spend-key witness, t
 
 More importantly, its output `coin_id` and `r_nf` are known to the transaction creator/prover. Under V2, that creator can evaluate the unkeyed deterministic `NullifierV2(ns, coin_id, r_nf)` and match the future public nullifier. If sender-unlinkability is a requirement, using the CHp4.6 candidate with V2 creates a note-linkability defect. We do not approve that pairing for a production privacy protocol.
 
+**Threat boundary:** public predictability is a linkability failure, not by itself an authorization bypass. In a spend path that verifies authorization against the same consumed note and atomically consumes the nullifier, learning the nullifier alone does not let the sender create a valid conflicting spend. A front-run/burn claim requires a separate weakness, such as a NOAUTH guest/ledger path that accepts an unauthenticated spend or authorization that is not bound to the consumed note. PR #31's NOAUTH guest is therefore a separate critical blocker and must never authorize production spends.
+
 The fix cannot merely change the output hash or add another commitment. It needs both (a) an anchored, circuit-constrained rule against exact identity reuse and (b) a nullifier derivation the recipient can compute but an output creator cannot compute from the values used to construct the output.
 
 ## 3. Adopted V3 protocol candidate
