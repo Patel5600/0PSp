@@ -292,6 +292,17 @@ class EvmDepositEvidenceReader:
             raise ValueError("expected_beneficiary must be a non-zero 20-byte address")
 
         try:
+            observed_chain_id = _quantity(
+                self._rpc.call("eth_chainId", []),
+                "eth_chainId",
+                max_value=(1 << 256) - 1,
+            )
+        except Exception:
+            raise EvmDepositEvidenceError("could not establish the RPC quorum chain ID") from None
+        if observed_chain_id != self._policy.chain_id:
+            raise EvmDepositEvidenceError("RPC quorum chain ID does not match the pinned Namespace V3 binding")
+
+        try:
             receipt = self._rpc.call("eth_getTransactionReceipt", ["0x" + transaction_hash.hex()])
         except Exception:
             raise EvmDepositEvidenceError("could not obtain a quorum transaction receipt") from None
