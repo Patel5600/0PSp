@@ -4,7 +4,7 @@
 
 0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and one post-quantum zero-knowledge proof over the complete spend relation. This repository currently implements hash/encoding components and test models. It does **not** yet implement a live minting ledger, a Ringtail adapter, or the end-to-end proof.
 
-## Current security gate (reviewed 2026-10-13; CHp4.23 merged, CHp4.25/CHp4.19 draft candidates under review, CHp4.26 anchor remediation on a branch pending CI)
+## Current security gate (reviewed 2026-10-13; CHp4.23 merged; CHp4.25 and CHp4.19 remain draft candidates; CHp4.26 status is tracked in PR #32)
 
 **Complete protocol: NO-GO.** The current branch documents a research plan; it does not activate minting, select an authorization mode, integrate a ZK backend, or certify side-channel resistance.
 
