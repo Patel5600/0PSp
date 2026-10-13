@@ -36,6 +36,7 @@ from src.protocol.reference_ledger import (
     DuplicateCommitment,
     DuplicateDeposit,
     DuplicateNullifier,
+    DepositRejected,
     InvalidInput,
     IssuanceProofVerifier,
     IssuanceStatement,
@@ -315,6 +316,8 @@ class SQLiteLedger:
                     commitment_index INTEGER NOT NULL CHECK(commitment_index >= 0),
                     state_version INTEGER NOT NULL CHECK(state_version > 0),
                     evidence_fingerprint BLOB NOT NULL CHECK(length(evidence_fingerprint) = 48),
+                    state_head_after BLOB NOT NULL CHECK(length(state_head_after) = 48),
+                    commitment_root_after BLOB NOT NULL CHECK(length(commitment_root_after) = 48),
                     PRIMARY KEY(namespace_id, commitment),
                     UNIQUE(namespace_id, deposit_id),
                     FOREIGN KEY(namespace_id, commitment) REFERENCES commitments(namespace_id, commitment)
@@ -328,6 +331,8 @@ class SQLiteLedger:
                     transaction_fields BLOB NOT NULL,
                     commitment_root_before BLOB NOT NULL CHECK(length(commitment_root_before) = 48),
                     state_head_before BLOB NOT NULL CHECK(length(state_head_before) = 48),
+                    state_head_after BLOB NOT NULL CHECK(length(state_head_after) = 48),
+                    commitment_root_after BLOB NOT NULL CHECK(length(commitment_root_after) = 48),
                     state_version INTEGER NOT NULL CHECK(state_version > 0),
                     PRIMARY KEY(namespace_id, nullifier)
                 )"""
@@ -450,9 +455,9 @@ class SQLiteLedger:
         try:
             authorization = self._authorize_deposit(deposit_evidence)
         except Exception:
-            raise DepositRejectedSafe() from None
+            raise DepositRejected("deposit authorization failed closed") from None
         if not isinstance(authorization, DepositAuthorization):
-            raise DepositRejectedSafe()
+            raise DepositRejected("deposit adapter did not return authenticated facts")
         if not isinstance(authorization.namespace_id, NamespaceIdV3) or authorization.namespace_id != self._namespace:
             raise NamespaceMismatch("authorized deposit does not match the configured Namespace V3")
         _require_bytes(authorization.deposit_id, "authorized deposit_id", maximum=128)
@@ -513,11 +518,11 @@ class SQLiteLedger:
             value_be = authorization.authorized_value.to_bytes(8, "big")
             conn.execute(
                 "INSERT INTO issuance_records(namespace_id, commitment, deposit_id, value_u64_be, "
-                "finalized_anchor, beneficiary_address, params_id, commitment_index, state_version, evidence_fingerprint) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "finalized_anchor, beneficiary_address, params_id, commitment_index, state_version, evidence_fingerprint, "
+                "state_head_after, commitment_root_after) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                 (self._namespace.data, commitment, authorization.deposit_id, value_be,
                  authorization.finalized_anchor, authorization.beneficiary_address, params_id,
-                 index, next_version, evidence_fingerprint),
+                 index, next_version, evidence_fingerprint, new_head, root),
             )
             conn.execute(
                 "INSERT INTO ledger_events(state_version,event_type,event_id,event_payload,event_digest,previous_head,new_head) "
@@ -570,6 +575,8 @@ class SQLiteLedger:
         _require_bytes(proof, "proof", maximum=2_000_000)
         if not isinstance(statement.new_commitments, tuple):
             raise InvalidInput("new_commitments must be a tuple")
+        if not 1 <= len(statement.new_commitments) <= 1024:
+            raise InvalidInput("each spend must create between 1 and 1024 output commitments")
         if len(statement.new_commitments) > 1024:
             raise InvalidInput("transaction may create at most 1024 output commitments")
         for output in statement.new_commitments:
@@ -624,9 +631,10 @@ class SQLiteLedger:
             new_head = _next_head(next_version, previous_now, digest)
             conn.execute(
                 "INSERT INTO spent_nullifiers(namespace_id,nullifier,transaction_digest,transaction_fields,"
-                "commitment_root_before,state_head_before,state_version) VALUES(?,?,?,?,?,?,?)",
+                "commitment_root_before,state_head_before,state_head_after,commitment_root_after,state_version) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
                 (self._namespace.data, statement.nullifier, statement.transaction_digest,
-                 statement.transaction_fields, root_now, previous_now, next_version),
+                 statement.transaction_fields, root_now, previous_now, new_head, new_root, next_version),
             )
             conn.execute(
                 "INSERT INTO ledger_events(state_version,event_type,event_id,event_payload,event_digest,previous_head,new_head) "
@@ -680,7 +688,8 @@ class SQLiteLedger:
         with closing(self._connect()) as conn:
             row = conn.execute(
                 "SELECT deposit_id,value_u64_be,finalized_anchor,beneficiary_address,params_id,"
-                "commitment_index,state_version,evidence_fingerprint FROM issuance_records "
+                "commitment_index,state_version,evidence_fingerprint,state_head_after,commitment_root_after "
+                "FROM issuance_records "
                 "WHERE namespace_id=? AND commitment=?",
                 (self._namespace.data, commitment),
             ).fetchone()
@@ -690,7 +699,7 @@ class SQLiteLedger:
             return PersistentIssuedRecord(
                 self._namespace, commitment, int.from_bytes(row[1], "big"),
                 bytes(row[0]), bytes(row[2]), bytes(row[3]), bytes(row[4]),
-                int(row[5]), int(row[6]), snap[1], snap[3], bytes(row[7]),
+                int(row[5]), int(row[6]), bytes(row[8]), bytes(row[9]), bytes(row[7]),
             )
 
     def contains_commitment(self, commitment: bytes) -> bool:
@@ -775,6 +784,3 @@ class SQLiteLedger:
             if int(expected_count) != version:
                 raise LedgerIntegrityError("one or more state versions lacks a matching issuance or spend record")
 
-
-class DepositRejectedSafe(PersistentLedgerError):
-    """Deposit verifier failed closed or did not return authenticated facts."""
