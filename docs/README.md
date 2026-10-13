@@ -31,8 +31,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 21. [CHp4.20 proof-backend feasibility](audit/chp4.20-zk-backend-feasibility.md) — backend selection criteria, rejected production assumptions, and the exact shared-witness relation still required.
 22. [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — tested scenario estimator, explicit exclusions, and the measured-backend feasibility work still required.
 23. [CHp4.22 SmallWood Python R1CS adapter scaling audit](audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — pinned-source memory-growth finding and the NO-GO decision for the dense generic adapter.
-24. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-25. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+24. [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — characteristic-two SHAKE row model, Aurora/libiop candidate screening, and the next proof prototype gate.
+25. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+26. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map
 
