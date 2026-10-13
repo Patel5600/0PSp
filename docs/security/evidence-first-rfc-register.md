@@ -1,7 +1,7 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
 **Last reviewed:** 2026-10-13  
-**Main baseline reviewed:** `0225fc35bd4581c64216d18d9923a76a013dc886` (2026-10-12)  
+**Main baseline reviewed:** `f910d152270901b5bc37d11811e56fe627afd389` (2026-10-13; CHp4.12 candidate branch under review)  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
@@ -19,13 +19,13 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
 | Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; Namespace V3 direct-hash KAT and native/Python parity; typed V3 reference-ledger boundary; CHp4.10 majority RPC policy and durable finality ancestry | Intended-chain smoke test, authenticated consensus/light-client trust strategy, actual proof binding, and independent review |
-| Deposit evidence / EVM event reader | CHp4.11 canonical quorum-observed event record, both trie roots, receipt-local log identity, pinned emitter/asset/event/code policy, beneficiary in issuance statement and adversarial tests | Current output is explicitly observation-only. Must add authenticated header trust, raw transaction + transaction-trie proof, raw receipt + receipt-trie proof, reviewed asset-custody semantics, trusted DepositAuthorization conversion and durable atomic mint ledger |
+| Deposit evidence / EVM event reader | CHp4.11 canonical quorum-observed event record; CHp4.12 candidate adds Ethereum Keccak-256, strict RLP, MPT inclusion for raw transaction and raw receipt at the same RLP(transaction_index), and derives roots from the exact raw header RLP whose hash is journaled | Candidate verifier proves inclusion only against a quorum-observed header. Authenticated consensus/light-client trust, independent differential tests, reviewed asset-custody semantics, trusted DepositAuthorization conversion, and durable atomic mint ledger remain open |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
 | Authorization | Ringtail adapter contract and research notes | A production adapter, final authorization mode, or signature-verification constraints in an actual ZK backend |
 | ZK proof | Relation targets documented | An instantiated backend, knowledge soundness, zero knowledge, or a complete proof of the composed relation |
-| Mint and ledger | CHp4.1 in-memory reference model; requires one configured 48-byte namespace, checks issuance authorization and spend statement before test/injected proof callbacks; CHp4.11 adds a non-zero 20-byte beneficiary to authorization, issuance statement and issued record | Only an authenticated deposit adapter may create trusted authorization; actual issuance/spend proofs, durable constraints, consensus/finality, crash recovery and fork/reorg safety are still missing |
+| Mint and ledger | CHp4.1 in-memory reference model; requires one configured 48-byte namespace, checks issuance authorization and spend statement before test/injected proof callbacks; CHp4.11 adds a non-zero 20-byte beneficiary to authorization, issuance statement and issued record; CHp4.12 adds candidate transaction/receipt trie inclusion verification but does not authenticate the header's consensus | Only an authenticated deposit adapter may create trusted authorization; actual issuance/spend proofs, durable constraints, consensus/finality, crash recovery and fork/reorg safety are still missing |
 | Hidden coin-ID uniqueness | Protocol names (namespace, coin_id) as identity while issuer-private minting hides coin_id | Proof/registry mechanism that detects a reused hidden ID without disclosing it, or revised identity semantics |
 
 ## Four RFCs
