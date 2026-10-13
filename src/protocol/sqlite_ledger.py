@@ -237,6 +237,8 @@ class SQLiteLedger:
         self._defaults = empty_hashes(self._namespace)
         self._secure_database_file()
         self._ensure_schema()
+        # Refuse to serve a persisted database with inconsistent event/tree state.
+        self.audit_integrity()
 
     def _secure_database_file(self) -> None:
         flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
