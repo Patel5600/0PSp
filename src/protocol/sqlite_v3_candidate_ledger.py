@@ -970,6 +970,17 @@ class SQLiteV3CandidateLedger:
                 new_root = tree.root
                 if new_root != bytes(root_after) or tree.count != current_count + 1:
                     raise SQLiteV3LedgerIntegrityError("V3 output append/root/count mismatch")
+                if (bytes(root_after), bytes(head_after)) != (new_root, new_head):
+                    raise SQLiteV3LedgerIntegrityError(
+                        "persisted V3 spend record post-state root/head mismatch"
+                    )
+                if (
+                    statement.commitment_root != bytes(proof_root)
+                    or statement.ledger_state_head != bytes(proof_head)
+                ):
+                    raise SQLiteV3LedgerIntegrityError(
+                        "persisted V3 transaction root/head do not match its recorded proof anchor"
+                    )
                 # Recompute the event payload from the stored typed records, not from a supplied digest.
                 expected_payload = _event_payload(
                     self._namespace,
