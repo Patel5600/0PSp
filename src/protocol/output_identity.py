@@ -19,6 +19,7 @@ import hmac
 from dataclasses import dataclass
 
 from src.primitives.namespace import NamespaceId, ScopedCoinId
+from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.nullifier import (
     NULLIFIER_BYTES,
     NULLIFIER_SECRET_BYTES,
@@ -195,9 +196,44 @@ ISSUANCE_ENTROPY_BYTES = 32
 DEPOSIT_ID_MAX_BYTES = 128
 
 
+def _validate_inputs_v3(
+    namespace_id: NamespaceIdV3,
+    parent_coin_id: ScopedCoinId,
+    parent_r_nf: NullifierSecret,
+    spend_key_witness: bytes,
+    transaction_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> None:
+    """Validate candidate V3 fields while enforcing namespace type separation."""
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TypeError("namespace_id must be a NamespaceIdV3")
+    if not isinstance(parent_coin_id, ScopedCoinId):
+        raise TypeError("parent_coin_id must be a ScopedCoinId")
+    if not isinstance(parent_r_nf, NullifierSecret):
+        raise TypeError("parent_r_nf must be a NullifierSecret")
+    if not isinstance(spend_key_witness, bytes) or not spend_key_witness:
+        raise ValueError("spend_key_witness must be non-empty canonical secret bytes")
+    if len(spend_key_witness) >= (1 << 32):
+        raise ValueError("spend_key_witness encoding is too large")
+    if not isinstance(transaction_entropy, bytes) or len(transaction_entropy) != TRANSACTION_ENTROPY_BYTES:
+        raise ValueError(
+            f"transaction_entropy must be exactly {TRANSACTION_ENTROPY_BYTES} bytes"
+        )
+    if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
+        raise ValueError("params_id must be 1..65535 bytes")
+    if (
+        isinstance(output_index, bool)
+        or not isinstance(output_index, int)
+        or not 0 <= output_index <= OUTPUT_INDEX_MAX
+    ):
+        raise ValueError(f"output_index must be an integer in [0, {OUTPUT_INDEX_MAX}]")
+
+
+
 def derive_output_identity_v3_candidate(
     *,
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     parent_coin_id: ScopedCoinId,
     parent_r_nf: NullifierSecret,
     parent_public_key_bundle: bytes,
@@ -217,7 +253,7 @@ def derive_output_identity_v3_candidate(
     global output index and bind both derived outputs into the V3 commitment.
     Recipient nullifier-key privacy relies on NullifierV3, not this helper.
     """
-    _validate_inputs(
+    _validate_inputs_v3(
         namespace_id, parent_coin_id, parent_r_nf, spend_key_witness,
         transaction_entropy, output_index, params_id,
     )
@@ -278,7 +314,7 @@ def derive_output_identity_v3_candidate(
 
 def derive_issuance_output_identity_v3_candidate(
     *,
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     deposit_id: bytes,
     recipient_key_bundle: bytes,
     issuance_entropy: bytes,
@@ -292,8 +328,8 @@ def derive_issuance_output_identity_v3_candidate(
     not by entropy. Different output slots and recipients have distinct encoded
     inputs; hash outputs remain computational, not mathematically injective.
     """
-    if not isinstance(namespace_id, NamespaceId):
-        raise TypeError("namespace_id must be a NamespaceId")
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TypeError("namespace_id must be a NamespaceIdV3")
     if not isinstance(deposit_id, bytes) or not 1 <= len(deposit_id) <= DEPOSIT_ID_MAX_BYTES:
         raise ValueError(f"deposit_id must be canonical bytes of length 1..{DEPOSIT_ID_MAX_BYTES}")
     if not isinstance(recipient_key_bundle, bytes) or not recipient_key_bundle or len(recipient_key_bundle) >= (1 << 32):
@@ -337,7 +373,7 @@ def verify_output_identity_v3_candidate(
     *,
     output_coin_id: ScopedCoinId,
     output_r_nf: NullifierSecret,
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     parent_coin_id: ScopedCoinId,
     parent_r_nf: NullifierSecret,
     parent_public_key_bundle: bytes,
@@ -377,7 +413,7 @@ def verify_issuance_output_identity_v3_candidate(
     *,
     output_coin_id: ScopedCoinId,
     output_r_nf: NullifierSecret,
-    namespace_id: NamespaceId,
+    namespace_id: NamespaceIdV3,
     deposit_id: bytes,
     recipient_key_bundle: bytes,
     issuance_entropy: bytes,
