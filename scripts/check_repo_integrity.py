@@ -37,6 +37,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.16-ethereum-proof-differential-tests.md"),
     Path("docs/audit/chp4.17-durable-merkle-ledger.md"),
     Path("docs/audit/chp4.18-canonical-spend-transaction-v2.md"),
+    Path("docs/audit/chp4.20-zk-backend-feasibility.md"),
     Path("docs/security/production-gate-matrix.md"),
 )
 REQUIRED_TOKENS = {
@@ -161,6 +162,15 @@ REQUIRED_TOKENS = {
         "TxDigestV2",
         "Canonical V2",
         "Production",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.20-zk-backend-feasibility.md"): (
+        "Status:** backend not selected",
+        "Winterfell",
+        "ZK witness hiding",
+        "same-witness NullifierV2",
+        "External audit:** NOT PERFORMED",
+        "Complete 0PSP production",
         "NO-GO",
     ),
     Path("docs/security/production-gate-matrix.md"): (

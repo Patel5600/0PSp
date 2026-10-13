@@ -28,7 +28,8 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 17. [CHp4.16 Ethereum proof differential tests](audit/chp4.16-ethereum-proof-differential-tests.md) — test-only comparison of local Keccak/RLP/MPT logic with independent libraries; no custody or production authorization claim.
 19. [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — fixed depth-63 tree, transactional SQLite issue/spend transitions, replay protection, and startup integrity reconciliation; authorization and proof backend remain unimplemented.
 20. [CHp4.18 canonical V2 spend transaction and digest](audit/chp4.18-canonical-spend-transaction-v2.md) — fixed TxFieldsV2 wire encoding, TxDigestV2 KAT, strict decoding and ledger API binding; the ZK circuit/backend must still constrain the same relation.
-19. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+21. [CHp4.20 proof-backend feasibility](audit/chp4.20-zk-backend-feasibility.md) — backend selection criteria, rejected production assumptions, and the exact shared-witness relation still required.
+22. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
 20. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
 
 ## Repository map

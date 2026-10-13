@@ -1,6 +1,6 @@
 # 0PSP Production Gate Matrix
 
-**Maintained against:** main at `72e843ee06a721a93dcc09fd9fe7b9efc45d6021` (CHp4.18 merged 2026-10-13; exact-main functional and integrity workflows passed).  
+**Maintained against:** main at `f81673c374c5ba5e8025fcddbc37619751a2d396` (CHp4.19 gate reconciliation merged 2026-10-13; functional checks on this SHA are still pending at time of CHp4.20 branch creation).  
 **Current overall production status: NO-GO.**  
 **External cryptographic audit:** NOT PERFORMED, and deliberately tracked separately as requested. That does not convert missing implementation or proof obligations into GO.
 
@@ -19,6 +19,7 @@ Every gate below has a binary production status. **GO** means the exact gate des
 | EIP-1186 account/storage proof algorithm | **GO** for tested verifier behavior only | CHp4.15 account/storage inclusion/exclusion tests; authenticated-header journal integration and exact-block `eth_getProof` request; CHp4.16 differential tests cover Ethereum Keccak/RLP/MPT primitives | Real Mainnet proof acquisition and independent end-to-end review remain NO-GO |
 | Durable single-node SQLite issue/spend state transitions | **GO** for the isolated single-node persistence contract | CHp4.17 atomic transitions, uniqueness constraints, tree/event-chain audit on startup, concurrency/corruption regressions | No distributed consensus claim; integrate trusted authorization and actual proof verifier before live assets |
 | Canonical TxFieldsV2 host codec and TxDigestV2 | **GO** for host/API validation only | Merged CHp4.18 at `72e843e`; exact-main Functional checks and Repository integrity watch passed; KAT, strict decoder, reference and SQLite pre-callback consistency checks | Proof backend must independently reproduce/constrain exact encoding before transaction-digest binding can be GO |
+| Proof-backend selection and zero-knowledge witness hiding | **NO-GO** | CHp4.20 feasibility review: Winterfell does not provide perfect ZK upstream; lib-Q's surfaced membership-proof arms are marked experimental/RED; no accepted pinned backend is integrated | Approve a maintained backend only after pinned-version ZK/privacy evidence, complete relation constraints, adversarial mutation tests and target-hardware benchmarks |
 | ZK transaction-digest binding | **NO-GO** | Host validates public bytes only | Actual proof backend constrains the exact TxFieldsV2 bytes/digest as public inputs |
 | CommitV2 opening and commitment membership inside one proof | **NO-GO** | Host hash helpers and reference depth-63 tree exist | Backend proves the exact CommitV2 opening plus the 63-level namespace-bound membership path |
 | Same-witness NullifierV2 binding | **NO-GO** | Nullifier primitive and finite substitution tests exist | Backend proves the nullifier uses the identical coin_id and r_nf used by the accepted commitment opening |
@@ -39,7 +40,7 @@ Every gate below has a binary production status. **GO** means the exact gate des
 
 ## Immediate next sequence
 
-1. **Proof-backend feasibility spike:** select a maintained, transparent, post-quantum-oriented proof stack; implement only a non-production feasibility prototype and benchmark the exact SHAKE256-384/CommitV2/NullifierV2/Merkle constraints. Do not mark any proof gate GO from a host-only test.
+1. **Proof-backend feasibility spike:** evaluate pinned, maintained transparent proof stacks without assuming transparency implies zero knowledge; prototype and benchmark the exact SHAKE256-384/CommitV2/NullifierV2/Merkle constraints. Do not mark any proof gate GO from a host-only test.
 2. Freeze authorization policy and exact public-key/signature codecs against a stated adversary model; establish whether the chosen PQ signature verification can fit the proof system or must be a separate, explicitly public authorization predicate.
 3. Implement one shared-witness relation covering canonical TxFieldsV2/TxDigestV2, CommitV2 opening, 63-level membership, same-witness NullifierV2, range-safe value conservation, output commitments, and authorization. Prove adversarial statement substitutions fail.
 4. Compose authenticated finalized deposit/custody verification -> trusted DepositAuthorization -> proof verifier -> SQLite ledger; remove injectable test callbacks from production configuration.
