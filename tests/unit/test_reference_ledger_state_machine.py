@@ -39,6 +39,7 @@ def authorization_for(evidence: bytes, *, value: int = 2500, deposit_id: bytes |
         deposit_id=deposit_id or bytes([0x33]) * 32,
         authorized_value=value,
         finalized_anchor=ANCHOR,
+        beneficiary_address=bytes([0x55]) * 20,
     )
 
 
@@ -103,7 +104,7 @@ def test_value_opening_mismatch_is_rejected_by_the_relation_verifier_contract() 
     opening_value_by_commitment = {commitment: 1_000_000}
 
     def authorize(_evidence):
-        return DepositAuthorization(NS, b"D" * 32, 10, ANCHOR)
+        return DepositAuthorization(NS, b"D" * 32, 10, ANCHOR, beneficiary_address=bytes([0x55]) * 20)
 
     def verify_issue(statement, proof):
         return (proof == PROOF and
@@ -136,9 +137,9 @@ def test_duplicate_deposit_and_duplicate_commitment_are_rejected() -> None:
     # A second authenticated deposit cannot register an already-used commitment.
     def two_deposit_authorizer(evidence):
         if evidence == b"deposit-1":
-            return DepositAuthorization(NS, b"D" * 32, 2500, ANCHOR)
+            return DepositAuthorization(NS, b"D" * 32, 2500, ANCHOR, beneficiary_address=bytes([0x55]) * 20)
         if evidence == b"deposit-2":
-            return DepositAuthorization(NS, b"E" * 32, 4000, ANCHOR)
+            return DepositAuthorization(NS, b"E" * 32, 4000, ANCHOR, beneficiary_address=bytes([0x55]) * 20)
         return None
 
     other = make_ledger(authorizer=two_deposit_authorizer)
@@ -275,6 +276,7 @@ def test_wrong_namespace_deposit_is_rejected_before_issuance_verifier() -> None:
             deposit_id=b"D" * 32,
             authorized_value=100,
             finalized_anchor=ANCHOR,
+        beneficiary_address=bytes([0x55]) * 20,
         )
 
     ledger = ReferenceLedger(
@@ -341,6 +343,7 @@ def test_raw_namespace_bytes_from_deposit_adapter_fail_before_proof() -> None:
             deposit_id=b"D" * 32,
             authorized_value=100,
             finalized_anchor=ANCHOR,
+        beneficiary_address=bytes([0x55]) * 20,
         )
 
     ledger = ReferenceLedger(
