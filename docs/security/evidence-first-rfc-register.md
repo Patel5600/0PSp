@@ -1,6 +1,6 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
-**Last recorded review (historical metadata):** 2026-10-13; this CHp4.25 status synchronization is not a security review.  
+**Last reviewed:** 2026-10-13 (pre-existing register metadata; this CHp4.25 status synchronization is not an independent security review).  
 **Main baseline:** `13487d2f859460fc93fd2701023ce8f2cd60fd6a` (CHp4.23); CHp4.25 PR #30 is open and unmerged.  
 **Independent security review of CHp4.25:** NOT PERFORMED.  
 **External cryptographic audit:** NOT PERFORMED. No claim of external audit is made.  
