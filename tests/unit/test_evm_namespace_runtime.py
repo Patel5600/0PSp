@@ -97,16 +97,7 @@ def test_runtime_rejects_latest_code_tag_and_insufficient_provider_count(tmp_pat
 
 def test_runtime_rejects_divergent_provider_checkpoint_views(tmp_path):
     good = RuntimeRpc(finalized_height=4)
-    bad = RuntimeRpc(finalized_height=4, checkpoint_hash=b"\xff" * 32)
-    runtime = EvmNamespaceRuntime(
-        make_config(good),
-        {"a": RuntimeRpc(finalized_height=4),
-         "b": RuntimeRpc(finalized_height=4),
-         "c": bad},
-        tmp_path / "divergence.sqlite3",
-    )
-    # Two agreeing providers outvote one divergent endpoint. Replace one of the
-    # agreeing endpoints with a different view to leave no strict majority.
+    # Three providers with three different checkpoint hashes leave no strict majority.
     runtime = EvmNamespaceRuntime(
         make_config(good),
         {"a": RuntimeRpc(finalized_height=4),
