@@ -372,7 +372,7 @@ class SQLiteLedger:
                 )
             else:
                 expected = self._expected_meta()
-                if tuple(row) != expected:
+                if tuple(row[:5]) != expected[:5]:
                     raise LedgerConfigurationMismatch(
                         "existing database metadata differs from the pinned namespace, parameter, policy or profile"
                     )
