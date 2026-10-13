@@ -239,6 +239,8 @@ def verify_mpt_inclusion(root_hash: bytes, key: bytes, expected_value: bytes, pr
         raise ValueError("proof contains more than 128 trie nodes")
     if any(not isinstance(node, bytes) or not node for node in proof_nodes):
         raise ValueError("each proof node must be non-empty encoded bytes")
+    if any(len(node) > 8 * 1024 * 1024 for node in proof_nodes) or sum(map(len, proof_nodes)) > 16 * 1024 * 1024:
+        raise ValueError("proof exceeds the configured encoded-byte safety bound")
     path = bytes_to_nibbles(key)
     path_offset = 0
     expected_ref = root_hash
