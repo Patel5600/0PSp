@@ -131,6 +131,12 @@ jobs:
           cargo +1.91.1 run --manifest-path proof-output-checker/Cargo.toml -- \
             openvm/app.vk "$fixture_dir/spend-valid.app.proof" \
             expected-app-exe-commit.txt "$fixture_dir/expected-spend-public-digest.txt"
+          cargo +1.91.1 build --locked --release --manifest-path proof-output-checker/Cargo.toml
+          checker="$(find proof-output-checker/target/release -maxdepth 1 -type f -name 'psp-openvm-v3-proof-output-checker' -print -quit)"
+          test -n "$checker"
+          python3 scripts/verify_candidate_proof_adapter.py \
+            "$checker" openvm/app.vk "$fixture_dir/spend-valid.app.proof" \
+            expected-app-exe-commit.txt "$fixture_dir/expected-spend-public-digest.txt"
 
       - name: Ensure guest build did not alter locked dependencies
         run: git diff --exit-code -- proof/openvm/v3-nullifier-spike/Cargo.lock
