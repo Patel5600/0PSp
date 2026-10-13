@@ -335,15 +335,20 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
         output_index=1, **common
     )
 
-    assert first.coin_id.data.hex() == (
+    expected_coin_id = (
         "6cc7a5ee08cb59374b1041edbbe1e278"
         "e3f35bd08460eab69cba024ef2269580"
     )
-    assert first.r_nf.data.hex() == (
+    expected_r_nf = (
         "a2b573180de3fe9c01901690c9252d23"
         "7e34e6a6283ed9dcf7c00a4ed190ab56"
         "8c63321b"
     )
+    assert first.coin_id.data.hex() == expected_coin_id, (
+        f"stale V3 output-identity KAT: coin_id={first.coin_id.data.hex()}, "
+        f"r_nf={first.r_nf.data.hex()}"
+    )
+    assert first.r_nf.data.hex() == expected_r_nf
 
     alternate_bundle = _bundle(recipient_key, b"recipient-pk-alt").encode()
     alternatives = [
