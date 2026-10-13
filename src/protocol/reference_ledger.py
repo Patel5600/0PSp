@@ -19,6 +19,7 @@ from threading import RLock
 from typing import Callable
 
 from src.primitives.namespace_v3 import NamespaceIdV3
+from src.protocol.transaction_v2 import CanonicalTransactionError, validate_spend_statement_transaction
 
 NAMESPACE_BYTES = 48
 COMMITMENT_BYTES = 48
