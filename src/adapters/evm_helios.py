@@ -688,6 +688,8 @@ class HeliosAuthenticatedDepositVerifier:
             raise TypeError("policy must be an EvmDepositEvidencePolicy")
         if not isinstance(namespace_config, EvmNamespaceConfig):
             raise TypeError("namespace_config must be an EvmNamespaceConfig")
+        if namespace_config != journal.config:
+            raise ValueError("namespace config does not match the authenticated-header journal's pinned manifest")
         if policy.namespace_id != journal.namespace_id or policy.chain_id != namespace_config.chain_id:
             raise ValueError("deposit policy, namespace journal and chain configuration disagree")
         self._journal = journal
