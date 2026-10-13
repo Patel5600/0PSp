@@ -37,7 +37,7 @@ HeliosAuthenticatedDepositVerifier.verify:
 4. delegates to the CHp4.12 verifier, which proves raw transaction inclusion in transactionsRoot and raw receipt inclusion in receiptsRoot at the same RLP(transaction_index);
 5. decodes the deposit event from the proven receipt and enforces the pinned emitter, event, asset, beneficiary and amount rules.
 
-The result is HeliosAuthenticatedEvmDeposit, not DepositAuthorization. It proves the current code path has authenticated finalized-header ancestry and transaction/receipt trie inclusion under the configured assumptions. It does not prove that a contract event means the intended asset was actually transferred or is held in custody.
+The result is HeliosAuthenticatedEvmDeposit, not DepositAuthorization. Before returning, the wrapper also calls Helios eth_getCode at the exact deposit block and checks the runtime-code fingerprint against the namespace's independently pinned protocol fingerprint. It proves the current code path has authenticated finalized-header ancestry and transaction/receipt trie inclusion under the configured assumptions, and that the code at the protocol address matches the pinned byte fingerprint. It does not prove that a contract event means the intended asset was actually transferred or is held in custody. Proxy implementation/admin slots and mutable external token semantics still require separate verification.
 
 ## 4. Trust configuration and operational contract
 
@@ -54,7 +54,7 @@ Helios describes itself as a trustless Rust light client, but its own repository
 
 1. Run a smoke test using the pinned binary, a fresh independently sourced beacon checkpoint, and an execution RPC that supports eth_getProof; confirm chain ID, genesis, finalized header, checkpoint ancestry and raw-trie proof verification against a real finalized deposit.
 2. Independently differential-test the local Keccak, RLP, header reconstruction and MPT implementation against a mature pinned Ethereum implementation and external test vectors.
-3. Review the exact protocol deployment, proxy/upgrade authority, event semantics, token behavior and custody. A hash-pinned event source alone does not prove custody, especially for fee-on-transfer/rebasing/non-standard tokens.
+3. Review the exact protocol deployment, proxy/upgrade authority, implementation/admin slots, event semantics, token behavior and custody. The verifier checks the protocol-address runtime-code fingerprint through Helios at the deposit block, but a proxy's runtime bytecode can remain unchanged while its implementation changes. A hash-pinned event source alone does not prove custody, especially for fee-on-transfer/rebasing/non-standard tokens.
 4. Add a trusted conversion to DepositAuthorization only after those policies are verified, and atomically consume the canonical deposit ID in the durable mint ledger.
 5. Instantiate the issuance proof and bind its hidden commitment opening to the exact authorized amount, Namespace V3 ID and beneficiary.
 6. Independently audit the complete light-client process, checkpoint provenance, persistence/rollback behavior, trie proofs, contract semantics, issuance relation and recovery procedure.
