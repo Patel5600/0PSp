@@ -6,7 +6,15 @@ import pytest
 
 import scripts.smoke_namespace_mainnet as smoke
 from src.adapters.evm_helios import ETHEREUM_MAINNET_GENESIS_HASH
+from src.adapters.evm_namespace import runtime_code_fingerprint
+from src.adapters.evm_trie import keccak256
 from src.primitives.namespace_v3 import NamespaceIdV3
+
+
+PROTOCOL_CODE = bytes.fromhex("60006000556001600055")
+FINALIZED_NUMBER = 21_000_000
+RAW_HEADER = b"fake-but-isolated-header-fixture"
+FINALIZED_HASH = keccak256(RAW_HEADER)
 
 
 def valid_env() -> dict[str, str]:
@@ -19,7 +27,7 @@ def valid_env() -> dict[str, str]:
         "PSP_MAINNET_EXECUTION_CHECKPOINT_NUMBER": "21000000",
         "PSP_MAINNET_EXECUTION_CHECKPOINT_HASH": "33" * 32,
         "PSP_PROTOCOL_ADDRESS": "44" * 20,
-        "PSP_PROTOCOL_RUNTIME_FINGERPRINT": "55" * 48,
+        "PSP_PROTOCOL_RUNTIME_FINGERPRINT": runtime_code_fingerprint(PROTOCOL_CODE).hex(),
         "PSP_FINALITY_JOURNAL_PATH": "/tmp/0psp-mainnet-finality.sqlite3",
     }
 
@@ -30,7 +38,7 @@ def test_config_is_explicitly_pinned_to_mainnet_and_finalized_code() -> None:
     assert config.namespace.chain_id == 1
     assert config.namespace.genesis_hash == ETHEREUM_MAINNET_GENESIS_HASH
     assert config.namespace.code_block_tag == "finalized"
-    assert config.namespace.expected_protocol_code_fingerprint == bytes.fromhex("55" * 48)
+    assert config.namespace.expected_protocol_code_fingerprint == runtime_code_fingerprint(PROTOCOL_CODE)
     assert config.namespace.asset_address is None
     assert config.max_headers_per_sync == 4096
 
@@ -83,48 +91,73 @@ def test_finality_database_must_be_durable_and_absolute(path: str) -> None:
         smoke.load_configuration(env)
 
 
-def test_live_smoke_keeps_composite_gate_no_go_even_when_smoke_passes(monkeypatch) -> None:
+def _install_fakes(monkeypatch, *, adapter_fails: bool = False):
     config = smoke.load_configuration(valid_env())
     namespace_id = NamespaceIdV3(bytes.fromhex("ab" * 48))
-    started = {"value": False, "stopped": False}
+    state = {"started": False, "stopped": False}
 
     class FakeClient:
         def __init__(self, _config):
             pass
 
         def start(self):
-            started["value"] = True
+            state["started"] = True
 
         def stop(self):
-            started["stopped"] = True
+            state["stopped"] = True
+
+        def call(self, method, params):
+            if method == "eth_getBlockByNumber":
+                return {"number": hex(FINALIZED_NUMBER), "hash": "0x" + FINALIZED_HASH.hex()}
+            if method == "eth_getCode":
+                return "0x" + PROTOCOL_CODE.hex()
+            raise AssertionError(f"unexpected RPC method {method}")
 
     class FakeAdapter:
-        def __init__(self, _config, _client):
-            pass
+        def __init__(self, namespace_config, _client):
+            assert namespace_config.code_block_tag == hex(FINALIZED_NUMBER)
 
         def resolve(self):
+            if adapter_fails:
+                raise RuntimeError("fixture mismatch")
             return SimpleNamespace(namespace_id=namespace_id)
 
     class FakeJournal:
         def __init__(self, _path, **kwargs):
             assert kwargs["namespace_id"] == namespace_id
-            assert kwargs["namespace_config"] == config.namespace
+            assert kwargs["namespace_config"].code_block_tag == hex(FINALIZED_NUMBER)
 
         def advance_to_finalized(self):
-            return SimpleNamespace(number=21_000_010, block_hash=bytes.fromhex("88" * 32))
+            return SimpleNamespace(number=FINALIZED_NUMBER + 10, block_hash=bytes.fromhex("88" * 32))
 
-        def contains_finalized_header(self, number, block_hash):
-            return number == 21_000_010 and block_hash == bytes.fromhex("88" * 32)
+        def contains_finalized_header(self, _number, _block_hash):
+            return True
+
+        def verify_account_state(self, raw_header_rlp, address):
+            assert raw_header_rlp == RAW_HEADER
+            return SimpleNamespace(
+                block_number=FINALIZED_NUMBER,
+                block_hash=FINALIZED_HASH,
+                address=address,
+                code_hash=keccak256(PROTOCOL_CODE),
+            )
 
     monkeypatch.setattr(smoke, "HeliosMainnetLightClient", FakeClient)
     monkeypatch.setattr(smoke, "EvmNamespaceAdapter", FakeAdapter)
     monkeypatch.setattr(smoke, "HeliosAuthenticatedHeaderJournal", FakeJournal)
+    monkeypatch.setattr(smoke, "execution_header_rlp_from_json", lambda _value: RAW_HEADER)
+    return config, state
+
+
+def test_live_smoke_binds_exact_code_to_authenticated_state_and_keeps_composite_no_go(monkeypatch) -> None:
+    config, state = _install_fakes(monkeypatch)
 
     report = smoke.run_live_smoke(config)
 
-    assert started == {"value": True, "stopped": True}
+    assert state == {"started": True, "stopped": True}
     assert report["smoke_result"] == "PASS"
     assert report["namespace_mapping"] == "PASS_DIRECT_HASH_OF_CANONICAL_RAW_DESCRIPTORS"
+    assert report["protocol_code_state_proof"] == "PASS_CODE_HASH_BOUND_TO_AUTHENTICATED_STATE_ROOT"
     assert report["durable_authenticated_ancestry"] == "PASS"
     assert report["proof_binding"] == "NO-GO_NOT_INSTANTIATED_BY_THIS_SMOKE"
     assert report["independent_security_review"] == "NOT_PERFORMED"
@@ -133,29 +166,8 @@ def test_live_smoke_keeps_composite_gate_no_go_even_when_smoke_passes(monkeypatc
 
 
 def test_live_smoke_stops_client_if_namespace_resolution_fails(monkeypatch) -> None:
-    config = smoke.load_configuration(valid_env())
-    state = {"stopped": False}
-
-    class FakeClient:
-        def __init__(self, _config):
-            pass
-
-        def start(self):
-            return None
-
-        def stop(self):
-            state["stopped"] = True
-
-    class FailingAdapter:
-        def __init__(self, _config, _client):
-            pass
-
-        def resolve(self):
-            raise RuntimeError("fixture mismatch")
-
-    monkeypatch.setattr(smoke, "HeliosMainnetLightClient", FakeClient)
-    monkeypatch.setattr(smoke, "EvmNamespaceAdapter", FailingAdapter)
+    config, state = _install_fakes(monkeypatch, adapter_fails=True)
 
     with pytest.raises(RuntimeError, match="fixture mismatch"):
         smoke.run_live_smoke(config)
-    assert state["stopped"] is True
+    assert state == {"started": True, "stopped": True}
