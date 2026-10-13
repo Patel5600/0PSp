@@ -15,9 +15,11 @@ from src.primitives.nullifier import Nullifier as NullifierV2
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.primitives.nullifier_v3 import NullifierV3
 from src.protocol.transaction_v3_candidate import (
+    TX_AUTH_CONTEXT_V3_CANDIDATE,
     TX_FIELDS_V3_CANDIDATE_DOMAIN,
     TransactionV3CandidateError,
     TxFieldsV3Candidate,
+    authorization_input_v3_candidate,
     decode_tx_fields_v3_candidate,
     transaction_digest_v3_candidate,
 )
@@ -86,6 +88,22 @@ def test_authorization_digest_binds_every_public_transaction_dimension(
     base = statement()
     altered = statement(**mutated)
     assert transaction_digest_v3_candidate(base) != transaction_digest_v3_candidate(altered)
+
+
+def test_authorization_input_uses_digest_and_fixed_versioned_context() -> None:
+    tx = statement()
+    message, context = authorization_input_v3_candidate(tx)
+
+    assert message == transaction_digest_v3_candidate(tx)
+    assert context == TX_AUTH_CONTEXT_V3_CANDIDATE
+    assert context == b"0PSP-TX-AUTH-v3-CANDIDATE"
+    assert 0 < len(context) <= 255
+    assert authorization_input_v3_candidate(tx.encode()) == (message, context)
+
+    altered = statement(fee=tx.fee + 1)
+    assert authorization_input_v3_candidate(altered)[0] != message
+    # The context is protocol-domain separation and does not vary by field.
+    assert authorization_input_v3_candidate(altered)[1] == context
 
 
 def test_decoder_rejects_trailing_bytes_wrong_version_and_wrong_domain() -> None:
