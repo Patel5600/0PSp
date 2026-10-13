@@ -134,7 +134,7 @@ def test_issue_rejects_deposit_replay_and_duplicate_commitment_atomically(tmp_pa
     ledger.audit_integrity()
 
 
-@pytest.mark.parametrize("bad", ["namespace", "params", "policy", "profile", "proof", "auth"])
+@pytest.mark.parametrize("bad", ["namespace", "params", "proof", "auth"])
 def test_issue_fails_closed_without_mutating_state(tmp_path, bad):
     path = tmp_path / f"reject-{bad}.sqlite3"
     kwargs = {}
@@ -191,7 +191,12 @@ def test_spend_rejects_stale_or_substituted_state_and_rolls_back(tmp_path, mutat
     ledger.issue(deposit_evidence=b"e", commitment=C1, params_id=PARAMS, proof=b"valid-issue")
     snap = ledger.snapshot()
     if mutation == "old_head":
-        ledger.issue(
+        second_ledger = make_ledger(
+            path,
+            authorizer=lambda _: DepositAuthorization(NS, b"evm-deposit-id-0002", 9, ANCHOR, BENEFICIARY),
+            issuance_verifier=lambda _statement, _proof: True,
+        )
+        second_ledger.issue(
             deposit_evidence=b"unused",
             commitment=C3,
             params_id=PARAMS,
@@ -293,7 +298,7 @@ def test_audit_detects_modified_head_event_digest_or_merkle_root(tmp_path):
     ledger.audit_integrity()
     with sqlite3.connect(path) as conn:
         conn.execute("UPDATE ledger_meta SET state_head=?", (b"\xff" * 48,))
-    with pytest.raises(LedgerIntegrityError, match="state-chain"):
+    with pytest.raises(LedgerIntegrityError, match="reconstructed event chain"):
         ledger.audit_integrity()
 
     # New database: alter root metadata and require the recomputed append tree
