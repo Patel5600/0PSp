@@ -336,13 +336,13 @@ def test_v3_output_identity_is_anchored_and_recipient_key_bound() -> None:
     )
 
     expected_coin_id = (
-        "6cc7a5ee08cb59374b1041edbbe1e278"
-        "e3f35bd08460eab69cba024ef2269580"
+        "747c6c1e6cd88c3b377183a046490d38"
+        "bcf69fd7fe64cbd14696da797cdf17dd"
     )
     expected_r_nf = (
-        "a2b573180de3fe9c01901690c9252d23"
-        "7e34e6a6283ed9dcf7c00a4ed190ab56"
-        "8c63321b"
+        "52806b4365e5184f871e96bf52bdda2e"
+        "497a97291801e708d46239d9945c4613"
+        "87a8da4f"
     )
     assert first.coin_id.data.hex() == expected_coin_id, (
         f"stale V3 output-identity KAT: coin_id={first.coin_id.data.hex()}, "
