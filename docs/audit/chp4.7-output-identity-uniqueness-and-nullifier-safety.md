@@ -155,6 +155,8 @@ The complete canonical output list owns one zero-based global output index space
 
 V3 reference functions live in `src/protocol/output_identity.py`. They use SHAKE256 with separate domains for `coin_id` and `r_nf`. They do not check whether the deposit anchor is canonical, prove a witness statement, ensure entropy was sampled correctly, or stop an arbitrary API client from bypassing a future circuit. The proof and ledger must enforce the relation and one-use state.
 
+**Cross-version type boundary:** the V3 commitment, nullifier and output-identity helpers require the distinct `NamespaceIdV3` type rather than the legacy `NamespaceId` used by V2. Regression tests explicitly reject a V2 namespace object at those V3 boundaries while retaining a separate frozen V2 nullifier vector. The V3 preimage uses the same raw 48 namespace bytes, but Python API callers cannot silently substitute the V2 typed object.
+
 #### Exact V3 identity-derivation byte contracts
 
 The candidate encodings below reflect the reference functions, not yet a frozen production wire protocol. Integer notation is explicit: `LE16`/`LE32` are unsigned little-endian lengths, and `BE16` is an unsigned big-endian output index. All fields are canonical byte strings; fixed-width fields use the exact widths shown.
