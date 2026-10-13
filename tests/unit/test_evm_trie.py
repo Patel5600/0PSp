@@ -10,6 +10,7 @@ from src.adapters.evm_trie import (
     rlp_encode_bytes,
     rlp_encode_list,
     rlp_encode_uint,
+    verify_mpt_exclusion,
     verify_mpt_inclusion,
 )
 
