@@ -258,6 +258,7 @@ def test_protocol_address_is_part_of_deployment_component_identity() -> None:
     {"code_block_tag": "pending"},
     {"code_block_tag": "0x00"},
     {"code_block_tag": "0X1"},
+    {"code_block_tag": "0x10000000000000000"},
 ])
 def test_manifest_rejects_noncanonical_configuration(kwargs) -> None:
     values = dict(
