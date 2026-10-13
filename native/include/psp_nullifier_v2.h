@@ -57,6 +57,13 @@ int psp_nullifier_v2_generate_secret(uint8_t *out, size_t out_len);
  * namespace. It requires the V2 witness relation and commitment to use the
  * same namespace_id and coin_id. Inputs and output must not overlap.
  *
+ * SECURITY LIMITATION: the preimage does not include a recipient-held key.
+ * A note creator who knows coin_id and r_nf can precompute/recognize the
+ * resulting nullifier. This byte contract is retained for V2 compatibility;
+ * it is NOT a production recipient-privacy guarantee. Do not authorize
+ * production private spends with V2 until a reviewed, fully constrained
+ * versioned protocol fixes the ownership/linkability relation.
+ *
  * Fixed lengths and source-level branch structure are not a constant-time
  * proof. OpenSSL provider code, compiled machine code, hardware, FFI, callers
  * and the complete prover remain in the side-channel review scope.
