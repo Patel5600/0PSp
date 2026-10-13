@@ -36,9 +36,6 @@ ANCHOR = b"\x07" * 8 + b"\x08" * 32
 BENEFICIARY = b"\x44" * 20
 C1, C2, C3 = b"\x11" * 48, b"\x22" * 48, b"\x33" * 48
 NF1 = b"\xaa" * 48
-TX_DIGEST = b"\xbb" * 48
-
-
 def make_ledger(path, *, namespace=NS, params=PARAMS, policy=POLICY, profile=PROFILE,
                 authorizer=None, issuance_verifier=None, spend_verifier=None):
     if authorizer is None:
