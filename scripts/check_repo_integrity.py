@@ -40,6 +40,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.20-zk-backend-feasibility.md"),
     Path("docs/audit/chp4.21-keccak-zk-cost-model.md"),
     Path("docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md"),
+    Path("docs/audit/chp4.23-binary-field-keccak-feasibility.md"),
     Path("docs/security/production-gate-matrix.md"),
 )
 REQUIRED_TOKENS = {
@@ -188,6 +189,13 @@ REQUIRED_TOKENS = {
         "NO-GO",
         "External cryptographic audit",
         "Overall 0PSP production",
+    ),
+    Path("docs/audit/chp4.23-binary-field-keccak-feasibility.md"): (
+        "5,875,200",
+        "Aurora/libiop",
+        "GHSA-5xgj-pmjj-gw49",
+        "NO-GO",
+        "External audit remains **NOT PERFORMED**",
     ),
     Path("docs/security/production-gate-matrix.md"): (
         "Current overall production status: NO-GO",
