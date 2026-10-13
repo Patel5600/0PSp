@@ -227,7 +227,8 @@ def test_spend_rejects_stale_or_substituted_state_and_rolls_back(tmp_path, mutat
         statement = SpendStatement(**{**statement.__dict__, "authorization_policy": b"other"})
         expected = InvalidInput
     else:
-        statement = spend_statement(snap, outputs=(C2, C2))
+        valid = spend_statement(snap, outputs=(C2,))
+        statement = SpendStatement(**{**valid.__dict__, "new_commitments": (C2, C2)})
         expected = DuplicateCommitment
     before = ledger.snapshot()
     with pytest.raises(expected):
