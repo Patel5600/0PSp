@@ -79,6 +79,8 @@ def _proof_nodes(value: object, field: str) -> tuple[bytes, ...]:
     nodes = tuple(_data(node, f"{field}[{index}]") for index, node in enumerate(value))
     if any(not node for node in nodes):
         raise EvmStateProofError(f"{field} contains an empty trie node")
+    if any(len(node) > 64 * 1024 for node in nodes) or sum(map(len, nodes)) > 2 * 1024 * 1024:
+        raise EvmStateProofError(f"{field} exceeds the configured encoded-byte safety bound")
     return nodes
 
 
