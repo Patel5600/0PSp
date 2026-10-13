@@ -38,8 +38,21 @@ jobs:
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install 1.91.1 --profile minimal --component rust-src
 
-      - name: Install cargo-openvm from the immutable v2.0.2 release commit
-        run: cargo +1.91.1 install --locked --git https://github.com/openvm-org/openvm.git --rev 59a69b8b0cbee7011ac978e4cc07707ee3681944 cargo-openvm
+      - name: Install checksum-verified cargo-openvm v2.0.2 release binary
+        env:
+          CARGO_OPENVM_SHA256: c2a1d63a96c093a4969c799f3021fb991b0c51f56b53f26e3468d2d13676de2f
+        run: |
+          archive="$RUNNER_TEMP/cargo-openvm-v2.0.2-x86_64-unknown-linux-gnu.tar.gz"
+          curl --fail --location --retry 3 --retry-delay 2 \
+            https://github.com/openvm-org/openvm/releases/download/v2.0.2/cargo-openvm-v2.0.2-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$archive"
+          echo "$CARGO_OPENVM_SHA256  $archive" | sha256sum --check -
+          mkdir -p "$RUNNER_TEMP/cargo-openvm-unpacked" "$HOME/.cargo/bin"
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP/cargo-openvm-unpacked"
+          binary="$(find "$RUNNER_TEMP/cargo-openvm-unpacked" -type f -name cargo-openvm -print -quit)"
+          test -n "$binary"
+          install -m 0755 "$binary" "$HOME/.cargo/bin/cargo-openvm"
+          cargo-openvm --version
 
       - name: Run host-side unit tests
         run: cargo +1.91.1 test
