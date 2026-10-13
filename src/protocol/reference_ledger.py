@@ -289,6 +289,10 @@ class ReferenceLedger:
                            min_len=COMMITMENT_BYTES, max_len=COMMITMENT_BYTES)
         if len(set(statement.new_commitments)) != len(statement.new_commitments):
             raise DuplicateCommitment("transaction repeats a new output commitment")
+        try:
+            validate_spend_statement_transaction(statement)
+        except (CanonicalTransactionError, TypeError, ValueError) as exc:
+            raise InvalidInput(f"invalid canonical V2 transaction: {exc}") from None
 
         try:
             proof_ok = self._verify_spend_proof(statement, proof) is True
