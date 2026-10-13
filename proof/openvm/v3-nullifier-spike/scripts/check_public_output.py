@@ -34,25 +34,25 @@ def main() -> int:
         return 1
 
     expected_hex = expected_path.read_text(encoding="ascii").strip().lower()
-    if len(expected_hex) == 0 or len(expected_hex) % 2 or not re.fullmatch(r"[0-9a-f]+", expected_hex):
-        print("expected digest file is not valid even-length hex", file=sys.stderr)
+    if len(expected_hex) != 64 or not re.fullmatch(r"[0-9a-f]{64}", expected_hex):
+        print("expected public statement digest must be exactly 32 bytes (64 lowercase hex characters)", file=sys.stderr)
         return 1
 
     expected = bytes.fromhex(expected_hex)
-    if len(actual) < len(expected):
+    if len(actual) != len(expected):
         print(
-            f"OpenVM exposed only {len(actual)} public bytes; expected at least {len(expected)}",
+            f"OpenVM exposed {len(actual)} public bytes; expected exactly {len(expected)}",
             file=sys.stderr,
         )
         return 1
-    if actual[: len(expected)] != expected:
+    if actual != expected:
         print(
-            f"OpenVM public-output mismatch: expected {expected.hex()}, got {actual[:len(expected)].hex()}",
+            f"OpenVM public-output mismatch: expected {expected.hex()}, got {actual.hex()}",
             file=sys.stderr,
         )
         return 1
 
-    print(f"OpenVM public output matches digest KAT: {expected.hex()}")
+    print(f"OpenVM public output matches exact 32-byte digest KAT: {expected.hex()}")
     return 0
 
 
