@@ -75,6 +75,7 @@ jobs:
             cat "$fixture_dir/valid-run.log"
             exit 1
           fi
+          python3 scripts/check_public_output.py "$fixture_dir/valid-run.log" "$fixture_dir/expected-public-digest.txt"
           for fixture in wrong-key changed-value changed-salt wrong-nullifier bad-bundle trailing-data; do
             if cargo +1.91.1 openvm run --input "$fixture_dir/$fixture.json" > "$fixture_dir/$fixture-run.log" 2>&1; then
               echo "OpenVM unexpectedly accepted adversarial fixture: $fixture"
