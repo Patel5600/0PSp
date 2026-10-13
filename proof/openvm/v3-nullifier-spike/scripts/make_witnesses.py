@@ -90,8 +90,10 @@ def main() -> int:
         # are JSON objects with an input array. Prefix 01 selects byte-oriented stdin.
         (output / name).write_bytes(payload)
         json_name = name.removesuffix(".witness") + ".json"
+        # openvm::io::read_vec() consumes a little-endian u32 length before bytes.
+        vm_bytes = len(payload).to_bytes(4, "little") + payload
         (output / json_name).write_text(
-            json.dumps({"input": ["01" + payload.hex()]}) + chr(10),
+            json.dumps({"input": ["01" + vm_bytes.hex()]}) + chr(10),
             encoding="ascii",
         )
 
