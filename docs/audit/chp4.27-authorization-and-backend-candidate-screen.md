@@ -91,6 +91,8 @@ This table is **not** a composed soundness theorem. The proven \(2^{-129}\) FRI 
 
 A \(2^{-16}\) proof-of-work target must not be mechanically added as “16 more security bits.” Its attack cost and its effect in the proof's soundness reduction differ, and a quantum search can change the work factor. The exact transcript schedule, allowed adversary query budget, grinding placement, hash output size, extension field and reduction theorem must be included in the concrete calculation.
 
+The CI step `scripts/security_budget_evaluator.py` is explicitly historical numeric-consistency diagnostics for the retired CHP3 design. Its BabyBear/LoTRS figures and `N=86` FRI arithmetic are conditional arithmetic only, not an active V0 carry-overflow proof or a composed soundness calculation. Do not mark BabyBear carry containment as a frozen protocol invariant based on that output; closure requires relation-specific range/carry constraints, adversarial overflow witnesses, and evidence that the selected backend enforces them.
+
 **Current status:** 0PSP has not parameterized or verified a Plonky3 FRI profile for the complete relation. PR #31 uses the OpenVM v2.0.2 partial NOAUTH guest; the project’s existing candidate screen records OpenVM's stated 100-bit PQ profile as below the current 128-bit target. No FRI setting change, field-extension choice, or PoW arithmetic closes this gate without a pinned build, full composed bound and an end-to-end proof/verification test. See the upstream [FRI parameter implementation](https://github.com/Plonky3/Plonky3/blob/main/fri/src/prover.rs) and the [Fiat–Shamir-in-QROM analysis](https://eprint.iacr.org/2023/1071.pdf).
 
 ## 3. The next experiment
