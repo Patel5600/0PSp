@@ -60,7 +60,7 @@ Run locally:
 | Single post-quantum ZK proof | Candidate relation documented; authorization mode remains open | Backend not instantiated; no knowledge-soundness/ZK reduction or composed proof |
 | End-to-end security | Threat model and game checklist | Composed proof, independent cryptanalysis and benchmarks |
 | Full-path side channels | Separate V2 nullifier and commitment timing screens compile in CI; native disassembly artifact covers V1/V2 | Screens have not been run on a controlled target; whole secret-flow/binary audit and full-prover leakage tests remain open |
-| Production | **NO-GO** | All mandatory gates closed |
+| Production | **NO-GO** | Mandatory production gates remain open; no end-to-end production approval is claimed. |
 
 ## Build and verification
 
