@@ -12,8 +12,8 @@ from typing import Mapping, Protocol
 
 from src.adapters.evm_namespace import EvmRpcError
 
-_QUANTITY_RE = re.compile(r"0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)\\Z")
-_DATA_RE = re.compile(r"0x(?:[0-9a-fA-F]{2})*\\Z")
+_QUANTITY_RE = re.compile(r"0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)\Z")
+_DATA_RE = re.compile(r"0x(?:[0-9a-fA-F]{2})*\Z")
 _BLOCK_TAGS = frozenset({"latest", "safe", "finalized"})
 
 
