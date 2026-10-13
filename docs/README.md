@@ -8,32 +8,45 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 
 ## Current source of truth
 
-1. [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory production gate and change-control rules.
-2. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate marked GO or NO-GO with its evidence and exact condition for changing status.
-2. [RFC-01: user-committed issuance](security/rfc-01-user-committed-issuance.md) — issuer privacy, issuance/value/deposit binding and replay requirements.
-3. [RFC-02: spend relation](theory/spend-relation-spec.md) — current V2 equations, shared witness and still-unspecified predicates.
-4. [V2 protocol security argument](security/v2-protocol-security-argument.md) — conditional component-level arguments and limitations.
-5. [CHp4.3 identity-invariant review](audit/chp4.3-identity-invariant-decision-review.md) — review proposal, not an approved change to identity semantics.
-6. [CHp4.4 deterministic output-ID proposal review](audit/chp4.4-deterministic-output-id-proposal-review.md) — audits the friend's proposal; public nullifier-derived IDs and sample formulas are rejected for now pending privacy/protocol review.
-7. [CHp4.5 hidden-witness output-identity proposal review](audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — audits the revised proposal's field widths, collision bounds, privacy claims and sample tests; it remains unapproved.
-8. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — executable reference candidate and hardcoded regressions; ZK enforcement and proof obligations remain open.
-9. [CHp4.8 Namespace V2 EVM adapter — historical initial mapping](audit/chp4.8-namespace-v2-evm-adapter.md) — retained as historical audit; its intermediate-hash EVM identity mapping is superseded.
-10. [CHp4.9 Namespace V3 direct-hash remediation](audit/chp4.9-namespace-v3-direct-hash-remediation.md) — current EVM identity mapping, exact encoding, quantum collision bound, native/Python parity and ledger typing.
-11. [CHp4.10 namespace RPC quorum and durable finality journal](audit/chp4.10-namespace-rpc-finality-hardening.md) — majority RPC policy, persistent checkpoint-to-finalized header ancestry, startup wiring and remaining consensus/deposit/proof boundaries.
-12. [CHp4.11 EVM deposit evidence contract](audit/chp4.11-evm-deposit-evidence-contract.md) — fixed event ABI profile, canonical evidence fields, receipt-local log identity, beneficiary binding, and receipt/transaction-trie authentication requirements.
-13. [CHp4.12 EVM transaction/receipt trie inclusion verifier](audit/chp4.12-evm-trie-inclusion-verifier.md) — strict Keccak/RLP/MPT primitives, raw-header root binding and same-index transaction/receipt proofs; consensus authentication and mint authorization remain open.
-14. [CHp4.13 Ethereum Mainnet light-client finality integration](audit/chp4.13-helios-authenticated-finality.md) — supervised digest-pinned Helios process, beacon weak-subjectivity pin, execution checkpoint ancestry and trie-proof wiring; no production authorization or independent audit is claimed.
-15. [CHp4.14 deposit asset-movement evidence](audit/chp4.14-asset-movement-evidence.md) — transaction-value equality for native deposits, Transfer-log matching for ERC-20 deposits, and protocol/token code-fingerprint checks; movement evidence is not custody authorization.
-16. [CHp4.15 authenticated account/storage proofs](audit/chp4.15-authenticated-evm-state-proofs.md) — EIP-1186 account and storage proofs verified against a state root from an authenticated finalized header; block-state evidence is not transaction-level custody proof.
-17. [CHp4.16 Ethereum proof differential tests](audit/chp4.16-ethereum-proof-differential-tests.md) — test-only comparison of local Keccak/RLP/MPT logic with independent libraries; no custody or production authorization claim.
-19. [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — fixed depth-63 tree, transactional SQLite issue/spend transitions, replay protection, and startup integrity reconciliation; authorization and proof backend remain unimplemented.
-20. [CHp4.18 canonical V2 spend transaction and digest](audit/chp4.18-canonical-spend-transaction-v2.md) — fixed TxFieldsV2 wire encoding, TxDigestV2 KAT, strict decoding and ledger API binding; the ZK circuit/backend must still constrain the same relation.
-21. [CHp4.20 proof-backend feasibility](audit/chp4.20-zk-backend-feasibility.md) — backend selection criteria, rejected production assumptions, and the exact shared-witness relation still required.
-22. [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — tested scenario estimator, explicit exclusions, and the measured-backend feasibility work still required.
-23. [CHp4.22 SmallWood Python R1CS adapter scaling audit](audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — pinned-source memory-growth finding and the NO-GO decision for the dense generic adapter.
-24. [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — characteristic-two SHAKE row model, Aurora/libiop candidate screening, and the next proof prototype gate.
-25. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-26. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+**Release decision:** NO-GO. **External cryptographic audit:** NOT PERFORMED. The index describes repository state; it is not a security review or deployment approval. PR #30 is an open, unmerged CHp4.25 candidate; main has not been changed by that PR.
+
+### Release gates and core specifications
+
+- [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory release conditions and evidence policy.
+- [Binary Production Gate Matrix](security/production-gate-matrix.md) — scoped GO/NO-GO decisions with evidence and exit criteria.
+- [RFC-01: user-committed issuance](security/rfc-01-user-committed-issuance.md) — issuer privacy, issuance/value/deposit binding and replay.
+- [RFC-02: spend relation](theory/spend-relation-spec.md) — V2 equations, shared witness and unresolved predicates.
+- [V2 protocol security argument](security/v2-protocol-security-argument.md) — conditional component arguments and limitations.
+- [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+- [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+
+### Identity and EVM evidence
+
+- [CHp4.3 identity-invariant review](audit/chp4.3-identity-invariant-decision-review.md) — open policy decision, not an approved protocol change.
+- [CHp4.4 deterministic output-ID proposal review](audit/chp4.4-deterministic-output-id-proposal-review.md) — rejects unsupported public nullifier-derived identity under the current privacy target.
+- [CHp4.5 hidden-witness output-identity proposal review](audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — revised proposal remains unapproved.
+- [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — finite reference vectors; ZK enforcement remains open.
+- [CHp4.8 Namespace V2 EVM adapter](audit/chp4.8-namespace-v2-evm-adapter.md) — historical initial mapping; superseded for new EVM identity by V3.
+- [CHp4.9 Namespace V3 direct-hash remediation](audit/chp4.9-namespace-v3-direct-hash-remediation.md) — current EVM descriptor encoding, native/Python parity, and namespace typing.
+- [CHp4.10 RPC quorum and durable finality journal](audit/chp4.10-namespace-rpc-finality-hardening.md) — strict-majority RPC corroboration and durable ancestry, not a consensus light client.
+- [CHp4.11 EVM deposit evidence contract](audit/chp4.11-evm-deposit-evidence-contract.md) — canonical event observation and beneficiary binding; not mint authorization.
+- [CHp4.12 EVM transaction/receipt trie inclusion](audit/chp4.12-evm-trie-inclusion-verifier.md) — Keccak/RLP/MPT inclusion against header roots; requires authenticated header trust.
+- [CHp4.13 Ethereum Mainnet Helios integration](audit/chp4.13-helios-authenticated-finality.md) — concrete candidate light-client path; intended-chain smoke and independent review remain open.
+- [CHp4.14 deposit asset-movement evidence](audit/chp4.14-asset-movement-evidence.md) — transaction-value/Transfer-log consistency; not proof of custody.
+- [CHp4.15 authenticated EVM state proofs](audit/chp4.15-authenticated-evm-state-proofs.md) — EIP-1186 account/storage checks against an authenticated state root.
+- [CHp4.16 Ethereum proof differential tests](audit/chp4.16-ethereum-proof-differential-tests.md) — test-only comparison with independent libraries.
+- [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — single-node SQLite state transitions and tree reconciliation; trusted authorization/proof integration remain open.
+- [CHp4.18 canonical V2 spend transaction/digest](audit/chp4.18-canonical-spend-transaction-v2.md) — frozen host/API encoding; the actual proof must constrain it.
+- [CHp4.25 Namespace V2/V3 composite gate](audit/chp4.25-namespace-v2-v3-end-to-end-gate.md) — exact-height Mainnet smoke harness and code/state-root consistency tests. The live intended-deployment smoke has **not** been run; proof binding and independent review remain NO-GO.
+
+**Separate workstream, not merged into this snapshot:** [CHp4.24 Aurora/libiop source-audit PR #28](https://github.com/Patel5600/0PSp/pull/28) is open and unmerged. It documents blockers in the pinned candidate; it does not certify Aurora or select an accepted production proof backend.
+
+### Proof feasibility and cost evidence
+
+- [CHp4.20 proof-backend feasibility](audit/chp4.20-zk-backend-feasibility.md) — backend acceptance criteria and complete relation requirements.
+- [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — deterministic model, not a measured backend benchmark.
+- [CHp4.22 SmallWood Python R1CS adapter scaling audit](audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — the pinned dense generic adapter is NO-GO at the evaluated scale.
+- [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — deterministic characteristic-two row model, not an instantiated circuit or proof.
 
 ## Repository map
 
