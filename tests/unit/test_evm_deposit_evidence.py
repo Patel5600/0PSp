@@ -9,6 +9,7 @@ from src.adapters.evm_deposit_evidence import (
     EvmDepositEvidencePolicy,
     EvmDepositEvidenceReader,
 )
+from src.adapters.evm_rpc_policy import QuorumJsonRpcTransport
 from src.adapters.evm_namespace import (
     EvmNamespaceAdapter,
     EvmNamespaceConfig,
@@ -139,7 +140,16 @@ def make_reader(*, receipt=None, asset_address=ASSET_ADDRESS, code=PROTOCOL_CODE
     policy = EvmDepositEvidencePolicy.from_namespace_binding(
         binding, event_topic0=TOPIC0
     )
-    rpc = DepositRpc(receipt=receipt, code=code)
+    providers = [
+        DepositRpc(receipt=receipt, code=code),
+        DepositRpc(receipt=receipt, code=code),
+        DepositRpc(receipt=receipt, code=code),
+    ]
+    rpc = QuorumJsonRpcTransport({
+        "provider-a": providers[0],
+        "provider-b": providers[1],
+        "provider-c": providers[2],
+    })
     journal = FakeJournal(binding.namespace_id, chain_id=chain_id, accepted=accepted)
     reader = EvmDepositEvidenceReader(policy, rpc, journal)
     return binding, policy, rpc, journal, reader
@@ -162,7 +172,10 @@ def test_valid_receipt_yields_canonical_quorum_observation_not_authorization():
     assert observed.canonical_bytes() == reader.inspect(
         transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY
     ).canonical_bytes()
-    assert ("eth_getCode", ["0x" + PROTOCOL_ADDRESS.hex(), hex(CHECKPOINT_HEIGHT)]) in rpc.calls
+    assert all(
+        ("eth_getCode", ["0x" + PROTOCOL_ADDRESS.hex(), hex(CHECKPOINT_HEIGHT)]) in provider.calls
+        for _, provider in rpc._providers
+    )
     assert journal.contains_finalized_header(CHECKPOINT_HEIGHT, BLOCK_HASH)
 
 
@@ -231,7 +244,8 @@ def test_reader_rejects_runtime_code_substitution_and_rpc_failure():
         reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
 
     _, _, _, _, reader = make_reader()
-    reader._rpc.failure = True
+    for _name, provider in reader._rpc._providers:
+        provider.failure = True
     with pytest.raises(EvmDepositEvidenceError, match="quorum transaction receipt"):
         reader.inspect(transaction_hash=TX_HASH, log_index=17, expected_beneficiary=BENEFICIARY)
 
