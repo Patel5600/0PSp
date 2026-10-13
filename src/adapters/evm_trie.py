@@ -306,6 +306,10 @@ def verify_mpt_exclusion(root_hash: bytes, key: bytes, proof_nodes: Sequence[byt
         raise TypeError("key must be bytes")
     if not isinstance(proof_nodes, (list, tuple)):
         raise TypeError("proof_nodes must be a list or tuple")
+    if len(key) > 1024:
+        raise ValueError("key exceeds the configured 1024-byte proof bound")
+    if len(proof_nodes) > 128:
+        raise ValueError("proof contains more than 128 nodes")
     if any(not isinstance(node, bytes) or not node for node in proof_nodes):
         raise ValueError("each supplied proof node must be non-empty encoded bytes")
     if root_hash == keccak256(rlp_encode_bytes(b"")):
