@@ -70,13 +70,13 @@ jobs:
         run: |
           set -euo pipefail
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
-          if ! cargo +1.91.1 openvm run --input "$fixture_dir/valid.witness" > "$fixture_dir/valid-run.log" 2>&1; then
+          if ! cargo +1.91.1 openvm run --input "$fixture_dir/valid.json" > "$fixture_dir/valid-run.log" 2>&1; then
             echo "OpenVM rejected the known-valid fixture; full guest-run output follows:"
             cat "$fixture_dir/valid-run.log"
             exit 1
           fi
           for fixture in wrong-key changed-value changed-salt wrong-nullifier bad-bundle trailing-data; do
-            if cargo +1.91.1 openvm run --input "$fixture_dir/$fixture.witness" > "$fixture_dir/$fixture-run.log" 2>&1; then
+            if cargo +1.91.1 openvm run --input "$fixture_dir/$fixture.json" > "$fixture_dir/$fixture-run.log" 2>&1; then
               echo "OpenVM unexpectedly accepted adversarial fixture: $fixture"
               cat "$fixture_dir/$fixture-run.log"
               exit 1
@@ -89,7 +89,7 @@ jobs:
         run: |
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
           cargo +1.91.1 openvm keygen --app-only
-          cargo +1.91.1 openvm prove app --input "$fixture_dir/valid.witness" --proof "$fixture_dir/valid.app.proof"
+          cargo +1.91.1 openvm prove app --input "$fixture_dir/valid.json" --proof "$fixture_dir/valid.app.proof"
           cargo +1.91.1 openvm verify app --proof "$fixture_dir/valid.app.proof"
 
       - name: Ensure guest build did not alter locked dependencies
