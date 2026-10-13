@@ -98,6 +98,24 @@ The upstream file includes `<cstdint>` and `<vector>` but does not explicitly in
 
 A subsequent isolated diagnostic CI attempt adds exactly one temporary include, `#include <cstddef>`, to the checkout's `libiop/algebra/utils.hpp`, records before/after SHA-256 and the diff, and then retries the build/tests. This overlay is not an upstream commit and is not silently represented as an upstream fix. Its purpose is to discover whether additional build/runtime blockers appear. Even a successful patched build would leave the pristine-build portability issue and the transcript-serialization findings open; a maintained fix must be deliberately reviewed and carried by an approved source fork or upstream revision.
 
+## Second isolated executable attempt: compile proceeds, serialization test fails
+
+The diagnostic run is GitHub Actions run `38364226609`, job `aurora-upstream-candidate`. The exact pinned revision and recursive submodules were checked out; CMake configuration and the build of all three test executables succeeded only after applying the temporary one-line header overlay recorded in the CI artifact.
+
+Focused CTest outcome:
+
+| Test | Result | Interpretation |
+|---|---|---|
+| `test_aurora_protocol` | **PASS** | Narrow protocol test only |
+| `test_aurora_snark` | **PASS** | In-memory SNARK smoke test; not a concrete security proof |
+| `test_serialization` | **FAIL** | Verifier reports `Invalid pow`; transcript validity is false after serialization/deserialization; expected verification result is true but observed false |
+
+The failure log shows both loop iterations in `test_serialization.cpp` fail the verifier after round-trip. Source inspection also reveals the loop declares `const bool make_zk = false` inside the loop; the printed `make_zk = 0` and `make_zk = 1` suffix comes from the loop index, not the actual parameter. Therefore the test exercises non-ZK serialization twice and **does not test ZK-mode serialization**.
+
+This executable failure is consistent with the source finding that the implemented transcript serializer omits `proof_of_work_`, even though BCS verification checks it. It does not yet prove that this is the only cause of the round-trip failure; a focused patch experiment is required to isolate that causal link. The native binary-field transcript branch remains explicitly unimplemented and is not exercised by these tests.
+
+**Candidate gate: NO-GO.** The pristine source failed to compile; an unmodified protocol/proof smoke test can only be reached after a temporary portability include overlay, and serialization still fails. No 0PSP proof relation or concrete security parameter calculation has been validated.
+
 ## Required executable work, serial order
 
 ### 1. Dependency and build closure
