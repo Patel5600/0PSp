@@ -121,3 +121,12 @@ def test_branch_node_rejects_missing_nibble_child():
     branch = rlp_encode_list([rlp_encode_bytes(b"") for _ in range(17)])
     with pytest.raises(EthereumEncodingError, match="does not contain"):
         verify_mpt_inclusion(keccak256(branch), key, b"value", [branch])
+
+def test_mpt_enforces_bounded_proof_and_key_sizes():
+    root, proof = leaf_proof(b"k", b"value")
+    with pytest.raises(ValueError, match="key exceeds"):
+        verify_mpt_inclusion(root, b"k" * 1025, b"value", proof)
+    with pytest.raises(ValueError, match="must be non-empty"):
+        verify_mpt_inclusion(root, b"k", b"", proof)
+    with pytest.raises(ValueError, match="more than 128"):
+        verify_mpt_inclusion(root, b"k", b"value", proof * 129)
