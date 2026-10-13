@@ -11,7 +11,7 @@ Do not freeze a V3 authorization scheme or approve a production proof backend ye
 - **Ringtail reference implementation:** its public Go repository explicitly says it is an academic proof-of-concept, has not received careful code review, and is not ready for production. The scheme is a plausible threshold-signature research candidate, but its existence is not a reviewed implementation or a complete 0PSP authorization path.
 - **LoTRS implementation:** its 2026 artifact includes Python and Rust implementations, reproducible interoperability tests and parameter-estimation scripts, which is stronger reproducibility evidence. But its own README reports a production-profile estimate of **100.7978 bits** for one listed post-quantum ASIS variant, with other variants materially lower. Those figures do not substantiate the project's stated 128-bit post-quantum target. LoTRS is also a **structured** threshold ring signature, where signers form a hidden column in a table, not a generic drop-in replacement for Ringtail or an arbitrary wallet policy.
 
-The correct decision is **no production scheme selected** until the policy model, security target, relation integration, parameters and verifier cost are evaluated together. Threshold ML-DSA-87 is now the leading authorization *experiment candidate*, not an approved suite; its exact-release audit warning and license scope require resolution before integration.
+The current V3 candidate now separates core spend authority from intended-payee identity. The lowest-dependency core-spend experiment is a proof of knowledge of the recipient-generated nullifier key nk, explicitly selected by authorization_policy_id = 0PSP-V3-NK-POSSESSION-CANDIDATE-v1. It requires the same hidden nk to open the bundle key commitment and derive NullifierV3, inside one knowledge-sound, witness-hiding relation. This avoids making threshold signatures a mandatory core-spend dependency, but it does not authenticate an intended payee, and it is not production authorization until the complete proof binds membership, trusted state, transaction/output constraints and the exact policy. Threshold ML-DSA-87 remains an optional signature-policy experiment, not the default core-spend policy; its audit-scope and license issues still preclude production use.
 
 ## 2. Evidence and limitations
 
@@ -40,7 +40,7 @@ The README itself warns that the attack-cost figures do **not** substantiate 128
 
 **Decision:** useful comparison baseline, not an approved authorization scheme for the current target.
 
-### Threshold ML-DSA-87 — strongest authorization candidate found so far
+### Threshold ML-DSA-87 — optional signature-policy experiment, not core spend default
 
 Pinned upstream release: [`threshold-v3.0.0`](https://github.com/Quantus-Network/qp-rusty-crystals/tree/threshold-v3.0.0), commit [`5d3d252fbc7975586e13e7576652f37ad1395c05`](https://github.com/Quantus-Network/qp-rusty-crystals/commit/5d3d252fbc7975586e13e7576652f37ad1395c05). Crate: [`qp-rusty-crystals-threshold 3.0.0`](https://docs.rs/crate/qp-rusty-crystals-threshold/3.0.0).
 
@@ -57,6 +57,20 @@ This is a materially better candidate for the next authorization experiment than
 **Protocol-fit blocker:** a standard ML-DSA signature can be verified outside a proof only when its public key is available. 0PSP intends the note's authorization key to remain hidden inside the note bundle, so the selected proof must constrain verification of the threshold signature against that *same hidden key* and the exact canonical V3 authorization message. Separately, a signature by the bundled key is only proof of key control; it is not proof that the key belongs to the sender's intended payee. If intended-payee authenticity is required, define an independent recipient/address/invoice or authenticated recovery-key anchor and bind it to the bundle/output inside the proof. That identity/recovery anchor is not specified today. Signature verification cost, witness-hiding behavior, canonical public-key encoding, signature serialization, concrete 128-bit post-quantum security claim for the selected configuration, and full 0PSP integration are all unmeasured. The library's availability does not solve those composition obligations.
 
 **Decision:** make ML-DSA-87 threshold signing the **leading experiment candidate, not the selected production scheme**. Freeze no scheme ID or key codec yet. Next evidence must include the exact audit report, license reconciliation, pinned clean-build/conformance run, signature/context KATs, adversarial threshold/seed-reuse/session tests, and a measured proof of signature verification against the hidden note key.
+
+### Core spend authority candidate: proof of nk possession
+
+The V3 reference now defines the explicit policy ID 0PSP-V3-NK-POSSESSION-CANDIDATE-v1 and a host validator that rejects any different policy ID. Under this candidate, spend authority is a proof of knowledge of the 48-byte recipient-generated nk, established by all three relations holding over the same witness:
+
+- KeyCommitV3(nk) equals the key commitment encoded in the exact canonical BundleV3.
+- CommitV3 opens the exact registered input commitment with the same BundleV3, value, namespace and hidden tuple.
+- NullifierV3 equals HMAC-SHA3-384 under that same nk, over the exact commitment and hidden tuple.
+
+The canonical transaction digest must bind the policy ID, the exact consumed nullifier, root/state head, fee, public entropy and ordered output commitments. The eventual proof must additionally enforce the authenticated membership path, output identity derivation, all output openings, range-safe value conservation and exact transaction-byte/public-input binding. A host-level policy check or the current OpenVM hash-slice guest is not this complete proof.
+
+The model assumes the note recipient generates nk independently and the output creator never learns it. A public NullifierV3 is not enough to spend: under the candidate policy the accepted proof must demonstrate knowledge of the key opening the note's committed key hash and used by the nullifier predicate. However, this authorization only works if the actual proof is knowledge-sound and hides nk from verifiers. The current OpenVM profile is reported at 100-bit post-quantum security, below the project's 128-bit target, and its witness-hiding properties for this construction have not been independently established. Therefore this policy is the most practical next experiment, not a production-selected authorizer.
+
+Intended-payee authentication remains a distinct gate. BundleV3 auth_public_key/auth_scheme_id are self-asserted unless tied to an independent address, invoice or authenticated recovery-key anchor. The nk-possession policy does not prove that the bundle belongs to the intended payee, and must not be advertised as doing so.
 
 ### Candidate authorization message and context
 
