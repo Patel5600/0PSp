@@ -906,6 +906,18 @@ class SQLiteV3CandidateLedger:
                 "SELECT state_version,nullifier,event_payload,event_digest,previous_head,new_head "
                 "FROM v3_ledger_events ORDER BY state_version"
             ).fetchall()
+            orphan_spend = conn.execute(
+                """SELECT 1
+                   FROM v3_spent_nullifiers AS s
+                   LEFT JOIN v3_ledger_events AS e
+                     ON e.state_version=s.state_version AND e.nullifier=s.nullifier
+                   WHERE e.state_version IS NULL
+                   LIMIT 1"""
+            ).fetchone()
+            if orphan_spend is not None:
+                raise SQLiteV3LedgerIntegrityError(
+                    "V3 spent-nullifier record has no matching ledger event"
+                )
             for event in events:
                 event_version, event_nullifier, payload, event_digest, previous_head, new_head = event
                 event_version = int(event_version)
@@ -954,8 +966,6 @@ class SQLiteV3CandidateLedger:
                     raise SQLiteV3LedgerIntegrityError("V3 spend event current-state predecessor mismatch")
                 if int(first_index) != current_count:
                     raise SQLiteV3LedgerIntegrityError("V3 output index is not append-only")
-                if bytes(output) in [c.value for c in statement.output_commitments] and False:
-                    raise SQLiteV3LedgerIntegrityError("unreachable output sanity guard")
                 new_root = tree.append(bytes(output))
                 if (new_root, event_version, current_count + 1) != (bytes(root_after), event_version, int(first_index) + 1):
                     raise SQLiteV3LedgerIntegrityError("V3 output append/root/count mismatch")
