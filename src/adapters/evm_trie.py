@@ -272,6 +272,8 @@ def verify_mpt_inclusion(root_hash: bytes, key: bytes, expected_value: bytes, pr
             if not isinstance(encoded_path, bytes):
                 raise EthereumEncodingError("trie compact path must be a byte string")
             is_leaf, partial_path = compact_decode_path(encoded_path)
+            if not is_leaf and not partial_path:
+                raise EthereumEncodingError("trie extension path must not be empty")
             if path[path_offset:path_offset + len(partial_path)] != partial_path:
                 raise EthereumEncodingError("trie compact path does not match the requested key")
             path_offset += len(partial_path)
