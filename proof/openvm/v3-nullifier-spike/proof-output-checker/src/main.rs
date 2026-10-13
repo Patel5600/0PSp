@@ -1,12 +1,10 @@
 use eyre::{bail, Context, Result};
-use openvm_circuit::arch::ContinuationVmProof;
-use openvm_continuations::CommitBytes;
 use openvm_sdk::{
     fs::read_object_from_file,
     keygen::AppVerifyingKey,
     prover::verify_app_proof_with_expected_exe_commit,
     types::AppExecutionCommit,
-    DefaultStarkEngine, SC,
+    DefaultStarkEngine,
 };
 use openvm_stark_backend::p3_field::PrimeField32;
 use std::{env, fs, path::Path};
@@ -72,16 +70,20 @@ fn main() -> Result<()> {
 
     let app_vk: AppVerifyingKey =
         read_object_from_file(vk_path).with_context(|| format!("reading {}", vk_path.display()))?;
-    let proof: ContinuationVmProof<SC> = read_object_from_file(proof_path)
+    let proof = read_object_from_file(proof_path)
         .with_context(|| format!("reading {}", proof_path.display()))?;
 
-    // CommitBytes::try_new rejects noncanonical values. app_vm_commit is not
-    // consulted by app-proof verification here; it is zeroed rather than guessed.
-    let app_exe_commit = CommitBytes::try_new(expected_exe_bytes)?;
-    let app_commit = AppExecutionCommit {
-        app_exe_commit,
-        app_vm_commit: CommitBytes::try_new([0u8; 32])?,
-    };
+    // App-proof verification consumes only the expected executable commit here.
+    // CommitBytes deserialization performs OpenVM's canonicality check; the unused
+    // VM-commit field is syntactically valid zero bytes rather than an asserted value.
+    let zero_vm_commit = "0".repeat(64);
+    let app_commit_json = format!(
+        "{{\"app_exe_commit\":\"0x{}\",\"app_vm_commit\":\"0x{}\"}}",
+        hex::encode(expected_exe_bytes),
+        zero_vm_commit,
+    );
+    let app_commit: AppExecutionCommit = serde_json::from_str(&app_commit_json)
+        .context("parsing canonical expected OpenVM executable commitment")?;
     verify_app_proof_with_expected_exe_commit::<DefaultStarkEngine>(
         &app_vk,
         &proof,
