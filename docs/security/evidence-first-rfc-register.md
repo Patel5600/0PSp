@@ -1,8 +1,9 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
-**Last reviewed:** 2026-10-13  
-**Main baseline reviewed:** `f3fbde3c562d034d0fe258f2984d520f89d14719` (2026-10-13; CHp4.18 canonical transaction candidate under review)  
-**CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
+**Last recorded review (historical metadata):** 2026-10-13; this CHp4.25 status synchronization is not a security review.  
+**Main baseline:** `13487d2f859460fc93fd2701023ce8f2cd60fd6a` (CHp4.23); CHp4.25 PR #30 is open and unmerged.  
+**Independent security review of CHp4.25:** NOT PERFORMED.  
+**External cryptographic audit:** NOT PERFORMED. No claim of external audit is made.  
 **Current release decision: `NO-GO`**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
 
@@ -18,8 +19,8 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 | Area | Evidence present in repository | What that evidence does **not** establish |
 |---|---|---|
-| Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; V3 direct-hash Python/native KAT parity; typed V3 ledger boundary; CHp4.10 quorum/journal; CHp4.13 candidate adds supervised Helios Mainnet finality and checkpoint-to-finalized ancestry | Real binary/checkpoint/`eth_getProof` smoke test, independent light-client and header/MPT differential review, full proof binding and independent security review |
-| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 raw transaction/receipt MPT inclusion; CHp4.13 digest-pinned Helios Mainnet finality; CHp4.14 movement-signal consistency; CHp4.15 EIP-1186 account/storage proofs; CHp4.16 test-only Keccak/RLP/MPT differential checks against independent libraries | State proofs establish block-boundary state, not transaction-specific causation. Differential tests are not a formal proof or live-chain audit. No live Mainnet smoke test; exact proxy/contract/token custody semantics and trusted `DepositAuthorization` conversion remain open |
+| Namespace V2 frozen / Namespace V3 EVM mapping | V2 KAT unchanged; V3 direct-hash Python/native KAT parity; typed V3 ledger boundary; CHp4.10 quorum/journal; CHp4.13 Helios Mainnet candidate; CHp4.25 exact-height smoke harness checking runtime code against an authenticated EIP-1186 account proof | Intended-deployment Mainnet smoke NOT RUN; Helios/checkpoint/deployment trust review; exact V3 bytes are not constrained by an accepted production proof; independent security review NOT PERFORMED; external cryptographic audit NOT PERFORMED |
+| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 raw transaction/receipt MPT inclusion; CHp4.13 Helios finality candidate; CHp4.14 movement signals; CHp4.15 EIP-1186 proof primitive; CHp4.25 exact-height runtime-code/state-root smoke harness | No intended-deployment Mainnet smoke; state evidence is not custody authorization; proxy/token semantics and trusted DepositAuthorization conversion remain open |
 | Coin commitment V2 | SHAKE256-384 includes `params_id`, key bytes, value, namespace, coin ID, `r_nf`, and independent salt; reference/native KAT | A hiding theorem, a complete binding proof over the eventual accepted key codec, issuer privacy, or proof-system soundness |
 | Nullifier V2 | Deterministic 48-byte result over namespace, 32-byte coin ID and 36-byte secret; a 149-byte preimage | That the spend proof enforces the exact same committed opening or that a ledger rejects repeats atomically |
 | Native memory handling | OpenSSL APIs and `OPENSSL_cleanse` calls in source; sanitizer and disassembly build targets | Whole-process zeroization, all-copy erasure, constant-time behavior, or leakage absence |
@@ -42,13 +43,15 @@ No percentage-complete claim is used. A test pass, an RFC, or a benchmark is not
 
 [CHp4.1](../audit/chp4.1-reference-state-transitions.md) adds an in-memory, single-process model that requires injected deposit and proof-verifier callbacks. Its tests exercise replay rejection, duplicate commitments/nullifiers, proof-rejection non-mutation, and concurrent duplicate submissions. Test callbacks are deliberately not cryptographic verifiers. This work models a local linearization point; it does not close the durable-ledger gate or establish issuance value-binding, spend soundness, zero knowledge, consensus safety, or reorg/recovery correctness.
 
-## Namespace V3 / CHp4.9 boundary
+## Namespace V2/V3 boundary and CHp4.25 candidate
 
-Namespace V2 remains frozen, including its known-answer vector. The earlier CHp4.8 EVM adapter independently hashed long descriptors to 256-bit components before the final namespace digest. That composition admitted a lower generic quantum collision-query scale of about 2^85.3 if one intermediate component collided, so that mapping is retained only as historical evidence.
+Namespace V2 remains frozen, including its existing known-answer vector. The earlier CHp4.8 EVM adapter used intermediate 256-bit descriptor hashes and is retained only as historical evidence. The current EVM adapter hashes the full canonical ledger, deployment and asset descriptors directly into Namespace V3 using SHAKE256-384. The idealized generic quantum collision-query scale of a 384-bit output is about 2^128 under the stated model; this is not injectivity or a complete protocol theorem.
 
-The current adapter at `src/adapters/evm_namespace.py` retains the full canonical ledger, deployment and asset descriptors and hashes their length-prefixed tuple directly with SHAKE256-384 under the Namespace V3 domain/version. No 256-bit intermediate identity digest participates in namespace identity. Under an idealized generic quantum random-oracle collision model, the 384-bit output has BHT-style query scale about 2^128. This remains a computational model/estimate, not injectivity or a complete protocol proof.
+CHp4.10's strict-majority RPC policy and SQLite ancestry journal provide corroboration and durable conflict detection, not consensus authentication. CHp4.13 adds a candidate Ethereum Mainnet Helios light-client integration with a digest-pinned binary and out-of-band checkpoints. CHp4.12 covers transaction/receipt trie inclusion, CHp4.14 checks asset-movement signals, and CHp4.15 verifies account/storage proofs against authenticated header state roots. These components do not by themselves prove custody, authorize minting, or instantiate the issuance relation.
 
-The reference ledger requires typed `NamespaceIdV3` at its API boundary but does not instantiate the proof relation. CHp4.10 adds provider quorum/journal; CHp4.11 defines the canonical event observation; CHp4.12 proves raw transaction/receipt trie inclusion; CHp4.13 candidate-wires the verifier to a digest-pinned Helios Mainnet light-client process and durable execution-checkpoint-to-finalized ancestry, with protocol code fingerprint checking; CHp4.14 requires the native transaction value to equal the Deposit event amount, or for token deposits exactly one matching ERC-20 Transfer log from the depositor to the protocol, and checks the token's pinned runtime-code fingerprint at the deposit block. These are consistent asset-movement signals, not generic proof of custody: malicious token logic, proxy upgrades, forwarding/refunding, and contract accounting still need a reviewed trust policy. Real network smoke/differential tests are outstanding. There is no conversion to trusted `DepositAuthorization`, no durable atomic mint ledger, and no instantiated issuance proof. See [CHp4.9](../audit/chp4.9-namespace-v3-direct-hash-remediation.md), [CHp4.10](../audit/chp4.10-namespace-rpc-finality-hardening.md), [CHp4.11](../audit/chp4.11-evm-deposit-evidence-contract.md), [CHp4.12](../audit/chp4.12-evm-trie-inclusion-verifier.md), [CHp4.13](../audit/chp4.13-helios-authenticated-finality.md), and [CHp4.14](../audit/chp4.14-asset-movement-evidence.md).
+CHp4.25 adds a fail-closed smoke runner that resolves Namespace V3 at one exact finalized block height and checks the protocol (and configured token) runtime code against both an independently supplied fingerprint and an EIP-1186 account proof tied to that header's authenticated state root. Automated tests pass on the recorded implementation/test commit, but the intended-deployment Mainnet smoke has NOT BEEN RUN. CHp4.25 is still an open candidate PR, not a merged release. No production proof binds the exact 48-byte Namespace V3 value into the complete issuance/spend relation. Proxy upgrade/custody semantics, trusted DepositAuthorization conversion, operational trust-pin provenance, recovery, and independent security review remain open. External cryptographic audit is NOT PERFORMED.
+
+See [CHp4.9](../audit/chp4.9-namespace-v3-direct-hash-remediation.md), [CHp4.10](../audit/chp4.10-namespace-rpc-finality-hardening.md), [CHp4.12](../audit/chp4.12-evm-trie-inclusion-verifier.md), [CHp4.13](../audit/chp4.13-helios-authenticated-finality.md), and [CHp4.25](../audit/chp4.25-namespace-v2-v3-end-to-end-gate.md).
 
 ## CHp4.2 formal relation and adversarial test boundary
 
@@ -132,6 +135,9 @@ Production remains **NO-GO** until all of these have affirmative, reviewable evi
 - [ ] Reproducible end-to-end performance profile and negative tests pass.
 - [ ] Controlled side-channel work and complete implementation/dependency/binary review are complete.
 - [ ] Independent cryptographic review has no unresolved critical/high findings.
+- [ ] Run and archive the intended-deployment Mainnet smoke with independently sourced trust pins; report a failed/unrun result as NO-GO, never as passed by CI.
+
+**Audit disclosure:** External cryptographic audit is NOT PERFORMED. This is not represented as an audited system. The internal independent review gate is separate and also NOT PERFORMED for CHp4.25.
 
 ## Change-control rule
 
