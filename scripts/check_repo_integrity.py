@@ -34,6 +34,7 @@ ACTIVE_DOCS = (
     Path("docs/audit/chp4.13-helios-authenticated-finality.md"),
     Path("docs/audit/chp4.14-asset-movement-evidence.md"),
     Path("docs/audit/chp4.15-authenticated-evm-state-proofs.md"),
+    Path("docs/audit/chp4.16-ethereum-proof-differential-tests.md"),
 )
 REQUIRED_TOKENS = {
     Path("docs/security/evidence-first-rfc-register.md"): (
@@ -136,6 +137,13 @@ REQUIRED_TOKENS = {
         "verify_mpt_exclusion",
         "block-boundary state",
         "DepositAuthorization",
+        "NO-GO",
+    ),
+    Path("docs/audit/chp4.16-ethereum-proof-differential-tests.md"): (
+        "eth-hash",
+        "HexaryTrie",
+        "Keccak/RLP/MPT",
+        "not a formal proof",
         "NO-GO",
     ),
 }
