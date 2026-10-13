@@ -579,3 +579,7 @@ mod tests {
             .unwrap_err().contains("trailing bytes"));
     }
 }
+
+
+/// Experimental full one-input/one-output V3 spend candidate relation.
+pub mod spend_v3;
