@@ -154,7 +154,12 @@ def test_mpt_exclusion_proves_divergent_leaf_and_rejects_existing_key():
 def test_mpt_exclusion_proves_empty_branch_child_and_empty_trie():
     key = b"\x12"
     branch_items = [rlp_encode_bytes(b"") for _ in range(17)]
-    branch_items[1] = rlp_encode_bytes(b"")
+    for nibble in (4, 6):
+        leaf = rlp_encode_list([
+            rlp_encode_bytes(bytes([0x30 | nibble])),
+            rlp_encode_bytes(b"other"),
+        ])
+        branch_items[nibble - 1] = leaf if len(leaf) < 32 else rlp_encode_bytes(keccak256(leaf))
     branch = rlp_encode_list(branch_items)
     assert verify_mpt_exclusion(keccak256(branch), key, [branch])
     assert verify_mpt_exclusion(keccak256(rlp_encode_bytes(b"")), key, [])
