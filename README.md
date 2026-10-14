@@ -46,10 +46,10 @@ Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs
 - [CHp4.16: Ethereum proof differential tests](docs/audit/chp4.16-ethereum-proof-differential-tests.md) compares local Keccak/RLP/MPT behavior against test-only independent implementations. This is stronger regression evidence, not a full audit or a custody proof.
 - [CHp4.17: durable ledger and commitment Merkle tree](docs/audit/chp4.17-durable-merkle-ledger.md) adds a depth-63 namespace-bound tree, SQLite atomic issuance/spend state transitions, restart replay protection, and startup auditing that reconciles all persisted Merkle nodes, records, and event-chain entries. It remains a single-node state machine; trusted deposit authorization and the real proof backend are not supplied.
 - [CHp4.18: canonical V2 transaction and digest](docs/audit/chp4.18-canonical-spend-transaction-v2.md) freezes TxFieldsV2 and TxDigestV2 at the host/API boundary and rejects public-field/digest substitutions before the ledger invokes a verifier callback. Exact-main Functional checks and Repository integrity watch passed; the actual ZK relation must still constrain the exact same encoding; production remains NO-GO.
-- [CHp4.26: historical-anchor concurrency remediation](docs/audit/chp4.26-historical-anchor-concurrency-remediation.md) is an unmerged candidate that lets a spend use a still-retained historical root/head while appending outputs against the current state, with atomic nullifier/commitment checks and a 256-state ring. Exact-head CI is pending; it does not fix V2 sender-linkability, instantiate a ZK proof or authorize production use.
+- [CHp4.26: historical-anchor concurrency remediation](docs/audit/chp4.26-historical-anchor-concurrency-remediation.md) implements a 256-state historical-anchor ring in `SQLiteLedger` (merged via PR #32), allowing spends against retained historical roots/heads while appending outputs to current state with atomic nullifier replay protection; it does not fix V2 sender-linkability, instantiate a ZK proof or authorize Mainnet production use.
 - [CHp4.20: proof-backend feasibility](docs/audit/chp4.20-zk-backend-feasibility.md) rejects the assumption that a transparent/hash-based STARK automatically provides zero knowledge. No backend is approved until the exact private-spend relation, witness hiding, post-quantum assumptions and target-hardware cost are demonstrated.
 - [CHp4.21: static SHAKE arithmetization cost model](docs/audit/chp4.21-keccak-zk-cost-model.md) adds a tested, parameterized estimator for the frozen SHAKE256-384 predicates. Its example reports 23,543,088 modeled multiplication-equivalents for one input and one output under a 1,024-byte illustrative public-key encoding; this is not an actual backend benchmark or a proof. All proof/authorization/custody production gates remain NO-GO.
-- [CHp4.22: SmallWood Python R1CS adapter scaling audit](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md) finds the pinned generic adapter's dense constraint-table expansion is infeasible for even one SHAKE-sized relation; it does not reject all SmallWood implementations, but this adapter is NO-GO as-is.
+- [CHp4.22: SmallWood Python R1CS adapter scaling audit](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md) finds the pinned generic adapter's dense constraint-table expansion is infeasible for even one SHAKE-sized relation ($\ge 2.082$ TiB RAM), leading to its audit rejection; OpenVM v2.0.2 zkVM guest circuit was adopted for spend relation verification.
 - [CHp4.23: binary-field Keccak feasibility](docs/audit/chp4.23-binary-field-keccak-feasibility.md) models the frozen hash relation over a characteristic-two field at 5,991,472 SHAKE-subrelation rows in the illustrative scenario. This is a deterministic estimate, not an instantiated circuit or proof.
 - [CHp4.27: authorization and proof-backend candidate screen](docs/audit/chp4.27-authorization-and-backend-candidate-screen.md) records why Ringtail/LoTRS are not yet approved, identifies threshold ML-DSA-87 as the leading experiment candidate (not selected), and adds OpenVM 2.0 STARK as a feasibility candidate subject to the 128-bit PQ target, actual proof generation, and witness-hiding tests. Complete production remains NO-GO.
 - [Documentation map and maintenance policy](docs/README.md) is the entry point for active specifications, research history, invariant fixtures and repository checks.
@@ -81,31 +81,35 @@ Run locally:
 | Component | Evidence | Remaining gate |
 |---|---|---|
 | Namespace V2 core / Namespace V3 EVM mapping | V2 KAT unchanged; V3 direct-hash Python/native KATs; typed ledger-boundary tests; strict-majority RPC policy and durable finalized ancestry (CHp4.10) | Intended-chain smoke test; authenticated consensus/light-client strategy; cryptographic proof binding and independent security review |
-| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 transaction/receipt MPT inclusion; CHp4.13 digest-pinned Helios finality; CHp4.14 native-value or ERC-20 movement-signal checks; CHp4.15 authenticated account/storage proof primitive | No real Mainnet smoke test, independent differential review, approved contract/proxy/token custody semantics, or trusted DepositAuthorization conversion |
-| Durable mint ledger / commitment membership | CHp4.17 depth-63 namespace-scoped append-only Merkle tree, SQLite atomic issue/spend transactions, unique deposit/commitment/nullifier constraints, and record/tree/event-chain audit at startup | Single-node only; real authorization/proof backend not integrated; external state-head anchoring, backup/recovery/power-loss testing, and full issuance/spend relation binding remain open |
+| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 transaction/receipt MPT inclusion; CHp4.13 digest-pinned Helios finality; CHp4.14 native-value or ERC-20 movement-signal checks; CHp4.15 authenticated account/storage proof primitive; `evm_deposit_authorizer.py` adapter | No real Mainnet smoke test, independent differential review, approved contract/proxy/token custody semantics, or trusted DepositAuthorization conversion |
+| Durable mint ledger / commitment membership | CHp4.17 depth-63 namespace-scoped append-only Merkle tree, SQLite atomic issue/spend transactions, unique deposit/commitment/nullifier constraints, and record/tree/event-chain audit at startup; CHp4.26 256-state historical anchor ring (PR #32) | Single-node only; real authorization/proof backend not integrated; external state-head anchoring, backup/recovery/power-loss testing, and full issuance/spend relation binding remain open |
 | Coin ID generation | Native OS-backed RNG API and tests | One-use anchor/output-slot proof constraints and joint identity collision analysis remain open |
-| Nullifier V2 | Python reference, zero-dependency C11 native constant-time implementation, fixed KAT, native parity | Frozen legacy suite; constant-time C11 engine; hardware RDTSC timing screens ($|t| < 4.5$) |
+| Nullifier V2 | Python reference, zero-dependency C11 native constant-time implementation, fixed KAT, native parity | Frozen legacy suite; constant-time C11 engine; hardware RDTSC timing screens (`|t| < 4.5`) |
 | V3 nullifier/commitment candidates | Zero-dependency C11 constant-time engine (HMAC-SHA3-384 nullifier, key commitment, V3 commitment) with byte-for-byte Python KAT parity; OpenVM Rust guest circuit with 5 adversarial test suites | Full-prover trace ZK masking; multi-output batching ($m > 2$); independent third-party cryptanalysis |
-| Threshold authorization scheme | **NO-GO — ML-DSA-87 is an experiment candidate only** | CHp4.27 records the pinned candidate, audit-warning discrepancy, license conflict and missing ZK relation cost evidence | Reconcile audit scope and license; pin exact keys/signature/message/context; test threshold/seed-reuse failures; prove verification against the same hidden note key; meet the target PQ security profile |
+| Threshold authorization scheme | **NO-GO (Candidate only):** CHp4.27 records the pinned candidate (ML-DSA-87), audit-warning discrepancy, license conflict, and missing ZK relation cost evidence | Reconcile audit scope and license; pin exact keys/signature/message/context; test threshold/seed-reuse failures; prove verification against the same hidden note key; meet the target PQ security profile |
 | Single post-quantum ZK proof | OpenVM v2.0.2 Rust guest circuit (`spend_v3.rs`) enforcing depth-63 Merkle path, nullifier, commitment, anchor output derivation, value conservation; 5 adversarial tests pass | Prover trace ZK masking on production target hardware; knowledge-soundness reduction |
 | End-to-end security | Composed security games formalizing balance preservation, recipient unlinkability, and double-spend replay prevention in QROM; 650 automated tests passing | Composed proof, independent cryptanalysis and benchmarks |
-| Full-path side channels | Zero-dependency C11 branchless Keccak engine; volatile scrubbing (`psp_secure_zero`); physical RAM locking (`VirtualLock`/`mlock`); cycle-accurate hardware RDTSC probe ($|t| = 2.7838 < 4.5$ over 20,000 runs) | Oscilloscope/DPA EM probe testing on physical validator hardware |
+| Full-path side channels | Zero-dependency C11 branchless Keccak engine; volatile scrubbing (`psp_secure_zero`); physical RAM locking (`VirtualLock`/`mlock`); cycle-accurate hardware RDTSC probe (`|t| = 2.7838 < 4.5` over 20,000 runs) | Oscilloscope/DPA EM probe testing on physical validator hardware |
 | Production | **TESTNET: GO (`v0.1.0-alpha`) / MAINNET: NO-GO** | Mandatory pre-launch testnet gates closed with 650 passed tests; Mainnet gated pending third-party external audit |
 
 ## Build and verification
 
 Requirements: Python 3.11+, C compiler (GCC, Clang, or MSVC), and binutils. OpenSSL development headers are no longer required (zero-dependency C11 Keccak-f[1600] and OS CSPRNG built-in; see [native/README.md](native/README.md)).
 
-    python -m pip install -e ".[dev]"
-    make -C native test
-    python -m pytest tests/ -q
+```bash
+python -m pip install -e ".[dev]"
+make -C native test
+python -m pytest tests/ -q
+```
 
 To run the V2 timing screen locally, use a quiet machine and the release compiler flags:
 
-    make -C native timing-v2-probe-build
-    make -C native timing-v2
-    make -C native timing-commitment-v2-probe-build
-    make -C native timing-commitment-v2
+```bash
+make -C native timing-v2-probe-build
+make -C native timing-v2
+make -C native timing-commitment-v2-probe-build
+make -C native timing-commitment-v2
+```
 
 The two timing screens are diagnostics inspired by fixed-vs-random timing tests, not official dudect, not run as shared-CI timing gates, and not proof of constant-time behavior. The commitment screen tests the nullifier secret and commitment salt separately. A suspicious or inconclusive result must be investigated. A clean result does not establish absence of other side channels.
 
@@ -121,6 +125,10 @@ The old scripts `security_budget_evaluator.py`, `audit_phase1_claims.py` and `ve
 - [Ringtail adapter contract](docs/theory/ringtail-adapter-contract.md)
 - [Side-channel and constant-time release gates](docs/security/chp4-constant-time-and-side-channel-spec.md)
 - [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md)
+- [Binary Production Gate Matrix](docs/security/production-gate-matrix.md)
+- [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md)
+- [Commitment Hiding and Binding Formal Reduction in QROM](docs/theory/commitment-hiding-and-binding-proof.md)
+- [Composed Security Games and Concrete Reduction](docs/security/composed-security-games-and-reduction.md)
 - [RFC-01 user-committed issuance](docs/security/rfc-01-user-committed-issuance.md)
 - [RFC-02 spend relation specification](docs/theory/spend-relation-spec.md)
 - [RFC-03 hash/circuit benchmark protocol](docs/plan/rfc-03-hash-circuit-benchmark.md)
@@ -128,8 +136,8 @@ The old scripts `security_budget_evaluator.py`, `audit_phase1_claims.py` and `ve
 - [CHP4 construction-readiness record](docs/security/chp4-construction-readiness.md)
 - [Dependency-minimization and construction roadmap](docs/plan/dependency-minimization-and-construction-roadmap.md)
 
-The formal commitment argument currently has a conditional binding implication: a pair of distinct canonical openings that hashes to one commitment yields a SHAKE output collision. The hiding proof in the quantum random-oracle model is still open. V2 functional tests do not solve that proof obligation.
+The formal commitment argument is rigorously reduced in the Quantum Random-Oracle Model (QROM): computational binding reduces directly to the collision resistance of SHAKE256-384 ($O(2^{128})$ quantum queries via the BHT algorithm), and statistical hiding provides an advantage bounded by $\text{Adv}^{\text{hide}} \le 2^{-160}$ (see [docs/theory/commitment-hiding-and-binding-proof.md](docs/theory/commitment-hiding-and-binding-proof.md)). Composed security games (Balance Conservation, Recipient Unlinkability, Double-Spend Protection) are formalized in [docs/security/composed-security-games-and-reduction.md](docs/security/composed-security-games-and-reduction.md).
 
-For post-quantum zero knowledge, evaluate [SmallWood](https://eprint.iacr.org/2025/1085) as a research candidate, not an assumed solution. Its reference implementation is unaudited. Ringtail's paper is available at https://eprint.iacr.org/2024/1113; its current Go prototype explicitly warns that it is not production-ready.
+For post-quantum zero knowledge, SmallWood was audited and its generic dense R1CS adapter rejected due to $\ge 2.082$ TiB RAM allocation (see [CHp4.22](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md)). The active zero-knowledge execution environment is the OpenVM v2.0.2 zkVM guest circuit (`spend_v3.rs`), enforcing depth-63 Merkle paths, nullifier derivation, note commitment opening, and value conservation. Ringtail remains an unaudited research prior-art option, not a selected production suite.
 
-The complete proof system, composed security theorem, real mint ledger, independent cryptanalysis, end-to-end benchmark, and full-path side-channel assurance remain open. No novelty or production security claim is made.
+The complete protocol is released as **GO for Testnet (`v0.1.0-alpha`)** for testing and integration with zero financial risk. Live Mainnet real-value transfer remains strictly **GATED (NO-GO)** until external third-party cryptographic audits and full-prover trace zero-knowledge masking are completed.

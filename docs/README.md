@@ -38,6 +38,9 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 28. [CHp4.27 authorization and proof-backend candidate screen](audit/chp4.27-authorization-and-backend-candidate-screen.md) — Ringtail/LoTRS limitations, threshold ML-DSA-87 as the leading but unselected experiment candidate (audit-status/license conflicts unresolved), candidate authorization message/context, and OpenVM/Aurora proof-backend feasibility.
 29. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
 30. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+31. [Commitment hiding and binding proof in QROM](theory/commitment-hiding-and-binding-proof.md) — formal computational binding reduction to SHAKE256-384 collision resistance and statistical hiding bound ($\text{Adv}^{\text{hide}} \le 2^{-160}$).
+32. [Composed security games and concrete reduction](security/composed-security-games-and-reduction.md) — formal balance conservation, recipient unlinkability under chosen witness attacks, and double-spend replay prevention games in QROM.
+33. [27-Gate production verification dossier](security/27-gate-verification-dossier.md) — comprehensive binary release audit across all 27 protocol gates.
 
 ## Repository map
 
