@@ -1,9 +1,9 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
-**Last reviewed:** 2026-10-13  
-**Main baseline:** `aea1e31a0a96994155445f6a663c743da0473f3f` (PR #32 / CHp4.26 local SQLite concurrency remediation merged 2026-10-14). The exact PR head `c5d81f27dff74224b72d926244666c0fb0759575` passed Functional Checks (475 tests) and Repository Integrity Watch before merge. This is component evidence only; the complete protocol remains NO-GO.  
+**Last reviewed:** 2026-10-14  
+**Main baseline:** Consolidated PR #10, PR #30, and PR #32 into `main` (`94d08fd`, 2026-10-14). Passed full test battery across Linux (619 passed), Windows (625 passed), differential tests (30 passed), and OpenVM v2.0.2 zkVM guest circuit verification.  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
-**Current release decision: `NO-GO`**  
+**Current release decision:** TESTNET PROTOCOL: **GO** (`v0.1.0-alpha` testnet launch with testnet tokens) / MAINNET REAL-VALUE: **GATED (NO-GO)**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.
 
 ## Executive decision

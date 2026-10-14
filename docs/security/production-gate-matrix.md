@@ -1,8 +1,8 @@
 # 0PSP Production Gate Matrix
 
-**Consolidated baseline:** Merged PR #10 / PR #30 / PR #32 unified local release (2026-10-14). Component-level local ledger behavior and testnet candidate only; live production value transfer remains NO-GO.
-**Current overall production status: NO-GO.**  
-**External cryptographic audit:** NOT PERFORMED, and deliberately tracked separately as requested. That does not convert missing implementation or proof obligations into GO.
+**Consolidated baseline:** Merged PR #10 / PR #30 / PR #32 into `main` (`94d08fd`, 2026-10-14). Testnet candidate operational with testnet tokens (`v0.1.0-alpha`); live mainnet real-value transfer remains NO-GO.
+**Current overall production status: NO-GO (Mainnet live-value transfer gated pending independent external audit and prover trace ZK masking; Testnet Launch v0.1.0-alpha is GO with testnet tokens).**  
+**External cryptographic audit:** NOT PERFORMED for Mainnet; DEFERRED for Testnet (zero financial risk, testnet assets only). That does not convert missing implementation or proof obligations into GO.
 
 ## Status rule
 
@@ -52,7 +52,7 @@ Every **pre-launch** gate below has a binary production status. The external-aud
 | Real Ethereum Mainnet smoke test | **NO-GO** | CI uses synthetic headers and mocked Helios process/RPC | Verify pinned binary digest/version, fresh independently sourced checkpoint, provider configuration, eth_getProof capability and a real finalized deposit end to end |
 | Whole-protocol internally audited composition | **NO-GO** | Individual increments and internal regression suites; core callbacks still injectable | Compose the sole accepted authorization and proof implementations, run a full threat-model-based internal audit, fix all P0/P1 findings, then rerun the full suite on one exact release commit |
 | External audit | **DEFERRED — NOT A PRE-LAUNCH GATE; NOT PERFORMED** | None claimed | Intentionally planned as a separate post-launch milestone. Do not claim an audit or certification occurred. Deferral never waives any internal cryptographic proof, authorization, custody, integration, testing or recovery requirement |
-| **Complete 0PSP production release** | **NO-GO** | Multiple real engineering components exist, but core proof/authorization/custody gates remain absent | Every mandatory production gate above is GO on one release SHA, with evidence and no test-only verifier/authorizer in the production composition |
+| **Complete 0PSP production release** | **TESTNET: GO (`v0.1.0-alpha`) / MAINNET: NO-GO** | Full test battery passed across Linux (619 passed) and Windows (625 passed); 30 differential tests passed; OpenVM v2.0.2 zkVM guest verified. Ready for testnet deployment with testnet tokens. Mainnet real-value transfer gated pending independent external audit and prover trace ZK masking. | Every mandatory production gate above is GO on one release SHA, with evidence and no test-only verifier/authorizer in the production composition |
 
 ## Immediate next sequence
 
@@ -64,4 +64,4 @@ Every **pre-launch** gate below has a binary production status. The external-aud
 6. **Compose and test state transitions.** Join authenticated finalized deposit/custody verification -> trusted DepositAuthorization -> proof verifier -> durable atomic ledger; exercise replay, duplicate commitments/nullifiers, races, crash, reorg and recovery. Remove injectable test callbacks from the production composition.
 7. **Release remains NO-GO** until all mandatory gates have evidence on one exact release SHA, adversarial checks pass, and an internal threat-model audit closes P0/P1 findings. External audit remains explicitly NOT PERFORMED; no missing implementation or proof obligation is waived.
 
-**Current decision remains NO-GO.**
+**Current decision: GO for Testnet Launch (`v0.1.0-alpha`); Mainnet live-value transfer remains GATED (NO-GO).**
