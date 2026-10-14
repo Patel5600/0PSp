@@ -932,6 +932,11 @@ class SQLiteLedger:
         database; use an external signed/anchored checkpoint for that threat model.
         """
         with closing(self._connect()) as conn:
+            # This audit spans multiple SELECT statements. isolation_level=None
+            # otherwise gives each statement its own snapshot, so a concurrent
+            # commit could make the audit compare records from different states.
+            # Use one read snapshot; a failure closes the connection and rolls it back.
+            conn.execute("BEGIN")
             # The database is single-namespace by design. Unexpected rows scoped to
             # another namespace are corruption, not harmless unrelated records.
             expected_namespace = self._namespace.data
@@ -1188,3 +1193,4 @@ class SQLiteLedger:
                 raise LedgerIntegrityError(
                     "commitment anchor ring buffer differs from the reconstructed state history"
                 )
+            conn.execute("COMMIT")
