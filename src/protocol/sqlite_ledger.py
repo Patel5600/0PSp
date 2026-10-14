@@ -296,13 +296,15 @@ class SQLiteLedger:
 
     def _ensure_schema(self) -> None:
         with closing(self._connect()) as conn:
+            conn.execute("PRAGMA journal_mode = DELETE")
+            # Serialize schema observation with migrations/first initialization.
+            # Reading sqlite_master before this lock lets concurrent openers cache
+            # a stale "table missing" result and backfill genesis twice.
+            # Schema creation and anchor backfill remain one atomic transaction.
+            conn.execute("BEGIN IMMEDIATE")
             anchor_table_existed = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='commitment_anchors'"
             ).fetchone() is not None
-            conn.execute("PRAGMA journal_mode = DELETE")
-            # Schema creation and anchor backfill are one SQLite transaction.
-            # A crash must not leave a half-populated ring with schema v2 marked active.
-            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS ledger_meta (
                     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
