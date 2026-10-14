@@ -191,33 +191,10 @@ The adapter's verified namespace, value, finalized anchor and beneficiary must m
 
 A signed receipt over (C, v_deposit, deposit ID) alone does not establish R_mint.
 
-## 5. Identity-invariant review: global hidden coin-ID uniqueness
+## 5. Version boundary: V3 is specified separately
 
-The current draft names the coin identity as `(namespace_id, coin_id)`, while the issuer-private flow keeps `coin_id` hidden from the issuer. An issuer that sees only a commitment and authenticated deposit facts cannot perform a plaintext equality check on the hidden ID.
+RFC-02 is normative only for the V2 spend relation. The former CHp4.7 V3 appendix has been moved to the [separate V3 candidate relation](spend-relation-v3-candidate.md) so implementers cannot mistake it for a change to the frozen V2 relation.
 
-[CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md) records a decision proposal, not an approved semantic change. The protocol must choose one of two paths:
-1. retain global hidden-ID uniqueness and instantiate/review a privacy-preserving mechanism with explicit leakage, state, concurrency and security analysis; or
-2. formally revise that invariant after showing which monetary-soundness properties remain, and analyze identity aliasing, recipient spendability and output creation.
+That V3 document is **research-only and non-normative**. It does not authorize V3 spends, select an authorization scheme, freeze HMAC-SHA3-384 as a production contract, or claim that a complete proof relation exists. V1/V2 byte formats and known-answer vectors remain frozen.
 
-Single accepted issuance per canonical deposit, hidden commitment/value/deposit consistency, same-witness spend binding, and atomic rejection of repeated nullifiers are distinct obligations. Their conjunction may be enough to remove global hidden `coin_id` uniqueness as a monetary-soundness invariant, but that implication is not yet proven and does not settle recipient safety.
-
-In particular, if two different commitments share the same `(namespace_id, coin_id, r_nf)` but use different `rho_C`, their commitments may differ while the V2 nullifier is identical. A nullifier set prevents two accepted spends; it cannot make both notes spendable. Ordinary transfer outputs need not each correspond to a new external deposit, so deposit replay protection alone does not resolve this case. The actual output relation and malicious-witness threat model are not instantiated.
-
-Do not derive `coin_id` from a public deposit identifier under the current issuer-privacy target. Keep the frozen V2 formulas and KATs unchanged. Until the identity decision is approved and the required proof/ledger evidence exists, the global uniqueness question remains a release blocker and production remains **NO-GO**.
-
-## 6. Test status and adversarial boundaries
-
-Executable tests under tests/adversarial exercise the real V2 reference primitives for value, secret and namespace substitution, plus the CHp4.1 state model for deposit replay. These tests are finite regression tests over selected vectors. They are not general collision proofs and do not implement a ZK verifier.
-
-The following requested fixtures are deliberately **blocked**, rather than represented by fake security tests:
-
-- **Merkle path/index tamper:** blocked until the canonical tree hash, path encoding, leaf/node domains and index encoding are specified.
-- **Deposit reorg:** blocked until a real chain adapter, finality policy and rollback/recovery state machine exist. The in-memory model can test repeat consumption, not simulate consensus reorganization safely.
-- **Transaction digest/output tamper:** blocked until the canonical transaction schema and digest encoding are frozen.
-- **Privacy-preserving duplicate hidden coin ID:** blocked by the open issue in Section 5.
-
-## 7. Security and implementation status
-
-Required but unimplemented: a selected ZK backend that supports the relation, a sound R_mint proof, a complete R_spend proof, chosen authorization policy, Merkle suite, transaction digest schema, durable ledger, real chain adapter, reorg recovery, concrete classical/quantum security bounds and independent cryptographic review.
-
-**Release: NO-GO.** The equations above specify targets for the fixed V2 component encodings and clearly name the uninstantiated predicates. They do not constitute a proof or a production implementation.
+V3 remains **Production: NO-GO** pending recipient-address authentication and key recovery semantics, a selected authorization policy/verifier, a complete shared-witness proof, pinned backend feasibility measurements, durable anchor/output enforcement, and independent cryptographic review. The canonical [Production Gate Matrix](../security/production-gate-matrix.md) tracks those blockers.

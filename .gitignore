@@ -13,3 +13,4 @@ env/
 venv/
 
 native/build/
+**/target/

@@ -1,9 +1,16 @@
-"""CHp4.6 hidden-witness output-identity derivation candidate.
+"""CHp4.6 transfer and CHp4.7 issuance output-identity candidates.
 
-This deterministic Python reference helper is NOT a zero-knowledge constraint
-system or a production security fix. A future relation must bind the key
-witness to the input public key and constrain these exact derivations for every
-output and its commitment opening. The scheme-specific key encoding is unfrozen.
+These deterministic helpers are reference functions, not circuit constraints.
+The CHp4.6 transfer candidate binds a tuple to parent state and output index,
+but its tuple is known to the creator/prover. Therefore it MUST NOT be paired
+with the unkeyed V2 nullifier when sender-unlinkability is required: the sender
+can compute the recipient's future nullifier. A recipient-keyed nullifier
+candidate is defined separately in src/primitives/nullifier_v3.py.
+
+A production relation must bind each derivation to an authenticated one-use
+anchor, canonical global output index, the corresponding commitment opening,
+the recipient key bundle and the V3 nullifier. None of that is enforced by
+this Python helper. The scheme-specific authorization key codec remains unfrozen.
 """
 from __future__ import annotations
 
@@ -12,17 +19,25 @@ import hmac
 from dataclasses import dataclass
 
 from src.primitives.namespace import NamespaceId, ScopedCoinId
+from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.nullifier import (
     NULLIFIER_BYTES,
     NULLIFIER_SECRET_BYTES,
     NullifierSecret,
     compute_nullifier_v2,
 )
+from src.primitives.nullifier_v3 import (
+    NullifierDerivingKeyV3,
+    compute_nullifier_v3,
+)
+from src.primitives.note_types_v3 import CoinCommitmentV3
+from src.protocol.note_public_key_bundle_v3 import decode_note_public_key_bundle_v3
 
 OUTPUT_ID_BYTES = 32
 TRANSACTION_ENTROPY_BYTES = 32
 OUTPUT_INDEX_MAX = (1 << 16) - 1
 OUTPUT_ID_DERIVATION_VERSION = b"\x01"
+OUTPUT_ID_DERIVATION_VERSION_V3 = b"\x03"
 DOMAIN_OUTPUT_COIN_ID = b"0PSP-OUTPUT-COIN-ID-CANDIDATE-v1"
 DOMAIN_OUTPUT_RNF = b"0PSP-OUTPUT-RNF-CANDIDATE-v1"
 
@@ -171,3 +186,252 @@ def verify_output_identity_candidate(
         hmac.compare_digest(expected.coin_id.data, output_coin_id.data)
         and hmac.compare_digest(expected.r_nf.data, output_r_nf.data)
     )
+
+# V3 anchor/index derivation supersedes the earlier non-normative V3 draft that
+# included a spend-key witness (which could make threshold signing circular).
+# New domains prevent silent interchange with that superseded candidate.
+# V2 and CHp4.6 candidate formulas/domains remain untouched.
+DOMAIN_OUTPUT_COIN_ID_V3 = b"0PSP-OUTPUT-COIN-ID-v3-anchor-index-candidate"
+DOMAIN_OUTPUT_RNF_V3 = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate"
+DOMAIN_ISSUANCE_COIN_ID_V3 = b"0PSP-ISSUANCE-COIN-ID-v3"
+DOMAIN_ISSUANCE_RNF_V3 = b"0PSP-ISSUANCE-RNF-v3"
+ISSUANCE_ENTROPY_BYTES = 32
+DEPOSIT_ID_MAX_BYTES = 128
+
+
+def _validate_inputs_v3(
+    namespace_id: NamespaceIdV3,
+    parent_coin_id: ScopedCoinId,
+    parent_r_nf: NullifierSecret,
+    transaction_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> None:
+    """Validate V3 anchor/index fields without assuming a full signing key exists."""
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TypeError("namespace_id must be a NamespaceIdV3")
+    if not isinstance(parent_coin_id, ScopedCoinId):
+        raise TypeError("parent_coin_id must be a ScopedCoinId")
+    if not isinstance(parent_r_nf, NullifierSecret):
+        raise TypeError("parent_r_nf must be a NullifierSecret")
+    if not isinstance(transaction_entropy, bytes) or len(transaction_entropy) != TRANSACTION_ENTROPY_BYTES:
+        raise ValueError(
+            f"transaction_entropy must be exactly {TRANSACTION_ENTROPY_BYTES} bytes"
+        )
+    if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
+        raise ValueError("params_id must be 1..65535 bytes")
+    if (
+        isinstance(output_index, bool)
+        or not isinstance(output_index, int)
+        or not 0 <= output_index <= OUTPUT_INDEX_MAX
+    ):
+        raise ValueError(f"output_index must be an integer in [0, {OUTPUT_INDEX_MAX}]")
+
+
+def derive_output_identity_v3_candidate(
+    *,
+    namespace_id: NamespaceIdV3,
+    parent_coin_id: ScopedCoinId,
+    parent_r_nf: NullifierSecret,
+    parent_public_key_bundle: bytes,
+    parent_commitment: CoinCommitmentV3,
+    parent_nullifier_key: NullifierDerivingKeyV3,
+    recipient_key_bundle: bytes,
+    transaction_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> OutputIdentityCandidate:
+    """Derive a V3 transfer output identity from a consumed-note anchor and slot.
+
+    This non-normative candidate intentionally does not take the full spend
+    key or threshold signature as an input. The transaction digest includes
+    the output commitments, so deriving output identity from a signature over
+    that digest would create a circular dependency. Instead, the eventual
+    proof must bind the parent tuple/key to the registered parent commitment
+    and its V3 nullifier, then constrain this derivation using the exact
+    parent commitment/nullifier, recipient bundle, public transaction entropy,
+    and canonical global output index. The helper itself proves none of that.
+    """
+    _validate_inputs_v3(
+        namespace_id, parent_coin_id, parent_r_nf,
+        transaction_entropy, output_index, params_id,
+    )
+    if (
+        not isinstance(parent_public_key_bundle, bytes)
+        or not parent_public_key_bundle
+        or len(parent_public_key_bundle) >= (1 << 32)
+    ):
+        raise ValueError("parent_public_key_bundle must be non-empty canonical bytes")
+    decode_note_public_key_bundle_v3(parent_public_key_bundle)
+    if not isinstance(parent_commitment, CoinCommitmentV3):
+        raise TypeError("parent_commitment must be a CoinCommitmentV3")
+    if not isinstance(parent_nullifier_key, NullifierDerivingKeyV3):
+        raise TypeError("parent_nullifier_key must be a NullifierDerivingKeyV3")
+    if (
+        not isinstance(recipient_key_bundle, bytes)
+        or not recipient_key_bundle
+        or len(recipient_key_bundle) >= (1 << 32)
+    ):
+        raise ValueError("recipient_key_bundle must be non-empty canonical bytes")
+    decode_note_public_key_bundle_v3(recipient_key_bundle)
+    parent_nullifier = compute_nullifier_v3(
+        namespace_id, params_id, parent_public_key_bundle, parent_commitment,
+        parent_coin_id, parent_r_nf, parent_nullifier_key,
+    ).value
+
+    def encode(domain: bytes) -> bytes:
+        return b"".join((
+            domain,
+            OUTPUT_ID_DERIVATION_VERSION_V3,
+            len(params_id).to_bytes(2, "little"),
+            params_id,
+            namespace_id.data,
+            parent_nullifier,
+            len(parent_commitment.value).to_bytes(2, "little"),
+            parent_commitment.value,
+            parent_coin_id.data,
+            parent_r_nf.data,
+            len(parent_public_key_bundle).to_bytes(4, "little"),
+            parent_public_key_bundle,
+            len(recipient_key_bundle).to_bytes(4, "little"),
+            recipient_key_bundle,
+            transaction_entropy,
+            output_index.to_bytes(2, "big"),
+        ))
+
+    coin_id = hashlib.shake_256(
+        encode(DOMAIN_OUTPUT_COIN_ID_V3)
+    ).digest(OUTPUT_ID_BYTES)
+    r_nf = hashlib.shake_256(
+        encode(DOMAIN_OUTPUT_RNF_V3)
+    ).digest(NULLIFIER_SECRET_BYTES)
+    return OutputIdentityCandidate(
+        coin_id=ScopedCoinId(coin_id),
+        r_nf=NullifierSecret(r_nf),
+    )
+
+
+def derive_issuance_output_identity_v3_candidate(
+    *,
+    namespace_id: NamespaceIdV3,
+    deposit_id: bytes,
+    recipient_key_bundle: bytes,
+    issuance_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> OutputIdentityCandidate:
+    """Versioned V3 issuance identity bound to authenticated anchor + recipient.
+
+    The deposit identifier must be normalized by the trusted chain adapter.
+    Reuse is prevented by the durable ledger's atomic one-use deposit rule,
+    not by entropy. Different output slots and recipients have distinct encoded
+    inputs; hash outputs remain computational, not mathematically injective.
+    """
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TypeError("namespace_id must be a NamespaceIdV3")
+    if not isinstance(deposit_id, bytes) or not 1 <= len(deposit_id) <= DEPOSIT_ID_MAX_BYTES:
+        raise ValueError(f"deposit_id must be canonical bytes of length 1..{DEPOSIT_ID_MAX_BYTES}")
+    if not isinstance(recipient_key_bundle, bytes) or not recipient_key_bundle or len(recipient_key_bundle) >= (1 << 32):
+        raise ValueError("recipient_key_bundle must be non-empty canonical bytes")
+    decode_note_public_key_bundle_v3(recipient_key_bundle)
+    if not isinstance(issuance_entropy, bytes) or len(issuance_entropy) != ISSUANCE_ENTROPY_BYTES:
+        raise ValueError(f"issuance_entropy must be exactly {ISSUANCE_ENTROPY_BYTES} bytes")
+    if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
+        raise ValueError("params_id must be 1..65535 bytes")
+    if isinstance(output_index, bool) or not isinstance(output_index, int) or not 0 <= output_index <= OUTPUT_INDEX_MAX:
+        raise ValueError(f"output_index must be an integer in [0, {OUTPUT_INDEX_MAX}]")
+
+    def encode(domain: bytes) -> bytes:
+        return b"".join((
+            domain,
+            OUTPUT_ID_DERIVATION_VERSION_V3,
+            len(params_id).to_bytes(2, "little"),
+            params_id,
+            namespace_id.data,
+            len(deposit_id).to_bytes(2, "little"),
+            deposit_id,
+            len(recipient_key_bundle).to_bytes(4, "little"),
+            recipient_key_bundle,
+            len(issuance_entropy).to_bytes(2, "little"),
+            issuance_entropy,
+            output_index.to_bytes(2, "big"),
+        ))
+
+    coin_id = hashlib.shake_256(
+        encode(DOMAIN_ISSUANCE_COIN_ID_V3)
+    ).digest(OUTPUT_ID_BYTES)
+    r_nf = hashlib.shake_256(
+        encode(DOMAIN_ISSUANCE_RNF_V3)
+    ).digest(NULLIFIER_SECRET_BYTES)
+    return OutputIdentityCandidate(
+        coin_id=ScopedCoinId(coin_id),
+        r_nf=NullifierSecret(r_nf),
+    )
+
+def verify_output_identity_v3_candidate(
+    *,
+    output_coin_id: ScopedCoinId,
+    output_r_nf: NullifierSecret,
+    namespace_id: NamespaceIdV3,
+    parent_coin_id: ScopedCoinId,
+    parent_r_nf: NullifierSecret,
+    parent_public_key_bundle: bytes,
+    parent_commitment: CoinCommitmentV3,
+    parent_nullifier_key: NullifierDerivingKeyV3,
+    recipient_key_bundle: bytes,
+    transaction_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> bool:
+    """Reference equality predicate for V3 anchor/index outputs, not a proof verifier."""
+    if not isinstance(output_coin_id, ScopedCoinId):
+        raise TypeError("output_coin_id must be a ScopedCoinId")
+    if not isinstance(output_r_nf, NullifierSecret):
+        raise TypeError("output_r_nf must be a NullifierSecret")
+    expected = derive_output_identity_v3_candidate(
+        namespace_id=namespace_id,
+        parent_coin_id=parent_coin_id,
+        parent_r_nf=parent_r_nf,
+        parent_public_key_bundle=parent_public_key_bundle,
+        parent_commitment=parent_commitment,
+        parent_nullifier_key=parent_nullifier_key,
+        recipient_key_bundle=recipient_key_bundle,
+        transaction_entropy=transaction_entropy,
+        output_index=output_index,
+        params_id=params_id,
+    )
+    return (
+        hmac.compare_digest(expected.coin_id.data, output_coin_id.data)
+        and hmac.compare_digest(expected.r_nf.data, output_r_nf.data)
+    )
+
+
+def verify_issuance_output_identity_v3_candidate(
+    *,
+    output_coin_id: ScopedCoinId,
+    output_r_nf: NullifierSecret,
+    namespace_id: NamespaceIdV3,
+    deposit_id: bytes,
+    recipient_key_bundle: bytes,
+    issuance_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> bool:
+    """Reference equality predicate for V3 issuance outputs, not a proof verifier."""
+    if not isinstance(output_coin_id, ScopedCoinId):
+        raise TypeError("output_coin_id must be a ScopedCoinId")
+    if not isinstance(output_r_nf, NullifierSecret):
+        raise TypeError("output_r_nf must be a NullifierSecret")
+    expected = derive_issuance_output_identity_v3_candidate(
+        namespace_id=namespace_id,
+        deposit_id=deposit_id,
+        recipient_key_bundle=recipient_key_bundle,
+        issuance_entropy=issuance_entropy,
+        output_index=output_index,
+        params_id=params_id,
+    )
+    return (
+        hmac.compare_digest(expected.coin_id.data, output_coin_id.data)
+        and hmac.compare_digest(expected.r_nf.data, output_r_nf.data)
+    )
+

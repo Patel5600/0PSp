@@ -30,7 +30,18 @@ The target event is `Deposit(address indexed depositor, address indexed asset, a
 
 ### Coin identity and minting
 
-The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes. The candidate identity is (namespace_id, coin_id), but global hidden-ID uniqueness is under review in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md), not an approved production rule. One-use canonical deposit consumption and duplicate-nullifier rejection are separate obligations. The Python MintRegistryModel is only an in-memory test model.
+The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes; randomness is not a uniqueness proof. CHp4.7 records an additive V3 candidate that does not treat `coin_id` alone as a global identity key. It binds an accepted output to a canonical one-use creation anchor and canonical global output slot. Issuance anchors must come from the authenticated deposit/event adapter, and transfer anchors must be the consumed input V3 nullifier. This is a candidate protocol policy, not a production-enforced invariant.
+
+#### Recipient-keyed, commitment-bound V3 nullifier candidate
+
+- `src/primitives/coin_commitment_v3.py` defines a separate V3 commitment over value, namespace, tuple, independent salt and canonical V3 recipient bundle.
+- `src/primitives/nullifier_v3.py` defines a 48-byte recipient-keyed HMAC-SHA3-384 nullifier candidate over the parameters, namespace, encoded public-key bundle, exact registered V3 commitment, `coin_id` and `r_nf`. The bundle contains a domain-separated commitment to a 48-byte recipient-held nullifier key.
+- `src/protocol/note_public_key_bundle_v3.py` defines the bounded canonical bundle codec. `src/protocol/output_identity.py` contains versioned issuance/transfer identity derivations using an anchor and canonical global output slot.
+- V1/V2 encodings and vectors remain unchanged. Distinct commitment salts produce distinct keyed inputs for this candidate, avoiding V2's deterministic same-nullifier reuse for two commitments with the same hidden tuple; a finite-output collision remains possible, so no injectivity claim is made.
+- These functions are reference code, **not a ZK relation**. The proof must bind the same witness across the registered commitment opening, value, namespace, tuple, bundle/key-commitment opening, authorization key, anchor, output slot, value-conservation relation, and public nullifier. The recipient must authenticate the exact bundle. An unbound/substitutable key bundle could produce an unspendable output.
+- The Python MintRegistryModel is only an in-memory test model. A durable ledger must atomically consume an issuance anchor or parent nullifier and register outputs; it must not accept an identity candidate independently of an accepted complete proof.
+
+Open gates include canonical chain/deposit identity, selected authorization-signature codec and recipient address authentication, note key recovery/delivery, the shared-witness proof and its feasibility, uniqueness policy under malicious witnesses, and independent security review. The global hidden-ID rule in [CHp4.3](../audit/chp4.3-identity-invariant-decision-review.md) is superseded as a design question by this V3 candidate, but its required proof/ledger enforcement is **not implemented**. Production remains **NO-GO**.
 
 ### Nullifier V2
 
@@ -73,14 +84,18 @@ On an idle test machine, the V2 diagnostic can be built/run manually:
 
 The two local diagnostics compare fixed versus random values in randomized order, repeat trials, and use same-input controls. The commitment screen tests `r_nf` and `rho_C` separately. Neither is the official dudect implementation. It has not established a timing result for a controlled target. A clean result would still not prove constant-time behavior or absence of other side channels, and timing diagnostics are not run in shared CI because its scheduler/virtualization noise makes timing conclusions unreliable.
 
-The old security-budget, phase-1 and nullifier-relation scripts contain historical CHP3/V1 diagnostics. Their success does not validate V2 minting, commitment hiding, Ringtail, zero knowledge or overall protocol security.
+The old security-budget, phase-1 and nullifier-relation scripts contain historical CHP3/V1 diagnostics. Their success does not validate V2 minting, commitment hiding, any threshold-signature candidate, zero knowledge or overall protocol security.
 
 ## Evidence versus claims
 
 | Claim | Evidence | Decision |
 |---|---|---|
 | Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
-| Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; ledger uniqueness open |
+| Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; generated IDs are not a uniqueness proof |
+| V3 output identity | CHp4.7 issuance/transfer reference vectors bind anchor, recipient bundle, parameters, entropy and global output slot | Candidate only; authenticated anchor canonicality and proof-constrained one-use slot remain open |
+| Recipient-keyed V3 nullifier | HMAC-SHA3-384 candidate binds canonical bundle and exact V3 commitment; adversarial vectors cover salt changes and tuple/bundle substitutions | Key secrecy, recipient address authentication, PRF/privacy analysis, same-witness proof binding and independent review remain open |
+| V3 mint/spend identity uniqueness | In-memory reference tests and deterministic identity derivation vectors | Not durable/consensus enforcement; no circuit constraint or production ledger rule |
+| Issuer/sender unlinkability | Candidate keeps nullifier-deriving key outside sender knowledge and binds the exact commitment into HMAC input | No end-to-end issuance/privacy proof, recovery format, address-auth verification, or transcript leakage analysis |
 | Deposit evidence | CHp4.11 canonical event normalizer; CHp4.12 raw transaction/receipt MPT inclusion; CHp4.13 pinned Helios Mainnet finality and block-specific protocol code; CHp4.14 native transaction-value equality or ERC-20 Transfer-log matching plus pinned token code | Functional test evidence only; no real Mainnet smoke test, independent differential review, approved proxy/custody semantics, trusted DepositAuthorization conversion, durable atomic mint ledger or issuance proof |
 | Scoped mint uniqueness | Concurrent in-memory model tests | Not a durable ledger or consensus proof |
 | Mint-authority privacy | No blind-issuance construction implemented | OPEN: authority that knows coin ID and nullifier secret can match a later public nullifier to its record |
@@ -90,7 +105,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Optimized native binaries | CI disassembly artifact includes V1/V2 nullifier and commitment objects | Review and provider internals OPEN |
 | Constant-time behavior | Separate V2 nullifier and commitment screens compile in CI but have not been run on a controlled target | **NOT ESTABLISHED** |
 | Absence of exploitable side channels | No complete platform or full-protocol leakage assessment | **NOT ESTABLISHED** |
-| Threshold signature inside proof | No pinned Ringtail adapter | OPEN |
+| Threshold signature inside proof | No selected production scheme or verifier. ML-DSA-87 threshold signing is the leading experiment candidate, but the pinned upstream release has an audit-status warning conflict and a GPL-3.0 package-license scope issue; no proof-cost evidence exists. | OPEN |
 | Complete single-relation ZK proof | No backend instantiated | OPEN |
 | Quantum soundness/anonymity/composition | No composed reduction or independent cryptanalysis | OPEN |
 | Production readiness | Several mathematical, ledger and implementation gates remain | **NO-GO** |
@@ -99,7 +114,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 
 1. Implement actual canonical ledger/deployment/asset adapters and a durable atomic mint registry.
 2. Freeze canonical public-key and parameter encodings and complete the commitment hiding theorem, including the quantum random-oracle model and all public outputs.
-3. Pin and review Ringtail source, parameters, license and key-generation assumptions; integrate its signature verification into the same hidden-witness relation.
+3. Evaluate the pinned `qp-rusty-crystals-threshold` v3.0.0 ML-DSA-87 candidate against its exact audit-report scope and package license; pin dependencies, test standard-verifier interoperability and signer/seed-reuse failures, and measure verification inside the candidate proof backend. Keep Ringtail as prior art only unless it wins the same evidence-based comparison. No signature scheme is selected until authorization policy and the same-hidden-witness proof cost are reviewed.
 4. Instantiate a single post-quantum ZK argument for membership, commitment opening, threshold authorization, V2 nullifier and state/policy predicates.
 5. Complete knowledge-soundness, zero-knowledge, spend-soundness, replay/double-spend, unlinkability and composition arguments with concrete parameters.
 6. Review release binaries, OpenSSL provider internals, secret lifetime and errors; run controlled per-target timing/leakage tests for every sensitive routine.
@@ -107,4 +122,4 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 
 The Python reference and ctypes FFI are not a secret-safe production boundary. The native V2 nullifier and commitment use OpenSSL EVP and allocate an EVP context per call; both use OpenSSL RAND_bytes for new secrets/salts, and each output is cleared on supported failure paths. Fixed-size checks, sanitizers and wrapper disassembly do not prove constant-time execution. The selected provider, compiler output, memory allocation, hardware, FFI/callers and complete prover remain under review.
 
-**Release decision: NO-GO.** The V2 component checkpoint is stronger and testable, but the live ledger, commitment theorem, Ringtail integration, complete proof, composed security argument and full-path side-channel assurance are still open.
+**Release decision: NO-GO.** The V2 component checkpoint is stronger and testable, but the live ledger, commitment theorem, selected threshold-authorization integration, complete proof, composed security argument and full-path side-channel assurance are still open.

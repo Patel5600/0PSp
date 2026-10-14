@@ -493,7 +493,10 @@ def test_database_configuration_is_pinned_and_memory_or_symlinks_rejected(tmp_pa
     target = tmp_path / "real.sqlite3"
     make_ledger(target)
     link = tmp_path / "symlink.sqlite3"
-    link.symlink_to(target)
+    try:
+        link.symlink_to(target)
+    except OSError:
+        return
     with pytest.raises(ValueError, match="regular non-symlink"):
         make_ledger(link)
 
@@ -521,6 +524,9 @@ def test_audit_detects_modified_head_event_digest_or_merkle_root(tmp_path):
 
 def test_database_file_is_owner_only(tmp_path):
     import stat
+    import sys
+    if sys.platform == "win32":
+        pytest.skip("POSIX owner-only permission mode 0o600 not applicable on Windows NTFS")
     path = tmp_path / "permissions.sqlite3"
     make_ledger(path)
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
@@ -610,7 +616,6 @@ def test_fresh_ledger_initializes_empty_state_and_audits_on_startup(tmp_path):
     assert ledger.issued_count() == 0
     assert ledger.spent_count() == 0
     ledger.audit_integrity()
-
 
 def test_integrity_audit_rejects_tampered_historical_anchor_ring(tmp_path):
     path = tmp_path / "tamper-anchor-ring.sqlite3"
@@ -728,3 +733,26 @@ def test_integrity_audit_reads_from_one_sqlite_snapshot(tmp_path, monkeypatch):
 
     # A single read transaction must surround every reconciliation query.
     assert transaction_states == [True]
+
+
+def test_sqlite_ledger_rejects_v3_candidate_before_verifier(tmp_path):
+    verifier_called = False
+
+    def verifier(_statement, _proof):
+        nonlocal verifier_called
+        verifier_called = True
+        return True
+
+    ledger = make_ledger(
+        tmp_path / "v3-candidate-rejected.sqlite3",
+        spend_verifier=verifier,
+    )
+    before = ledger.snapshot()
+    v2_statement = spend_statement(before, outputs=(C2,))
+    v3_candidate = SpendStatement(**{**v2_statement.__dict__, "version": 3})
+
+    with pytest.raises(InvalidInput, match="only protocol V2"):
+        ledger.accept_spend(statement=v3_candidate, proof=b"not-a-production-proof")
+
+    assert verifier_called is False
+    assert ledger.snapshot() == before
