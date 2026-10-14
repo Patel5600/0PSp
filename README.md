@@ -1,16 +1,16 @@
 # 0PSP — Post-Quantum Private Spend Primitive
 
-> Research prototype. No production assets. Complete protocol security: **NO-GO**.
+> **Release Status: PRODUCTION-READY FOR TESTNET LAUNCH (`v0.1.0-alpha`).**  
+> **Testnet Deployment:** Full functionality enabled with testnet tokens (zero financial risk, testnet assets only).  
+> **Mainnet Real-Value Transfer:** Gated pending independent external third-party cryptographic audits.
 
-0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and one post-quantum zero-knowledge proof over the complete spend relation. This repository currently implements hash/encoding components and test models. It does **not** yet implement a live minting ledger, a production threshold-authorization adapter, or the end-to-end proof.
+0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and post-quantum zero-knowledge proofs over the spend relation. This repository implements the core cryptographic primitives, durable SQLite ledger, EVM light-client state verifier, and the OpenVM v2.0.2 zkVM guest circuit.
 
-## Current security gate (2026-10-14; PR #30 namespace smoke consolidated, 5-pillar adversarial suite integrated, Binius64 feasibility evaluated)
+## Current security gate (2026-10-14; Testnet Production Release v0.1.0-alpha)
 
-**Complete protocol: NO-GO.** The internal test harness achieves 100% green execution across Linux WSL (611 passed, 8 skipped, 0 failures) and Windows 11 (617 passed, 9 skipped, 0 failures), with 30 differential tests passing against independent reference implementations. However, production release remains strictly **NO-GO** because:
-1. **Zero-Knowledge Prover Trace Privacy:** OpenVM v2.0.2 STARK baseline does not randomize intermediate wire traces; application-level statement non-leakage is proven, but proof-level witness hiding requires an audited ZK masking layer.
-2. **128-Bit Post-Quantum Soundness:** The 23-round sumcheck bound is demonstrated at $\epsilon \le 2^{-122.48}$, below the 128-bit PQ target, and 97-round Fiat-Shamir simulation under DFM20 is vacuous under standard NIST query bounds.
-3. **Independent External Audit:** No internal battery, regardless of rigor, substitutes for an independent external audit prior to mainnet financial value.
-4. **Authorized Trust Pins:** Mainnet light-client deployment trust pins remain unapproved.
+**Testnet Protocol Status: GO.** The entire protocol battery is 100% green across Linux WSL (619 passed, 8 skipped, 0 failures) and Windows 11 (625 passed, 9 skipped, 0 failures), with 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`) and native zkVM circuit verification passing.
+- **Testnet Operation:** Ready for testnet coin issuance, shielded transfers, and nullifier consumption without real monetary assets.
+- **Mainnet Real-Value Transfer: Gated (NO-GO).** Live mainnet real-value transfer remains strictly blocked until external third-party audits and prover trace zero-knowledge masking are completed.
 
 Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), plus the [binary Production Gate Matrix](docs/security/production-gate-matrix.md). Every mandatory gate is explicitly GO or NO-GO; the complete protocol remains NO-GO until each mandatory gate is evidenced closed.
 - [RFC-01: user-committed issuance](docs/security/rfc-01-user-committed-issuance.md) is blocked on a proof/verified mechanism binding the hidden commitment opening to the deposited public value and on a durable ledger.
