@@ -150,6 +150,7 @@ def test_tampered_checker_executable_rejected(tmp_path: Path) -> None:
     """If the proof checker executable hash does not match expected sha256, verifier must fail closed."""
     checker = tmp_path / "proof-output-checker"
     checker.write_bytes(b"original executable")
+    checker.chmod(0o755)
     app_vk = tmp_path / "app.vk"
     app_vk.write_bytes(b"original vk")
 
@@ -158,6 +159,7 @@ def test_tampered_checker_executable_rejected(tmp_path: Path) -> None:
 
     # Modify checker binary on disk
     checker.write_bytes(b"tampered binary")
+    checker.chmod(0o755)
 
     with pytest.raises(OpenVMV3CandidateVerifierError, match="differs from its configured release pin"):
         OpenVMV3CandidateProofVerifier(
@@ -174,6 +176,7 @@ def test_tampered_verifying_key_rejected(tmp_path: Path) -> None:
     """If the verifying key hash does not match expected sha256, verifier must fail closed."""
     checker = tmp_path / "proof-output-checker"
     checker.write_bytes(b"original executable")
+    checker.chmod(0o755)
     app_vk = tmp_path / "app.vk"
     app_vk.write_bytes(b"original vk")
 
@@ -192,3 +195,27 @@ def test_tampered_verifying_key_rejected(tmp_path: Path) -> None:
             app_executable_commitment=APP_COMMITMENT,
             timeout_seconds=5,
         )
+
+
+def test_unexecutable_checker_rejected(tmp_path: Path) -> None:
+    """Non-executable checker binary must fail closed on platforms enforcing execute bits."""
+    import sys
+    if sys.platform == "win32":
+        pytest.skip("Windows does not enforce POSIX execute bits")
+
+    checker = tmp_path / "proof-output-checker"
+    checker.write_bytes(b"original executable")
+    checker.chmod(0o644)
+    app_vk = tmp_path / "app.vk"
+    app_vk.write_bytes(b"original vk")
+
+    with pytest.raises(OpenVMV3CandidateVerifierError, match="proof checker is not executable"):
+        OpenVMV3CandidateProofVerifier(
+            checker_executable=checker,
+            app_verifying_key=app_vk,
+            expected_checker_sha256=hashlib.sha256(b"original executable").digest(),
+            expected_app_verifying_key_sha256=hashlib.sha256(b"original vk").digest(),
+            app_executable_commitment=APP_COMMITMENT,
+            timeout_seconds=5,
+        )
+

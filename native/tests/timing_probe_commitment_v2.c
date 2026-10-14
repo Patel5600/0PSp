@@ -1,3 +1,6 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define _POSIX_C_SOURCE 200809L
 #include "psp_coin_commitment_v2.h"
 #include "psp_keccak.h"
@@ -8,6 +11,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef CLOCK_MONOTONIC_RAW
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
 
 #define SAMPLE_COUNT 30000u
 #define REPEAT_COUNT 3u

@@ -1,3 +1,6 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define _POSIX_C_SOURCE 200809L
 #include "psp_nullifier_v1.h"
 
@@ -6,6 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+#ifndef CLOCK_MONOTONIC_RAW
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
 
 #define SAMPLE_COUNT 40000u
 
