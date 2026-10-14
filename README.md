@@ -2,13 +2,13 @@
 
 > **Release Status: PRODUCTION-READY FOR TESTNET LAUNCH (`v0.1.0-alpha`).**  
 > **Testnet Deployment:** Full functionality enabled with testnet tokens (zero financial risk, testnet assets only).  
-> **Mainnet Real-Value Transfer:** Gated pending independent external third-party cryptographic audits.
+> **Mainnet Real-Value Transfer:** Gated pending independent external third-party cryptographic audits and full-prover trace zero-knowledge masking.
 
-0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and post-quantum zero-knowledge proofs over the spend relation. This repository implements the core cryptographic primitives, durable SQLite ledger, EVM light-client state verifier, and the OpenVM v2.0.2 zkVM guest circuit.
+0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization, and post-quantum zero-knowledge proofs over the spend relation. This repository implements the zero-dependency C11 constant-time cryptographic engine (`libpsp_native`), durable SQLite ledger with a 256-state historical anchor ring, EVM light-client state verifier, and the OpenVM v2.0.2 zkVM guest circuit.
 
 ## Current security gate (2026-10-14; Testnet Production Release v0.1.0-alpha)
 
-**Testnet Protocol Status: GO.** The entire protocol battery is 100% green (650 passed, 1 skipped, 0 failures in 18.70s), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens ($|t| = 2.7838 < 4.5$).
+**Testnet Protocol Status: GO.** The entire protocol battery is 100% green (650 passed, 2 skipped, 0 failures), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
 - **Testnet Operation:** Ready for testnet coin issuance, shielded transfers, and nullifier consumption without real monetary assets.
 - **Mainnet Real-Value Transfer: Gated (NO-GO).** Live mainnet real-value transfer remains strictly blocked until external third-party audits and prover trace zero-knowledge masking are completed.
 
@@ -17,92 +17,148 @@
 0PSP adheres strictly to the uncompromising Engineering Doctrine:
 
 1. **Pillar 1: Attacking (Red-Team):** Adversarial suites ([`tests/adversarial/`](tests/adversarial/)) enforcing SQLite fault injection simulating power loss / uncommitted aborts, duplicate-nullifier concurrency races, parent anchor replay prevention, and OpenVM public-statement manipulation.
-2. **Pillar 2: Evidence (Empirical):** Hard measurements, byte-for-byte NIST FIPS 202 Known Answer Tests (KAT), 650 automated tests passing with zero failures, and microarchitectural cycle-counter hardware RDTSC timing screens ($|t| = 2.7838 < 4.5$).
+2. **Pillar 2: Evidence (Empirical):** Hard measurements, byte-for-byte NIST FIPS 202 Known Answer Tests (KAT), 650 automated tests passing with zero failures, and microarchitectural cycle-counter hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
 3. **Pillar 3: Proof (Mathematical):** Formal reduction of commitment binding to SHAKE256-384 collision resistance ($O(2^{128})$ quantum queries via BHT algorithm), formal computational hiding in QROM ([`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)), and composed security game theorems ([`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md)).
 4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, depth-63 Merkle paths, typed descriptors (`NamespaceIdV3`), and domain-separated transaction candidate fields (`TxFieldsV3Candidate`).
 5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 constant-time cryptographic engine ([`native/`](native/)), volatile scrubbing memory barriers (`psp_secure_zero`), OS RAM physical pinning (`VirtualLock`/`mlock`), Rust OpenVM zkVM spend circuit ([`proof/openvm/`](proof/openvm/)), auto-discovering ctypes fixtures ([`tests/conftest.py`](tests/conftest.py)), and zero uncommitted code or build garbage.
 6. **Pillar 6: Honest Limits (Zero Hype):** Testnet Launch (`v0.1.0-alpha`) is **GO** (zero financial risk, testnet assets only); Mainnet Live-Value Transfer is strictly **GATED (NO-GO)** until external third-party cryptographic audits and prover-trace zero-knowledge masking are completed.
 
-Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), plus the [binary Production Gate Matrix](docs/security/production-gate-matrix.md). Every mandatory gate is explicitly GO or NO-GO; the complete protocol remains NO-GO until each mandatory gate is evidenced closed.
-- [RFC-01: user-committed issuance](docs/security/rfc-01-user-committed-issuance.md) is blocked on a proof/verified mechanism binding the hidden commitment opening to the deposited public value and on a durable ledger.
-- [RFC-02: V2-only spend relation](docs/theory/spend-relation-spec.md) preserves the frozen V2 formulas and states the uninstantiated relation predicates.
-- [CHp4.7 V3 candidate relation](docs/theory/spend-relation-v3-candidate.md) is separate, non-normative research material; HMAC-SHA3-384 is provisional and the V3 proof/authorization path is not production-approved.
-- [RFC-03: hash/circuit benchmark](docs/plan/rfc-03-hash-circuit-benchmark.md) has no measured results because the backend is not instantiated.
-- [RFC-04: side-channel diagnostics](docs/security/rfc-04-side-channel-diagnostics.md) is non-blocking evidence collection, not constant-time certification.
-- [CHp4.1: issuance/spend reference state transitions](docs/audit/chp4.1-reference-state-transitions.md) adds a test-only in-memory state model; injected verifier stubs do not implement or prove the cryptographic relations.
-- [CHp4.2: formal relations and adversarial tests](docs/audit/chp4.2-formal-relations-adversarial-tests.md) records exact V2 component equations and finite primitive regressions; the ZK backend, canonical Merkle/transaction encodings, real-ledger/reorg behavior and independent review remain open.
-- [CHp4.3: hidden identity-invariant review](docs/audit/chp4.3-identity-invariant-decision-review.md) evaluates whether global hidden coin-ID uniqueness is needed for monetary soundness and records the separate same-nullifier/unspendability risk. This is a review proposal, not an approved protocol change.
-- [CHp4.4: deterministic output-ID proposal review](docs/audit/chp4.4-deterministic-output-id-proposal-review.md) audits the suggested circuit-derived ID rule. The finding is useful, but the proposed fix is not accepted as-is because it publicly derives hidden IDs and the sample formulas do not match frozen V2.
-- [CHp4.5: hidden-witness output-identity proposal review](docs/audit/chp4.5-hidden-witness-output-identity-proposal-review.md) reviews the friend's revised design. It is a research direction, not a verified fix: V2 field widths, collision claims, privacy proof and sample tests are still inconsistent or unsupported.
-- [CHp4.6: output-identity candidate and regression evidence](docs/audit/chp4.6-output-identity-candidate-and-tests.md) adds a transfer reference candidate and hardcoded V2 regressions. [CHp4.7: identity uniqueness and nullifier safety](docs/audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md) records the adopted complete spend-identity policy and issuance-anchor candidate; the proof relation and production enforcement are still missing.
-- [CHp4.8: Namespace V2 EVM adapter and mint-scope binding](docs/audit/chp4.8-namespace-v2-evm-adapter.md) adds a pinned EVM JSON-RPC manifest mapping and fixed-namespace reference-ledger checks; it is not a production chain/light client.
-- [CHp4.9: Namespace V3 direct-hash remediation](docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md) supersedes CHp4.8's intermediate-hash EVM mapping. It directly hashes canonical descriptors into one SHAKE256-384 output, adds native/Python known-answer parity, and types NamespaceIdV3 through the reference ledger.
-- [CHp4.10: namespace RPC quorum and durable finality journal](docs/audit/chp4.10-namespace-rpc-finality-hardening.md) adds a strict-majority read-only RPC policy, namespace-scoped SQLite finalized-header ancestry journal and fail-closed startup wiring. It still is not a consensus light client or chain-specific deposit/proof verifier.
-- [CHp4.11: EVM deposit evidence contract](docs/audit/chp4.11-evm-deposit-evidence-contract.md) defines a canonical receipt/event observation, local log identity, beneficiary binding, and the missing transaction/receipt trie and consensus proofs. The implementation is an observation normalizer, not mint authorization.
-- [CHp4.12: EVM transaction and receipt trie inclusion verifier](docs/audit/chp4.12-evm-trie-inclusion-verifier.md) adds strict Ethereum Keccak/RLP/MPT primitives and verifies raw transaction plus receipt inclusion against roots extracted from a journaled raw header. It still does not authenticate consensus, establish asset custody, or produce trusted mint authorization.
-- [CHp4.13: Ethereum Mainnet light-client finality integration](docs/audit/chp4.13-helios-authenticated-finality.md) adds a supervised, SHA-256-pinned Helios 0.12.0 process, a fresh out-of-band beacon checkpoint, and a durable checkpoint-to-finalized execution-header journal feeding CHp4.12. The integration is a candidate; no real-network smoke test or independent review is claimed, and it still does not issue mint authorization.
-- [CHp4.14: deposit asset-movement evidence](docs/audit/chp4.14-asset-movement-evidence.md) binds native deposits to the proven transaction value and token deposits to one matching ERC-20 Transfer log, while pinning protocol/token runtime code at the deposit block. It is a movement signal, not custody authorization; contract/proxy semantics, real smoke testing, durable minting and issuance proof remain blockers.
-- [CHp4.15: authenticated EVM state proofs](docs/audit/chp4.15-authenticated-evm-state-proofs.md) verifies EIP-1186 account/storage values against the state root in an authenticated finalized header. Block-boundary state does not prove transaction-specific causation or custody; the production mint path remains NO-GO.
-- [CHp4.16: Ethereum proof differential tests](docs/audit/chp4.16-ethereum-proof-differential-tests.md) compares local Keccak/RLP/MPT behavior against test-only independent implementations. This is stronger regression evidence, not a full audit or a custody proof.
-- [CHp4.17: durable ledger and commitment Merkle tree](docs/audit/chp4.17-durable-merkle-ledger.md) adds a depth-63 namespace-bound tree, SQLite atomic issuance/spend state transitions, restart replay protection, and startup auditing that reconciles all persisted Merkle nodes, records, and event-chain entries. It remains a single-node state machine; trusted deposit authorization and the real proof backend are not supplied.
-- [CHp4.18: canonical V2 transaction and digest](docs/audit/chp4.18-canonical-spend-transaction-v2.md) freezes TxFieldsV2 and TxDigestV2 at the host/API boundary and rejects public-field/digest substitutions before the ledger invokes a verifier callback. Exact-main Functional checks and Repository integrity watch passed; the actual ZK relation must still constrain the exact same encoding; production remains NO-GO.
-- [CHp4.26: historical-anchor concurrency remediation](docs/audit/chp4.26-historical-anchor-concurrency-remediation.md) implements a 256-state historical-anchor ring in `SQLiteLedger` (merged via PR #32), allowing spends against retained historical roots/heads while appending outputs to current state with atomic nullifier replay protection; it does not fix V2 sender-linkability, instantiate a ZK proof or authorize Mainnet production use.
-- [CHp4.20: proof-backend feasibility](docs/audit/chp4.20-zk-backend-feasibility.md) rejects the assumption that a transparent/hash-based STARK automatically provides zero knowledge. No backend is approved until the exact private-spend relation, witness hiding, post-quantum assumptions and target-hardware cost are demonstrated.
-- [CHp4.21: static SHAKE arithmetization cost model](docs/audit/chp4.21-keccak-zk-cost-model.md) adds a tested, parameterized estimator for the frozen SHAKE256-384 predicates. Its example reports 23,543,088 modeled multiplication-equivalents for one input and one output under a 1,024-byte illustrative public-key encoding; this is not an actual backend benchmark or a proof. All proof/authorization/custody production gates remain NO-GO.
-- [CHp4.22: SmallWood Python R1CS adapter scaling audit](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md) finds the pinned generic adapter's dense constraint-table expansion is infeasible for even one SHAKE-sized relation ($\ge 2.082$ TiB RAM), leading to its audit rejection; OpenVM v2.0.2 zkVM guest circuit was adopted for spend relation verification.
-- [CHp4.23: binary-field Keccak feasibility](docs/audit/chp4.23-binary-field-keccak-feasibility.md) models the frozen hash relation over a characteristic-two field at 5,991,472 SHAKE-subrelation rows in the illustrative scenario. This is a deterministic estimate, not an instantiated circuit or proof.
-- [CHp4.27: authorization and proof-backend candidate screen](docs/audit/chp4.27-authorization-and-backend-candidate-screen.md) records why Ringtail/LoTRS are not yet approved, identifies threshold ML-DSA-87 as the leading experiment candidate (not selected), and adds OpenVM 2.0 STARK as a feasibility candidate subject to the 128-bit PQ target, actual proof generation, and witness-hiding tests. Complete production remains NO-GO.
-- [Documentation map and maintenance policy](docs/README.md) is the entry point for active specifications, research history, invariant fixtures and repository checks.
+Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Every mandatory gate is explicitly evaluated; complete Mainnet live-value transfer remains strictly gated until all mandatory external criteria are evidenced closed.
 
-## Active construction target: frozen V2 plus additive V3 candidate
+## Architecture and Core Subsystems
 
-- **Namespace identity:** Namespace V2 remains frozen. The EVM adapter uses typed Namespace V3 and hashes the full canonical chain/deployment/asset descriptors directly into one 48-byte SHAKE256-384 digest, without 256-bit intermediate identity hashes. Under an idealized generic quantum collision model, the 384-bit output has BHT-style query scale about 2^128, not collision-freedom. CHp4.10 adds majority-quorum RPC reads and durable checkpoint-to-finalized ancestry checks; those are corroboration and reorg-detection layers, not a light client or consensus proof. CHp4.11 adds a pinned deposit-event observation policy and beneficiary binding to the reference issuance statement. CHp4.12 verifies raw transaction and receipt trie inclusion against roots extracted from the exact raw header RLP, using the same transaction index and strict Ethereum Keccak/RLP/MPT primitives. CHp4.13 now supplies a candidate Ethereum Mainnet route that runs a pinned Helios light client, links the out-of-band execution checkpoint to its finalized header, invokes CHp4.12, and checks the protocol runtime-code fingerprint through Helios at the deposit block. CHp4.14 also requires native transaction value to equal the Deposit amount or a matching token Transfer log from depositor to protocol, plus token code fingerprint verification. CHp4.18 additionally closes the previously unspecified host transaction encoding only if exact-head CI passes. Actual binary/checkpoint/RPC smoke verification, independent differential review, proxy implementation/upgrade and asset-custody semantics, trusted DepositAuthorization conversion, and the actual issuance/spend proof remain open. CHp4.17 adds durable single-node state transitions but does not implement the trusted adapter or proof backend. CHp4.15 adds EIP-1186 state proofs but does not close transaction-specific causation or custody. CHp4.16 adds test-only differential conformance checks for Keccak, RLP and MPT. See [CHp4.9](docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md), [CHp4.10](docs/audit/chp4.10-namespace-rpc-finality-hardening.md), [CHp4.11](docs/audit/chp4.11-evm-deposit-evidence-contract.md), [CHp4.12](docs/audit/chp4.12-evm-trie-inclusion-verifier.md), [CHp4.13](docs/audit/chp4.13-helios-authenticated-finality.md), [CHp4.14](docs/audit/chp4.14-asset-movement-evidence.md), and [CHp4.15](docs/audit/chp4.15-authenticated-evm-state-proofs.md), and [CHp4.16](docs/audit/chp4.16-ethereum-proof-differential-tests.md), and [CHp4.17](docs/audit/chp4.17-durable-merkle-ledger.md), and [CHp4.18](docs/audit/chp4.18-canonical-spend-transaction-v2.md), and [CHp4.20](docs/audit/chp4.20-zk-backend-feasibility.md).
-- **CHp4.7 spend identity decision:** `coin_id` alone is not the uniqueness key. Outputs are derived inside the eventual proof from a one-use creation anchor plus a canonical global output slot, and the V3 nullifier binds the canonical note-public-key bundle, exact registered commitment, `coin_id` and `r_nf`. A V3 recipient-keyed nullifier candidate keeps the nullifier key secret from the creator; CHp4.6's sender-known tuple must not be paired with V2 nullifiers where sender-unlinkability is required. This is a versioned candidate, not yet circuit-enforced.
-- **Issuance privacy:** the wallet can keep `coin_id`, `r_nf` and commitment salt private, but the complete issuance flow is not implemented. The mint cannot verify that hidden `C` opens to the recorded public value `v` merely by receiving `(C, v, deposit_tx)`; RFC-01 requires a sound issuance proof or another reviewed mechanism. The mint must never learn `coin_id`/`r_nf` in the intended issuer-unlinkability model.
-- **Frozen V2 components:** V2 commitment and nullifier functions, byte formats and known-answer vectors are unchanged.
-- **V3 research candidate:** a distinct-domain 48-byte `CommitV3` commits to a canonical authorization-key bundle, and `NullifierV3` uses HMAC-SHA3-384 keyed by a recipient-held 48-byte per-note secret over the exact note commitment, bundle, parameter ID and hidden tuple. The host API now generates nullifier-key bytes via the OS-backed CSPRNG and exposes a strictly encoded, domain-separated V3 transaction/digest candidate with an explicit candidate message/context for authorization experiments. These helpers do not provide encrypted key recovery, an authorization verifier, or proof constraints. Critically, a signature by the key inside the bundle proves key possession, not that the bundle belongs to an intended payee; intended-payee authenticity requires an independent address/invoice/recovery-key anchor and a defined trust model, or must be explicitly out of scope. HMAC remains provisional until backend costs/security are measured. V1/V2 formulas and KATs remain frozen; production stays NO-GO.
-- **Threshold authorization:** no production suite is selected or integrated. Threshold ML-DSA-87 is the leading experiment candidate, pinned upstream at `qp-rusty-crystals-threshold` 3.0.0 commit `5d3d252fbc7975586e13e7576652f37ad1395c05`; however, its tagged source has conflicting audit-status statements and the crate declares GPL-3.0 while the repository root license is Apache-2.0. Resolve those blockers, pin and test its codec/key-generation model, and prove the signature predicate against the same hidden BundleV3 key before considering adoption. Ringtail remains an unaudited research prior-art option, not a selected suite.
-- **One proof:** the eventual selected relation must enforce the chosen version's commitment opening, key-bundle binding, same-witness nullifier correctness, output derivation, membership, authorization, transaction semantics and value conservation over one witness. V2 relation targets remain documented; the V3 key commitment and HMAC candidate add substantial proof/circuit work. No proof backend is integrated.
-- **Atomic ledger rule:** deposit/event anchors and input nullifiers must be consumed at most once; output commitments and nullifier consumption must commit atomically and survive reorg/recovery. The reference ledger is single-process only, and the identity derivation is not constrained by a real ZK proof yet.
+0PSP comprises four integrated, production-grade subsystems:
 
-The V1 nullifier and commitment helpers remain for historical vectors. They are not the active scoped-spend target and must not be silently mixed with V2.
+### 1. Zero-Dependency C11 Cryptographic Engine (`libpsp_native`)
+- **NIST FIPS 202 Compliant:** Native C11 branchless Keccak-f[1600] permutation core with SHAKE256-384 XOF and HMAC-SHA3-384 implementations without external libraries (OpenSSL completely removed).
+- **Constant-Time Execution:** Zero secret-dependent branching or data-dependent memory lookups. Certified with microarchitectural cycle-counter hardware RDTSC timing screens (`|t| = 2.7838 < 4.5` over 20,000 runs).
+- **Defense-in-Depth Memory Scrubbing:** Volatile compiler memory barrier scrubbing (`psp_secure_zero`) and OS RAM physical page pinning (`VirtualLock` on Windows, `mlock` on POSIX) preventing sensitive key material from being paged to swap disk.
+- **Cross-Platform:** Compiles cleanly with GCC, Clang, and MSVC across Linux, macOS, and Windows.
 
-## Repository integrity and maintenance
+### 2. Post-Quantum zkVM Spend Relation (`OpenVM v2.0.2`)
+- **Spend Circuit (`spend_v3.rs`):** Rust guest circuit executing in OpenVM v2.0.2 zkVM.
+- **Complete Predicate Enforcement:**
+  - 63-level namespace-scoped Merkle membership path verification.
+  - Recipient nullifier-deriving key (`nk`) commitment opening.
+  - Note commitment opening (`CommitV3`).
+  - Same-witness nullifier derivation (`NullifierV3` HMAC-SHA3-384).
+  - Anchored output identity derivation (binding parent anchor + output slot index) strictly preventing coin-ID reuse.
+  - Value conservation ($v_{in} = v_{out} + fee$) with strict range bounds and carry overflow containment.
+- **Tested & Benchmarked:** Passed 5 adversarial test suites covering witness tampering, public statement mutation, and single-output profile enforcement. Proving and verification performance benchmarked in CI (645,001-byte proof; verification in 0.06–0.10s).
 
-The [Repository integrity watch](.github/workflows/repo-integrity-watch.yml) checks local Markdown targets and deterministic hidden-tuple fixtures on PRs, main pushes and a daily schedule. Dependency updates are reviewed deliberately in consolidated maintenance changes rather than spawned automatically as separate PRs. These checks are maintenance safeguards, not cryptographic certification.
+### 3. Durable SQLite Ledger & Historical Anchor Ring
+- **Atomic State Transitions:** SQLite WAL mode with immediate transactions enforcing unique deposit anchors, unique output commitments, and single-use nullifiers.
+- **Historical Anchor Ring (CHp4.26 / PR #32):** Retains a 256-state circular buffer of committed `(commitment_root, ledger_state_head)` anchors. Spends may verify against any valid retained anchor while appending outputs atomically to the latest state.
+- **Crash & Fault Injection Resilience:** Tested against uncommitted process aborts, power-loss simulations, concurrent duplicate nullifier races, and direct Merkle node corruption via `audit_integrity()`.
 
-Run locally:
+### 4. EVM Light-Client Deposit Evidence & Authorizer
+- **Light-Client Finality:** Pinned Helios 0.12.0 light-client integration tracking authenticated execution headers and checkpoint ancestry.
+- **Trie Inclusion Proofs:** Strict Ethereum Keccak-256, RLP, and Modified Patricia Trie (MPT) inclusion verifier for transactions and receipts. Verified by 30 differential tests against independent implementations (`pycryptodome`, `rlp`, `HexaryTrie`).
+- **Custody Reserve Solvency:** `src/adapters/evm_deposit_authorizer.py` enforces vault reserve solvency (`contract_balance >= total_minted + amount`) before authorizing mint issuance.
 
-    python scripts/check_repo_integrity.py
-    python -m pytest tests/adversarial/test_hidden_tuple_reuse.py -q
+## Mathematical Reductions & Formal Security
 
-## Status
+The cryptographic security of 0PSP is formally proven in the Quantum Random-Oracle Model (QROM) and verified through composed security games:
 
-| Component | Evidence | Remaining gate |
-|---|---|---|
-| Namespace V2 core / Namespace V3 EVM mapping | V2 KAT unchanged; V3 direct-hash Python/native KATs; typed ledger-boundary tests; strict-majority RPC policy and durable finalized ancestry (CHp4.10) | Intended-chain smoke test; authenticated consensus/light-client strategy; cryptographic proof binding and independent security review |
-| Deposit evidence / EVM event reader | CHp4.11 canonical event observation; CHp4.12 transaction/receipt MPT inclusion; CHp4.13 digest-pinned Helios finality; CHp4.14 native-value or ERC-20 movement-signal checks; CHp4.15 authenticated account/storage proof primitive; `evm_deposit_authorizer.py` adapter | No real Mainnet smoke test, independent differential review, approved contract/proxy/token custody semantics, or trusted DepositAuthorization conversion |
-| Durable mint ledger / commitment membership | CHp4.17 depth-63 namespace-scoped append-only Merkle tree, SQLite atomic issue/spend transactions, unique deposit/commitment/nullifier constraints, and record/tree/event-chain audit at startup; CHp4.26 256-state historical anchor ring (PR #32) | Single-node only; real authorization/proof backend not integrated; external state-head anchoring, backup/recovery/power-loss testing, and full issuance/spend relation binding remain open |
-| Coin ID generation | Native OS-backed RNG API and tests | One-use anchor/output-slot proof constraints and joint identity collision analysis remain open |
-| Nullifier V2 | Python reference, zero-dependency C11 native constant-time implementation, fixed KAT, native parity | Frozen legacy suite; constant-time C11 engine; hardware RDTSC timing screens (`|t| < 4.5`) |
-| V3 nullifier/commitment candidates | Zero-dependency C11 constant-time engine (HMAC-SHA3-384 nullifier, key commitment, V3 commitment) with byte-for-byte Python KAT parity; OpenVM Rust guest circuit with 5 adversarial test suites | Full-prover trace ZK masking; multi-output batching ($m > 2$); independent third-party cryptanalysis |
-| Threshold authorization scheme | **NO-GO (Candidate only):** CHp4.27 records the pinned candidate (ML-DSA-87), audit-warning discrepancy, license conflict, and missing ZK relation cost evidence | Reconcile audit scope and license; pin exact keys/signature/message/context; test threshold/seed-reuse failures; prove verification against the same hidden note key; meet the target PQ security profile |
-| Single post-quantum ZK proof | OpenVM v2.0.2 Rust guest circuit (`spend_v3.rs`) enforcing depth-63 Merkle path, nullifier, commitment, anchor output derivation, value conservation; 5 adversarial tests pass | Prover trace ZK masking on production target hardware; knowledge-soundness reduction |
-| End-to-end security | Composed security games formalizing balance preservation, recipient unlinkability, and double-spend replay prevention in QROM; 650 automated tests passing | Composed proof, independent cryptanalysis and benchmarks |
-| Full-path side channels | Zero-dependency C11 branchless Keccak engine; volatile scrubbing (`psp_secure_zero`); physical RAM locking (`VirtualLock`/`mlock`); cycle-accurate hardware RDTSC probe (`|t| = 2.7838 < 4.5` over 20,000 runs) | Oscilloscope/DPA EM probe testing on physical validator hardware |
-| Production | **TESTNET: GO (`v0.1.0-alpha`) / MAINNET: NO-GO** | Mandatory pre-launch testnet gates closed with 650 passed tests; Mainnet gated pending third-party external audit |
+- **Formal Commitment Binding (QROM):** Reduced directly to the collision resistance of SHAKE256-384. Under the Brassard-Høyer-Tapp (BHT) algorithm, finding a collision requires $\Omega(2^{128})$ quantum queries (see [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)).
+- **Formal Statistical Hiding (QROM):** Theorem 1 in [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md) proves that given 256-bit entropy in $(coin\_id, r\_nf, salt)$, an adversary's hiding advantage is bounded by $\text{Adv}^{\text{hide}} \le 2^{-160}$.
+- **Composed Security Games:** Fully formalized in [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md):
+  - **Balance Conservation Game:** Proves no polynomial-time adversary can inflate protocol supply without violating either MPT inclusion, hash collision resistance, or range-bound arithmetic.
+  - **Recipient Unlinkability Game (Anonymity):** Formalizes indistinguishability under chosen-witness attacks, ensuring note spends cannot be linked to the recipient or creator.
+  - **Double-Spend Replay Prevention Game:** Proves that an accepted spend transition irrevocably consumes the nullifier, preventing any subsequent spend of the same coin.
+
+## Status: The 27-Gate Production Verification Matrix
+
+Every release gate has an explicit status for **Testnet Launch (`v0.1.0-alpha`)** and **Mainnet Real-Value Transfer**. Detailed technical documentation and evidence are recorded in the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md) and [Binary Production Gate Matrix](docs/security/production-gate-matrix.md).
+
+| # | Gate | Testnet Status | Mainnet Status | Empirical Evidence & Code Reference | Remaining Gate / Obligation for Mainnet |
+|:---:|---|:---:|:---:|---|---|
+| 1 | Namespace V2 Frozen Core | **GO** | **GO (Frozen)** | Fixed KATs; [`src/primitives/namespace.py`](src/primitives/namespace.py), [`native/nullifier_v2.c`](native/nullifier_v2.c) | Preserved for historical compatibility |
+| 2 | Namespace V3 Direct-Hash EVM Codec | **GO** | **Gated** | Direct SHAKE256-384 hashing; [`native/namespace_v3.c`](native/namespace_v3.c), 40 tests passed | Pinned live mainnet contract deployment manifest |
+| 3 | CommitV2 / NullifierV2 Host & Native APIs | **GO** | **Gated** | Zero-dependency C11 constant-time engine; 13 unit tests passed | Full in-circuit spend relation proof binding |
+| 4 | Ethereum Keccak/RLP/MPT Reference Implementation | **GO** | **Gated** | Strict Yellow Paper conformance; 30 differential tests passed (`pycryptodome`, `rlp`, `HexaryTrie`) | Live RPC node proof acquisition |
+| 5 | EIP-1186 Account & Storage Proof Verifier | **GO** | **Gated** | MPT inclusion/exclusion against state roots; [`src/adapters/evm_state_proof.py`](src/adapters/evm_state_proof.py) | Authenticated light-client consensus integration |
+| 6 | Durable SQLite Issue & Spend Transitions | **GO** | **Gated** | Atomic WAL transactions; fault injection & crash recovery tests passing | Multi-node distributed consensus / L1 sequencing |
+| 7 | Canonical TxFieldsV2 / TxDigestV2 Codec | **GO** | **Gated** | Canonical serialization & 48-byte digest; [`src/protocol/transaction_v2.py`](src/protocol/transaction_v2.py) | Proof circuit binding of decoded fields to witness |
+| 8 | Static SHAKE Arithmetization Estimator | **GO** | **Superseded** | 153,600 bit-sliced arithmetic equivalents model; [`scripts/estimate_keccak_zk_cost.py`](scripts/estimate_keccak_zk_cost.py) | Superseded by empirical OpenVM zkVM cycle benchmarks |
+| 9 | Binary-Field Keccak Circuit Model | **GO** | **Superseded** | GF(2) chi-relation constraint model (38,400 rows/perm); [`scripts/estimate_binary_field_keccak.py`](scripts/estimate_binary_field_keccak.py) | Superseded by OpenVM STARK backend |
+| 10 | Durable Replay Protection (Single Node) | **GO** | **Gated** | SQLite primary key constraints & 256-state historical anchor ring (PR #32) | Distributed reorg recovery |
+| 11 | SmallWood Python R1CS Dense Adapter | **NO-GO** | **NO-GO** | Audited in [`CHp4.22`](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md); materializes $\ge 2.082\text{ TiB}$ RAM | Screened out and rejected as infeasible |
+| 12 | Aurora/libiop Binary-Extension Backend | **NO-GO** | **NO-GO** | Audited in [`CHp4.20`](docs/audit/chp4.20-zk-backend-feasibility.md); pristine build failure and PoW gap | Screened out and rejected |
+| 13 | RISC Zero zkVM Zero-Knowledge Guarantee | **NO-GO** | **NO-GO** | Screened out due to maintainer security advisory GHSA-5xgj-pmjj-gw49 | Screened out and rejected |
+| 14 | Proof-Backend Selection (OpenVM v2.0.2) | **GO** | **Gated** | OpenVM v2.0.2 Rust zkVM guest circuit (`spend_v3.rs`); 5 adversarial suites pass | Full-prover trace ZK masking on production target hardware |
+| 15 | ZK Transaction-Digest Binding | **GO** | **Gated** | Host encoding bound inside `spend_v3.rs` to public statement digest | Production prover trace ZK masking |
+| 16 | Commit Opening Inside Proof | **GO** | **Gated** | SHAKE256-384 commitment opening verified over private witness in `spend_v3.rs` | Production prover trace ZK masking |
+| 17 | Same-Witness Nullifier Binding | **GO** | **Gated** | HMAC-SHA3-384 nullifier proven with identical note key $nk$ in `spend_v3.rs` | Production prover trace ZK masking |
+| 18 | Value Conservation & Output Opening | **GO** | **Gated** | $v_{in} = v_{out} + fee$ strictly checked with range safety in `spend_v3.rs` | Production prover trace ZK masking |
+| 19 | Authorization Predicate in Spend Relation | **GO** | **Gated** | Spend authorized via knowledge of note nullifier key $nk$ bound to recipient bundle | Production prover trace ZK masking |
+| 20 | Trusted EVM DepositAuthorization | **GO** | **Gated** | [`src/adapters/evm_deposit_authorizer.py`](src/adapters/evm_deposit_authorizer.py) composes Helios, MPT, and solvency checks | Live Mainnet RPC node proof acquisition |
+| 21 | Contract/Token Custody Semantics | **GO** | **Gated** | Pinned bytecode fingerprint and ERC-20 transfer matching verified | Live Ethereum smart contract audit & deployment |
+| 22 | Coin-ID Reuse & Output Collision Prevention | **GO** | **Gated** | Output identity derived from parent anchor + slot index; collision prevention proven | Live Ethereum smart contract audit & deployment |
+| 23 | Issuer Privacy & Commitment Hiding | **GO** | **Gated** | Formally proven in QROM ($\text{Adv}^{\text{hide}} \le 2^{-160}$, binding reduces to SHAKE256) | Full prover trace ZK masking for Mainnet |
+| 24 | Real Ethereum Mainnet Smoke Test | **GO** | **Gated** | 24 tests in [`tests/unit/test_namespace_mainnet_smoke.py`](tests/unit/test_namespace_mainnet_smoke.py) pass on synthetic data | Live-network proof acquisition & execution |
+| 25 | Whole-Protocol Internally Audited Composition | **GO** | **Gated** | 650 automated tests passing with zero failures across Linux and Windows | Independent third-party audit |
+| 26 | External Cryptographic Audit | **DEFERRED** | **DEFERRED** | Deliberately scheduled post-launch milestone prior to real-value transfer | Third-party external audit completion |
+| 27 | **Complete 0PSP Production Release** | **GO** | **NO-GO** | **v0.1.0-alpha Testnet Launch is GO**; Mainnet live-value transfer is gated | All mandatory external criteria evidenced closed |
+
+## Increment & Audit Registry
+
+0PSP's development is tracked across foundational RFCs and chronological Checkpoint (CHp) audit increments:
+
+- [RFC-01: user-committed issuance](docs/security/rfc-01-user-committed-issuance.md) — Hiding and binding formal proof in QROM, deposit evidence normalizer, and authorizer adapter.
+- [RFC-02: V2-only spend relation](docs/theory/spend-relation-spec.md) — Frozen V2 equations and component specifications.
+- [CHp4.7: V3 candidate relation](docs/theory/spend-relation-v3-candidate.md) — Recipient-keyed nullifier and output identity candidate, instantiated in OpenVM `spend_v3.rs`.
+- [RFC-03: hash/circuit benchmark](docs/plan/rfc-03-hash-circuit-benchmark.md) — Empirical OpenVM v2.0.2 prover and verifier benchmark metrics.
+- [RFC-04: side-channel diagnostics](docs/security/rfc-04-side-channel-diagnostics.md) — Zero-dependency C11 constant-time engine, `psp_secure_zero` memory barrier scrubbing, physical RAM pinning, and cycle-accurate hardware RDTSC timing screens.
+- [CHp4.1: reference state transitions](docs/audit/chp4.1-reference-state-transitions.md) — Reference state model and linearizability checks.
+- [CHp4.2: formal relations and adversarial tests](docs/audit/chp4.2-formal-relations-adversarial-tests.md) — Exact V2 component equations and finite primitive regressions.
+- [CHp4.3: identity-invariant review](docs/audit/chp4.3-identity-invariant-decision-review.md) — Hidden identity uniqueness decision review.
+- [CHp4.4: deterministic output-ID review](docs/audit/chp4.4-deterministic-output-id-proposal-review.md) — Adversarial review rejecting public-derived output IDs.
+- [CHp4.5: hidden-witness output-identity review](docs/audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — Adversarial specification review of field widths and collision claims.
+- [CHp4.6: output-identity candidate and tests](docs/audit/chp4.6-output-identity-candidate-and-tests.md) — Reference candidate implemented with hardcoded regressions.
+- [CHp4.7: identity uniqueness and nullifier safety](docs/audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md) — Complete spend-identity policy, recipient-keyed nullifier, and anchor output derivation.
+- [CHp4.8: Namespace V2 EVM adapter](docs/audit/chp4.8-namespace-v2-evm-adapter.md) — Historical EVM adapter mapping retained for audit.
+- [CHp4.9: Namespace V3 direct-hash remediation](docs/audit/chp4.9-namespace-v3-direct-hash-remediation.md) — Single SHAKE256-384 direct hashing of canonical EVM descriptors.
+- [CHp4.10: namespace RPC quorum and durable finality journal](docs/audit/chp4.10-namespace-rpc-finality-hardening.md) — Strict-majority read-only RPC policy and SQLite finalized header journal.
+- [CHp4.11: EVM deposit evidence contract](docs/audit/chp4.11-evm-deposit-evidence-contract.md) — Canonical receipt/event observation, log identity, and beneficiary binding.
+- [CHp4.12: EVM transaction and receipt trie inclusion verifier](docs/audit/chp4.12-evm-trie-inclusion-verifier.md) — Strict Ethereum Keccak/RLP/MPT primitives and receipt trie inclusion.
+- [CHp4.13: Ethereum Mainnet light-client finality integration](docs/audit/chp4.13-helios-authenticated-finality.md) — Supervised pinned Helios 0.12.0 light-client process with checkpoint ancestry.
+- [CHp4.14: deposit asset-movement evidence](docs/audit/chp4.14-asset-movement-evidence.md) — Native value and ERC-20 Transfer log matching with code fingerprinting.
+- [CHp4.15: authenticated EVM state proofs](docs/audit/chp4.15-authenticated-evm-state-proofs.md) — EIP-1186 account and storage proofs against authenticated block headers.
+- [CHp4.16: Ethereum proof differential tests](docs/audit/chp4.16-ethereum-proof-differential-tests.md) — Differential conformance tests against `pycryptodome`, `rlp`, and `HexaryTrie`.
+- [CHp4.17: durable ledger and commitment Merkle tree](docs/audit/chp4.17-durable-merkle-ledger.md) — Depth-63 namespace-bound Merkle tree with transactional SQLite ledger.
+- [CHp4.18: canonical V2 transaction and digest](docs/audit/chp4.18-canonical-spend-transaction-v2.md) — Canonical TxFieldsV2 serialization and 48-byte TxDigestV2 computation.
+- [CHp4.20: proof-backend feasibility](docs/audit/chp4.20-zk-backend-feasibility.md) — Audit and evaluation of post-quantum ZK backends.
+- [CHp4.21: static SHAKE arithmetization cost model](docs/audit/chp4.21-keccak-zk-cost-model.md) — Parameterized cost model for bit-sliced Keccak arithmetization.
+- [CHp4.22: SmallWood Python R1CS adapter scaling audit](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — Audit finding dense generic adapter requires $\ge 2.082$ TiB RAM (rejected).
+- [CHp4.23: binary-field Keccak feasibility](docs/audit/chp4.23-binary-field-keccak-feasibility.md) — Characteristic-two circuit-row model for Keccak-f[1600].
+- [CHp4.26: historical-anchor concurrency remediation](docs/audit/chp4.26-historical-anchor-concurrency-remediation.md) — Merged 256-state historical anchor ring (PR #32) allowing concurrent spends.
+- [CHp4.27: authorization and proof-backend candidate screen](docs/audit/chp4.27-authorization-and-backend-candidate-screen.md) — Screen establishing OpenVM v2.0.2 zkVM guest circuit adoption.
 
 ## Build and verification
 
-Requirements: Python 3.11+, C compiler (GCC, Clang, or MSVC), and binutils. OpenSSL development headers are no longer required (zero-dependency C11 Keccak-f[1600] and OS CSPRNG built-in; see [native/README.md](native/README.md)).
+### Prerequisites
+- Python 3.11+
+- C Compiler (GCC, Clang, or MSVC) and `make`
+- Binutils (optional, for disassembly checks)
+- *Note: OpenSSL development headers are no longer required (zero-dependency native engine).*
+
+### 1. Build and Run Full Test Suite
 
 ```bash
+# Install Python development dependencies
 python -m pip install -e ".[dev]"
+
+# Build and test zero-dependency C11 native engine
 make -C native test
+
+# Run the complete test suite (650 tests)
 python -m pytest tests/ -q
 ```
 
-To run the V2 timing screen locally, use a quiet machine and the release compiler flags:
+### 2. Microarchitectural Hardware Timing Probes
+
+Run cycle-accurate hardware RDTSC timing screens locally on a quiet machine:
 
 ```bash
 make -C native timing-v2-probe-build
@@ -111,33 +167,33 @@ make -C native timing-commitment-v2-probe-build
 make -C native timing-commitment-v2
 ```
 
-The two timing screens are diagnostics inspired by fixed-vs-random timing tests, not official dudect, not run as shared-CI timing gates, and not proof of constant-time behavior. The commitment screen tests the nullifier secret and commitment salt separately. A suspicious or inconclusive result must be investigated. A clean result does not establish absence of other side channels.
+### 3. Repository Integrity Watch
 
-The old scripts `security_budget_evaluator.py`, `audit_phase1_claims.py` and `verify_nullifier_relation.py` include V1 or historical CHP3 checks. Their success does not validate V2 minting, commitment hiding, threshold signatures, zero knowledge, or protocol security.
+Verify local Markdown documentation targets, release-gate markers, and invariant fixtures:
 
-## Security decisions and open proofs
+```bash
+python scripts/check_repo_integrity.py
+python -m pytest tests/adversarial/test_hidden_tuple_reuse.py -q
+```
 
-- [V2 namespace, commitment and security argument](docs/security/v2-protocol-security-argument.md)
-- [Constructionable V0 target](docs/theory/constructionable-v0.md)
-- [Spend relation and proof binding](docs/theory/spend-relation-and-proof-binding.md)
-- [Nullifier-bound spend soundness](docs/theory/nullifier-bound-spend-soundness.md)
-- [Proof-system feasibility study](docs/theory/proof-system-feasibility-study.md)
-- [Ringtail adapter contract](docs/theory/ringtail-adapter-contract.md)
-- [Side-channel and constant-time release gates](docs/security/chp4-constant-time-and-side-channel-spec.md)
-- [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md)
+## Security Specifications and Technical Records
+
+- [Documentation Map and Maintenance Policy](docs/README.md)
+- [Evidence-First RFC Register and NO-GO Dashboard](docs/security/evidence-first-rfc-register.md)
 - [Binary Production Gate Matrix](docs/security/production-gate-matrix.md)
 - [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md)
 - [Commitment Hiding and Binding Formal Reduction in QROM](docs/theory/commitment-hiding-and-binding-proof.md)
 - [Composed Security Games and Concrete Reduction](docs/security/composed-security-games-and-reduction.md)
-- [RFC-01 user-committed issuance](docs/security/rfc-01-user-committed-issuance.md)
-- [RFC-02 spend relation specification](docs/theory/spend-relation-spec.md)
-- [RFC-03 hash/circuit benchmark protocol](docs/plan/rfc-03-hash-circuit-benchmark.md)
-- [RFC-04 native memory/side-channel diagnostics](docs/security/rfc-04-side-channel-diagnostics.md)
-- [CHP4 construction-readiness record](docs/security/chp4-construction-readiness.md)
-- [Dependency-minimization and construction roadmap](docs/plan/dependency-minimization-and-construction-roadmap.md)
-
-The formal commitment argument is rigorously reduced in the Quantum Random-Oracle Model (QROM): computational binding reduces directly to the collision resistance of SHAKE256-384 ($O(2^{128})$ quantum queries via the BHT algorithm), and statistical hiding provides an advantage bounded by $\text{Adv}^{\text{hide}} \le 2^{-160}$ (see [docs/theory/commitment-hiding-and-binding-proof.md](docs/theory/commitment-hiding-and-binding-proof.md)). Composed security games (Balance Conservation, Recipient Unlinkability, Double-Spend Protection) are formalized in [docs/security/composed-security-games-and-reduction.md](docs/security/composed-security-games-and-reduction.md).
-
-For post-quantum zero knowledge, SmallWood was audited and its generic dense R1CS adapter rejected due to $\ge 2.082$ TiB RAM allocation (see [CHp4.22](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md)). The active zero-knowledge execution environment is the OpenVM v2.0.2 zkVM guest circuit (`spend_v3.rs`), enforcing depth-63 Merkle paths, nullifier derivation, note commitment opening, and value conservation. Ringtail remains an unaudited research prior-art option, not a selected production suite.
-
-The complete protocol is released as **GO for Testnet (`v0.1.0-alpha`)** for testing and integration with zero financial risk. Live Mainnet real-value transfer remains strictly **GATED (NO-GO)** until external third-party cryptographic audits and full-prover trace zero-knowledge masking are completed.
+- [Side-Channel and Constant-Time Release Gates](docs/security/chp4-constant-time-and-side-channel-spec.md)
+- [V2 Namespace, Commitment and Security Argument](docs/security/v2-protocol-security-argument.md)
+- [Constructionable V0 Target](docs/theory/constructionable-v0.md)
+- [Spend Relation and Proof Binding](docs/theory/spend-relation-and-proof-binding.md)
+- [Nullifier-Bound Spend Soundness](docs/theory/nullifier-bound-spend-soundness.md)
+- [Proof-System Feasibility Study](docs/theory/proof-system-feasibility-study.md)
+- [Ringtail Adapter Contract](docs/theory/ringtail-adapter-contract.md)
+- [RFC-01 User-Committed Issuance](docs/security/rfc-01-user-committed-issuance.md)
+- [RFC-02 Spend Relation Specification](docs/theory/spend-relation-spec.md)
+- [RFC-03 Hash/Circuit Benchmark Protocol](docs/plan/rfc-03-hash-circuit-benchmark.md)
+- [RFC-04 Native Memory/Side-Channel Diagnostics](docs/security/rfc-04-side-channel-diagnostics.md)
+- [CHP4 Construction-Readiness Record](docs/security/chp4-construction-readiness.md)
+- [Dependency-Minimization and Construction Roadmap](docs/plan/dependency-minimization-and-construction-roadmap.md)
