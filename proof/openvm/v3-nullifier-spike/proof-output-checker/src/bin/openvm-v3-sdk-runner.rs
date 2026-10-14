@@ -124,7 +124,7 @@ fn peak_rss_kib() -> Result<u64> {
     let kib = line
         .split_whitespace()
         .nth(1)
-        .context("malformed VmHWM line")?
+        .ok_or_else(|| eyre::eyre!("malformed VmHWM line"))?
         .parse::<u64>()
         .context("invalid VmHWM value")?;
     if kib == 0 {
