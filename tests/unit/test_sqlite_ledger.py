@@ -636,3 +636,61 @@ def test_integrity_audit_rejects_tampered_historical_anchor_ring(tmp_path):
         match="commitment anchor ring buffer differs from the reconstructed state history",
     ):
         ledger.audit_integrity()
+
+
+def test_concurrent_fresh_initialization_serializes_anchor_schema_creation(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "concurrent-init.sqlite3"
+    start = threading.Barrier(2)
+    pre_lock_anchor_reads = threading.Barrier(2)
+    original_connect = sqlite3.connect
+    anchor_query = (
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='commitment_anchors'"
+    )
+
+    class ConnectionProxy:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def execute(self, sql, *args):
+            cursor = self._inner.execute(sql, *args)
+            # Deterministically expose the old TOCTOU: before the fix, both
+            # connections read "table missing" before either begins its write
+            # transaction. With the fix, the query is inside BEGIN IMMEDIATE
+            # and this barrier is deliberately not entered.
+            if sql == anchor_query and not self._inner.in_transaction:
+                pre_lock_anchor_reads.wait(timeout=5)
+            return cursor
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    def synchronized_connect(*args, **kwargs):
+        return ConnectionProxy(original_connect(*args, **kwargs))
+
+    monkeypatch.setattr(sqlite3, "connect", synchronized_connect)
+
+    def initialize(_index):
+        start.wait(timeout=5)
+        return make_ledger(path)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        ledgers = list(pool.map(initialize, range(2)))
+
+    snapshots = [ledger.snapshot() for ledger in ledgers]
+    assert snapshots[0] == snapshots[1]
+    assert snapshots[0].state_version == 0
+    assert snapshots[0].commitment_count == 0
+    for ledger in ledgers:
+        ledger.audit_integrity()
+
+    # Use the captured unpatched connector for an independent schema-state read.
+    with original_connect(path) as conn:
+        anchors = conn.execute(
+            "SELECT state_version,state_head,commitment_count,commitment_root "
+            "FROM commitment_anchors ORDER BY state_version"
+        ).fetchall()
+    assert len(anchors) == 1
+    assert anchors[0][0] == 0
+    assert anchors[0][2] == 0
