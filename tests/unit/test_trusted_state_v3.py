@@ -223,7 +223,11 @@ def test_proof_verifier_exception_fails_closed() -> None:
         )
 
 
-@pytest.mark.parametrize("proof", [b"", "proof", None, b"x" * (2_000_001)])
+@pytest.mark.parametrize(
+    "proof",
+    [b"", "proof", None, b"x" * (2_000_001)],
+    ids=["empty", "str", "none", "oversized"],
+)
 def test_invalid_proof_encoding_rejected_after_state_binding(proof: object) -> None:
     tx = transaction()
     with pytest.raises(TrustedStateRejected, match="proof"):

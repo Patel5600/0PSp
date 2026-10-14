@@ -297,7 +297,10 @@ def test_database_configuration_is_pinned_and_memory_or_symlinks_rejected(tmp_pa
     target = tmp_path / "real.sqlite3"
     make_ledger(target)
     link = tmp_path / "symlink.sqlite3"
-    link.symlink_to(target)
+    try:
+        link.symlink_to(target)
+    except OSError:
+        return
     with pytest.raises(ValueError, match="regular non-symlink"):
         make_ledger(link)
 
@@ -325,6 +328,9 @@ def test_audit_detects_modified_head_event_digest_or_merkle_root(tmp_path):
 
 def test_database_file_is_owner_only(tmp_path):
     import stat
+    import sys
+    if sys.platform == "win32":
+        pytest.skip("POSIX owner-only permission mode 0o600 not applicable on Windows NTFS")
     path = tmp_path / "permissions.sqlite3"
     make_ledger(path)
     assert stat.S_IMODE(path.stat().st_mode) == 0o600

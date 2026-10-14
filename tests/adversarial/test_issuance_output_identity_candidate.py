@@ -118,7 +118,7 @@ def test_entropy_must_have_exact_width(bad_entropy: bytes) -> None:
         _derive(issuance_entropy=bad_entropy)
 
 
-@pytest.mark.parametrize("bad_bundle", [b"", b"x" * (1 << 16)])
+@pytest.mark.parametrize("bad_bundle", [b"", b"x" * (1 << 16)], ids=["empty", "oversized"])
 def test_recipient_bundle_is_bounded_nonempty_bytes(bad_bundle: bytes) -> None:
     with pytest.raises(ValueError):
         _derive(recipient_key_bundle=bad_bundle)

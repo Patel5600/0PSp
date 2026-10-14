@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -267,7 +268,8 @@ def test_supervised_start_pins_binary_version_and_keeps_rpc_secrets_out_of_argv(
         assert seen["endpoint"].startswith("http://127.0.0.1:")
         assert all("token-in-query" not in arg for arg in seen["command"])
         config_path = os.path.join(seen["kwargs"]["env"]["HOME"], ".helios", "helios.toml")
-        assert stat.S_IMODE(os.stat(config_path).st_mode) == 0o600
+        if sys.platform != "win32":
+            assert stat.S_IMODE(os.stat(config_path).st_mode) == 0o600
         assert "token-in-query" in open(config_path, encoding="utf-8").read()
         assert "--strict-checkpoint-age" in seen["command"]
         assert "--rpc-bind-ip" in seen["command"]

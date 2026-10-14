@@ -167,8 +167,18 @@ class EvmNamespaceConfig:
             or not 0 <= self.asset_epoch <= EVM_BLOCK_NUMBER_MAX
         ):
             raise ValueError("asset_epoch must be an integer in [0, 2^64-1]")
-        if self.code_block_tag not in ("finalized", "safe", "latest"):
-            raise ValueError("code_block_tag must be finalized, safe, or latest")
+        if not isinstance(self.code_block_tag, str) or not (
+            self.code_block_tag in ("finalized", "safe", "latest")
+            or re.fullmatch(r"0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)", self.code_block_tag) is not None
+        ):
+            raise ValueError(
+                "code_block_tag must be finalized, safe, latest, or a canonical block QUANTITY"
+            )
+        if (
+            self.code_block_tag not in ("finalized", "safe", "latest")
+            and int(self.code_block_tag[2:], 16) > EVM_BLOCK_NUMBER_MAX
+        ):
+            raise ValueError("numeric code_block_tag must fit the configured uint64 block-height range")
 
 
 @dataclass(frozen=True, slots=True)

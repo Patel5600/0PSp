@@ -13,6 +13,7 @@ import hashlib
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -49,7 +50,7 @@ def _regular_file_sha256(path: Path, *, executable: bool = False) -> bytes:
             raise OpenVMV3CandidateVerifierError(
                 f"pinned verifier artifact is not a regular file: {path}"
             )
-        if executable and not (info.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
+        if executable and sys.platform != "win32" and not (info.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
             raise OpenVMV3CandidateVerifierError(
                 f"proof checker is not executable: {path}"
             )
