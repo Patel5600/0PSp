@@ -447,16 +447,23 @@ class SQLiteLedger:
             "FROM ledger_events e JOIN spent_nullifiers s ON s.state_version=e.state_version "
             "WHERE e.event_type='spend' ORDER BY 1"
         ).fetchall()
+        # Aggregate once instead of issuing a cumulative COUNT query for every
+        # historical state. The latter repeatedly scans an unindexed state_version
+        # column and can make schema migration quadratic in ledger history size.
+        counts_by_version = {
+            int(state_version): int(commitment_count)
+            for state_version, commitment_count in conn.execute(
+                "SELECT state_version, COUNT(*) FROM commitments GROUP BY state_version"
+            )
+        }
+        commitment_count = 0
         for raw_version, raw_head, raw_root in transitions:
             state_version = int(raw_version)
-            count_row = conn.execute(
-                "SELECT COUNT(*) FROM commitments WHERE state_version <= ?",
-                (state_version,),
-            ).fetchone()
+            commitment_count += counts_by_version.get(state_version, 0)
             conn.execute(
                 "INSERT INTO commitment_anchors(state_version,state_head,commitment_count,commitment_root) "
                 "VALUES(?,?,?,?)",
-                (state_version, bytes(raw_head), int(count_row[0]), bytes(raw_root)),
+                (state_version, bytes(raw_head), commitment_count, bytes(raw_root)),
             )
         current_version, _head, _count, _root = self._meta(conn)
         first_retained = max(0, current_version - ANCHOR_WINDOW + 1)
