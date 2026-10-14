@@ -694,3 +694,37 @@ def test_concurrent_fresh_initialization_serializes_anchor_schema_creation(
     assert len(anchors) == 1
     assert anchors[0][0] == 0
     assert anchors[0][2] == 0
+
+
+def test_integrity_audit_reads_from_one_sqlite_snapshot(tmp_path, monkeypatch):
+    path = tmp_path / "audit-snapshot.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(
+        deposit_evidence=b"evidence",
+        commitment=C1,
+        params_id=PARAMS,
+        proof=b"valid-issue",
+    )
+    original_connect = sqlite3.connect
+    transaction_states = []
+
+    class ConnectionProxy:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def execute(self, sql, *args):
+            if sql == "SELECT DISTINCT namespace_id FROM commitments":
+                transaction_states.append(self._inner.in_transaction)
+            return self._inner.execute(sql, *args)
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    def instrumented_connect(*args, **kwargs):
+        return ConnectionProxy(original_connect(*args, **kwargs))
+
+    monkeypatch.setattr(sqlite3, "connect", instrumented_connect)
+    ledger.audit_integrity()
+
+    # A single read transaction must surround every reconciliation query.
+    assert transaction_states == [True]
