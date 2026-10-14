@@ -87,6 +87,7 @@ def test_manifest_records_hashes_metrics_provenance_and_limits(
     assert manifest["proof_slice"]["app"]["prove"] == {
         "seconds": 2.5,
         "max_rss_kib": 4096,
+        "rss_scope": "combined SDK runner high-water mark shared across stage timings; not a per-stage measurement",
     }
     assert manifest["proof_slice"]["spend_candidate"]["verify"] == {
         "seconds": 0.2,
