@@ -325,8 +325,12 @@ def main() -> int:
     tx = ctx["tx"]
     valid_spend = encode_spend_witness(ctx)
     write_case(output, "spend-valid", valid_spend)
+    spend_digest = expected_spend_digest(tx)
+    expected_spend_digest_kat = "0cdf055499351512e97f57e0c479b7d0be992525ab9283da872fb3ba1e21e02da4f910b79407e6a6fe80f56a4edca146d8eeb55bfa520bc6ad36e87534595cda"
+    if spend_digest.hex() != expected_spend_digest_kat:
+        raise ValueError("spend public statement digest KAT mismatch")
     (output / "expected-spend-public-digest.txt").write_text(
-        expected_spend_digest(tx).hex() + "\n", encoding="ascii"
+        spend_digest.hex() + "\n", encoding="ascii"
     )
 
     spend_cases: dict[str, bytes] = {}

@@ -71,6 +71,7 @@ jobs:
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
           python3 scripts/make_witnesses.py "$fixture_dir"
           test "$(cat "$fixture_dir/expected-public-digest.txt")" = "82ec02fc6689a4c56038463a780a9d3e75d5075043645cdb754a4d9c73b21df665303861e54f2a07876f811f1fdb38f353f1572367db5fb4a36f27672983b5ee"
+          test "$(cat "$fixture_dir/expected-spend-public-digest.txt")" = "0cdf055499351512e97f57e0c479b7d0be992525ab9283da872fb3ba1e21e02da4f910b79407e6a6fe80f56a4edca146d8eeb55bfa520bc6ad36e87534595cda"
 
       - name: Test proof checker and build the custom 64-byte OpenVM SDK runner
         run: |
