@@ -7,20 +7,20 @@
 
 ## 1. Scope and non-goals
 
-Keep the current C/OpenSSL core for this work package. Do not rewrite it in Rust merely to assume memory safety or zeroization. Do not change the current CI to make noisy timing observations a blocking release condition.
+Keep the zero-dependency C11 native core for this work package. Do not rewrite it in another language merely to assume memory safety or zeroization. Do not change the current CI to make noisy timing observations a blocking release condition.
 
-The existing implementation uses OpenSSL `OPENSSL_cleanse` in native source and has sanitizer plus optimized-wrapper-disassembly build targets. These are useful controls but do not establish that all copies disappear, that dependency/provider internals are constant-time, or that Python/ctypes has not made other copies.
+The native implementation uses `psp_secure_zero` (volatile compiler memory-barrier scrubbing) and physical RAM locking (`VirtualLock` on Windows, `mlock` on Linux), with sanitizer plus optimized-wrapper-disassembly build targets. These are defense-in-depth controls but do not establish that all copies disappear, that compiler/runtime internals are constant-time, or that Python/ctypes has not made other copies.
 
 ## 2. Compiler/platform API inventory
 
 At build/configure time, check the actual target environment for:
 1. C23 `memset_explicit` when the compiler and C library support it;
 2. `explicit_bzero` when the target platform provides it;
-3. the currently used `OPENSSL_cleanse` where OpenSSL is a pinned/runtime dependency.
+3. `psp_secure_zero` and platform-specific physical RAM locking (`VirtualLock` / `mlock`).
 
-Select an explicit, reviewed supported primitive based on platform guarantees. Do not silently treat a volatile-pointer overwrite loop as a universally equivalent fallback. If the target has no reviewed mechanism, fail the production readiness gate; a research diagnostic build may still run with an explicit warning.
+Select an explicit, reviewed supported primitive based on platform guarantees. Do not silently treat a bare unverified pointer loop as a universally equivalent fallback. If the target has no reviewed mechanism, fail the production readiness gate; a research diagnostic build may still run with an explicit warning.
 
-The current native implementation already calls `OPENSSL_cleanse`; do not mechanically replace these calls with another API without proving that the change preserves failure semantics and supported-platform behavior.
+The current native implementation calls `psp_secure_zero` across all secret zeroization boundaries; do not remove or bypass these calls.
 
 ## 3. Optional disassembly audit
 
@@ -32,7 +32,7 @@ make -C native audit
 bash scripts/audit_disasm_bzero.sh native/build/libpsp_nullifier.so
 ```
 
-The script is advisory. A visible call reference does not prove that every temporary/copy is cleared; an absent direct symbol can result from inlining or wrapper changes and requires manual review. It does not inspect OpenSSL provider machine code, allocator remnants, Python runtime/FFI copies, core dumps, swap, or the full prover. Save disassembly and tool/compiler metadata with the result.
+The script is advisory. A visible call reference does not prove that every temporary/copy is cleared; an absent direct symbol can result from inlining or wrapper changes and requires manual review. It does not inspect compiler runtime machine code, allocator remnants, Python runtime/FFI copies, core dumps, swap, or the full prover. Save disassembly and tool/compiler metadata with the result.
 
 ## 4. Timing leakage assessment
 
@@ -42,7 +42,7 @@ Use `|t| ≥ 4.5` as a diagnostic alert for the predefined experiment, not a uni
 
 ## 5. Required audit scope
 
-For each sensitive routine, document the secrets and public inputs, source revision, function entry/exit paths, compiler/toolchain, OpenSSL version/provider, binary hash, target CPU and observed leakage. At minimum review:
+For each sensitive routine, document the secrets and public inputs, source revision, function entry/exit paths, compiler/toolchain, C standard library, binary hash, target CPU and observed leakage. At minimum review:
 - namespace-scoped commitment and nullifier routines;
 - random generation and error paths;
 - key-generation/signing/proof routines once integrated;
@@ -57,7 +57,7 @@ No result from a primitive-only test can be promoted to a full-prover claim.
 - [ ] Optimized disassembly reviewed per sensitive function; expected wipe calls and temporary-buffer lifecycle documented.
 - [ ] Sanitizer/fuzz/error-path tests pass on the pinned build.
 - [ ] Controlled timing/leakage runs are reproducible on each claimed hardware class.
-- [ ] OpenSSL/provider/compiler/runtime and FFI copies are included in the review.
+- [ ] Compiler/runtime, memory allocation, and FFI copies are included in the review.
 - [ ] Complete proof-generation and signing path is assessed after those components exist.
 - [ ] Independent review signs off on the exact binary/build matrix.
 

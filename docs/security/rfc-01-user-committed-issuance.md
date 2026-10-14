@@ -12,7 +12,7 @@ The candidate must also bind the value and deposit accepted by the mint to the v
 
 ## 2. Existing V2 commitment candidate
 
-The repository already implements the following 48-byte candidate commitment in Python and native OpenSSL code:
+The repository already implements the following 48-byte candidate commitment in Python and zero-dependency native C11 code:
 
 ```text
 C = SHAKE256-384(

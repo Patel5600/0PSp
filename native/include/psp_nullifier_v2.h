@@ -32,14 +32,14 @@ int psp_namespace_v2_derive(
     uint8_t *out, size_t out_len);
 
 /*
- * Generate a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes.
+ * Generate a fresh opaque 32-byte coin ID using OS kernel CSPRNG (BCryptGenRandom/getrandom).
  * The ID is unique only probabilistically; the ledger MUST atomically reject
  * a duplicate (namespace_id, coin_id) pair. This helper is not a mint ledger.
  */
 int psp_coin_id_v2_generate(uint8_t *out, size_t out_len);
 
 /*
- * Generate a fresh per-coin nullifier secret through OpenSSL RAND_bytes.
+ * Generate a fresh per-coin nullifier secret through OS kernel CSPRNG (BCryptGenRandom/getrandom).
  * This V2 symbol intentionally avoids routing new V2 callers through the
  * legacy V1 API name. The caller owns the buffer's lifetime and must erase it.
  */
@@ -64,9 +64,9 @@ int psp_nullifier_v2_generate_secret(uint8_t *out, size_t out_len);
  * production private spends with V2 until a reviewed, fully constrained
  * versioned protocol fixes the ownership/linkability relation.
  *
- * Fixed lengths and source-level branch structure are not a constant-time
- * proof. OpenSSL provider code, compiled machine code, hardware, FFI, callers
- * and the complete prover remain in the side-channel review scope.
+ * Fixed lengths and branchless C11 Keccak implementation minimize microarchitectural
+ * leakage, verified by RDTSC timing probes. Hardware, FFI, callers and the
+ * complete prover remain in the side-channel review scope.
  */
 int psp_nullifier_v2(
     const uint8_t *namespace_id, size_t namespace_id_len,

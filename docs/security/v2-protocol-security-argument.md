@@ -62,7 +62,7 @@ The encoded input is exactly 149 bytes and the public output is 48 bytes. The in
 
 The 48-byte output commits to the canonical parameter ID, canonical public key, unsigned 64-bit value, explicit namespace, coin ID, nullifier secret and independent 36-byte salt. Until Ringtail's exact key codec and parameters are pinned, canonical public-key encoding remains an integration gate.
 
-The Python helper recomputes openings for reference tests; `native/coin_commitment_v2.c` implements the same byte contract through OpenSSL EVP, and its C known-answer vector matches the Python vector. Native parity is a functional result, not a commitment theorem or a constant-time proof.
+The Python helper recomputes openings for reference tests; `native/coin_commitment_v2.c` implements the same byte contract through the zero-dependency C11 Keccak engine, and its C known-answer vector matches the Python vector. Native parity is a functional result, not a commitment theorem or a constant-time proof.
 
 ## 5. What can be said about commitment binding
 
@@ -140,7 +140,7 @@ Run on an idle machine using release flags:
     make -C native timing-v2
     make -C native timing-commitment-v2
 
-A suspected leak blocks release. An inconclusive test requires a controlled rerun. A clean result only means this experiment did not detect a first-order timing difference for these classes on that machine. OpenSSL EVP/provider code, allocations, compiler output, hardware and callers still need review. Since the full prover and threshold-signature path are not implemented, the full-path side-channel gate cannot yet close.
+A suspected leak blocks release. An inconclusive test requires a controlled rerun. A clean result only means this experiment did not detect a first-order timing difference for these classes on that machine. Compiler runtime code, allocations, hardware and callers still need review. Since the full prover and threshold-signature path are not implemented, the full-path side-channel gate cannot yet close.
 
 ## References
 

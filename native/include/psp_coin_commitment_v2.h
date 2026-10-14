@@ -12,7 +12,7 @@ extern "C" {
 #define PSP_COIN_COMMITMENT_V2_VERSION 2u
 
 /*
- * Generate a fresh 36-byte V2 commitment salt using OpenSSL RAND_bytes.
+ * Generate a fresh 36-byte V2 commitment salt using OS kernel CSPRNG (BCryptGenRandom/getrandom).
  * Never reuse the result as r_nf or for another coin.
  */
 int psp_coin_commitment_v2_generate_salt(uint8_t *out, size_t out_len);

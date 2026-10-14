@@ -30,7 +30,7 @@ The target event is `Deposit(address indexed depositor, address indexed asset, a
 
 ### Coin identity and minting
 
-The native API generates a fresh opaque 32-byte coin ID using OpenSSL RAND_bytes; randomness is not a uniqueness proof. CHp4.7 records an additive V3 candidate that does not treat `coin_id` alone as a global identity key. It binds an accepted output to a canonical one-use creation anchor and canonical global output slot. Issuance anchors must come from the authenticated deposit/event adapter, and transfer anchors must be the consumed input V3 nullifier. This is a candidate protocol policy, not a production-enforced invariant.
+The native API generates a fresh opaque 32-byte coin ID using the OS kernel CSPRNG (`psp_random_bytes`); randomness is not a uniqueness proof. CHp4.7 records an additive V3 candidate that does not treat `coin_id` alone as a global identity key. It binds an accepted output to a canonical one-use creation anchor and canonical global output slot. Issuance anchors must come from the authenticated deposit/event adapter, and transfer anchors must be the consumed input V3 nullifier. This is a candidate protocol policy, not a production-enforced invariant.
 
 #### Recipient-keyed, commitment-bound V3 nullifier candidate
 
@@ -54,7 +54,7 @@ The preimage length is 149 bytes; SHAKE256 outputs 48 bytes. This crosses the 13
 
 ### Coin commitment V2
 
-The V2 48-byte commitment has Python-reference and native OpenSSL implementations over the same canonical length-prefixed encoding: parameter ID, public key bytes, unsigned 64-bit value, namespace ID, coin ID, 36-byte nullifier secret and independent 36-byte salt. The native function is `psp_coin_commitment_v2` in `native/coin_commitment_v2.c`; its known-answer vector matches the Python reference. The native salt generator is a separate API. The exact formula and conditional binding implication are in [the V2 security argument](v2-protocol-security-argument.md). Commitment hiding in the QROM remains open.
+The V2 48-byte commitment has Python-reference and native C11 implementations over the same canonical length-prefixed encoding: parameter ID, public key bytes, unsigned 64-bit value, namespace ID, coin ID, 36-byte nullifier secret and independent 36-byte salt. The native function is `psp_coin_commitment_v2` in `native/coin_commitment_v2.c`; its known-answer vector matches the Python reference. The native salt generator is a separate API. The exact formula and conditional binding implication are in [the V2 security argument](v2-protocol-security-argument.md). Commitment hiding in the QROM remains open.
 
 ## Reproducible checks
 
@@ -91,7 +91,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Claim | Evidence | Decision |
 |---|---|---|
 | Namespace byte encoding | Python and native known-answer vector; field-substitution tests | Component functional checks pass; chain adapter open |
-| Coin-ID generation | Native OpenSSL RNG function and repeated-sample smoke test | Functional only; no entropy proof; generated IDs are not a uniqueness proof |
+| Coin-ID generation | Native OS kernel CSPRNG function and repeated-sample smoke test | Functional only; no entropy proof; generated IDs are not a uniqueness proof |
 | V3 output identity | CHp4.7 issuance/transfer reference vectors bind anchor, recipient bundle, parameters, entropy and global output slot | Candidate only; authenticated anchor canonicality and proof-constrained one-use slot remain open |
 | Recipient-keyed V3 nullifier | HMAC-SHA3-384 candidate binds canonical bundle and exact V3 commitment; adversarial vectors cover salt changes and tuple/bundle substitutions | Key secrecy, recipient address authentication, PRF/privacy analysis, same-witness proof binding and independent review remain open |
 | V3 mint/spend identity uniqueness | In-memory reference tests and deterministic identity derivation vectors | Not durable/consensus enforcement; no circuit constraint or production ledger rule |
@@ -102,7 +102,7 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 | Nullifier V2 byte agreement | Fixed KAT plus Python/native comparison | Functional checks pass; not a security theorem |
 | Commitment V2 byte agreement | Matching native/Python KAT, native namespace-binding and failure-path tests, opening recomputation and field-substitution tests | Functional checks pass; formal hiding and final binding parameters open |
 | Native source control-flow observations | Fixed widths and public metadata checks | Partial source inspection only |
-| Optimized native binaries | CI disassembly artifact includes V1/V2 nullifier and commitment objects | Review and provider internals OPEN |
+| Optimized native binaries | CI disassembly artifact includes V1/V2 nullifier and commitment objects | Review and compiler internals OPEN |
 | Constant-time behavior | Separate V2 nullifier and commitment screens compile in CI but have not been run on a controlled target | **NOT ESTABLISHED** |
 | Absence of exploitable side channels | No complete platform or full-protocol leakage assessment | **NOT ESTABLISHED** |
 | Threshold signature inside proof | No selected production scheme or verifier. ML-DSA-87 threshold signing is the leading experiment candidate, but the pinned upstream release has an audit-status warning conflict and a GPL-3.0 package-license scope issue; no proof-cost evidence exists. | OPEN |
@@ -117,9 +117,9 @@ The old security-budget, phase-1 and nullifier-relation scripts contain historic
 3. Evaluate the pinned `qp-rusty-crystals-threshold` v3.0.0 ML-DSA-87 candidate against its exact audit-report scope and package license; pin dependencies, test standard-verifier interoperability and signer/seed-reuse failures, and measure verification inside the candidate proof backend. Keep Ringtail as prior art only unless it wins the same evidence-based comparison. No signature scheme is selected until authorization policy and the same-hidden-witness proof cost are reviewed.
 4. Instantiate a single post-quantum ZK argument for membership, commitment opening, threshold authorization, V2 nullifier and state/policy predicates.
 5. Complete knowledge-soundness, zero-knowledge, spend-soundness, replay/double-spend, unlinkability and composition arguments with concrete parameters.
-6. Review release binaries, OpenSSL provider internals, secret lifetime and errors; run controlled per-target timing/leakage tests for every sensitive routine.
+6. Review release binaries, runtime memory handling, secret lifetime and errors; run controlled per-target timing/leakage tests for every sensitive routine.
 7. Measure full end-to-end proof size, runtime, memory and verifier cost, then obtain independent cryptographic review.
 
-The Python reference and ctypes FFI are not a secret-safe production boundary. The native V2 nullifier and commitment use OpenSSL EVP and allocate an EVP context per call; both use OpenSSL RAND_bytes for new secrets/salts, and each output is cleared on supported failure paths. Fixed-size checks, sanitizers and wrapper disassembly do not prove constant-time execution. The selected provider, compiler output, memory allocation, hardware, FFI/callers and complete prover remain under review.
+The Python reference and ctypes FFI are not a secret-safe production boundary. The native V2 nullifier and commitment use the zero-dependency C11 Keccak engine; both use `psp_random_bytes` (OS CSPRNG) for new secrets/salts, and each output is cleared on supported failure paths. Fixed-size checks, sanitizers and wrapper disassembly do not prove constant-time execution. Compiler output, memory allocation, hardware, FFI/callers and complete prover remain under review.
 
 **Release decision: NO-GO.** The V2 component checkpoint is stronger and testable, but the live ledger, commitment theorem, selected threshold-authorization integration, complete proof, composed security argument and full-path side-channel assurance are still open.

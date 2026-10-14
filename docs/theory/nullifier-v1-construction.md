@@ -38,7 +38,7 @@ Debug representations for `CoinId` and `NullifierSecret` redact their bytes.
 
 ### Native C candidate
 
-`native/nullifier_v1.c` uses OpenSSL EVP SHAKE256 to process the fixed-width message and return 48 bytes. It also creates 36-byte per-coin secrets through OpenSSL `RAND_bytes`. The native wrapper:
+`native/nullifier_v1.c` uses the zero-dependency C11 Keccak engine (`psp_keccak.h`) to process the fixed-width message and return 48 bytes. It also creates 36-byte per-coin secrets through the OS kernel CSPRNG (`psp_random_bytes`). The native wrapper:
 - validates only public pointer/length metadata;
 - uses fixed public lengths and fixed byte framing;
 - does not branch on secret byte values or use a secret as a memory/table index in its own source;
@@ -46,13 +46,13 @@ Debug representations for `CoinId` and `NullifierSecret` redact their bytes.
 - borrows the caller's nullifier-secret buffer without modifying it;
 - fails closed if the native library cannot load or the cryptographic call fails.
 
-The caller still owns secret lifetime and copies. The wrapper and RNG call do not zeroize a caller's input. Output clearing on failure, OpenSSL use, or branch-free wrapper code is not a whole-program constant-time guarantee.
+The caller still owns secret lifetime and copies. The wrapper and RNG call do not zeroize a caller's input. Output clearing on failure, branchless wrapper code, or volatile scrubbing is not an unconditional whole-program constant-time guarantee.
 
 The Python `ctypes` adapter is provided for parity tests and initial integration only. A production caller should keep secret handling in a reviewed native/Rust layer and avoid accidental copies, formatting, logs, crash dumps and secret-dependent error behavior.
 
 ## 3. Reproducible checks
 
-With a C compiler, OpenSSL development headers and binutils installed:
+With a C compiler and binutils installed (OpenSSL development headers are no longer required):
 
 ```sh
 make -C native test
@@ -64,7 +64,7 @@ python -m pytest tests/ -q
 
 The native tests check two known-answer vectors, fixed lengths, deterministic output, sample coin/secret substitution, failure output clearing, and an RNG integration smoke check. Unit tests compare the native output against the Python reference. The secret-randomness distinction test is probabilistic sanity checking; it is not a proof of entropy.
 
-`make -C native audit` emits optimized wrapper disassembly to `native/build/nullifier_native.disasm.txt`. CI retains that file as an artifact for review. It does not disassemble or certify OpenSSL internals, and it is not a proof of constant-time behavior.
+`make -C native audit` emits optimized wrapper disassembly to `native/build/nullifier_native.disasm.txt`. CI retains that file as an artifact for review. It does not certify microarchitectural immunity, and it is not a proof of constant-time behavior.
 
 `make -C native timing` runs a small, non-gating timing-class probe. V1 is legacy-only; the V2 fixed-vs-random screen is at `native/tests/timing_probe_v2.c`. Neither probe is a formal proof or should be used to claim that leakage is absent. V2 tests must be run on controlled release targets.
 

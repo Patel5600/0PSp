@@ -162,7 +162,7 @@ Reasons not to trust it as a drop-in replacement today:
 ## Current facts to preserve
 
 - The nullifier input is currently 99 bytes and the output is 48 bytes.
-- The current native helper uses OpenSSL for SHAKE256, random generation and output cleansing.
+- The native helper uses the zero-dependency C11 Keccak engine (`psp_keccak.h`), OS CSPRNG (`random.c`), and `psp_secure_zero` for memory cleansing (OpenSSL runtime dependency eliminated).
 - The nullifier itself has no separate asset/deployment field; the minting invariant remains open.
 - No threshold authorization scheme is selected or integrated. ML-DSA-87 is the leading experiment candidate but audit scope/license and proof-cost gates are open; Ringtail is not integrated. The single-relation proof backend is not instantiated.
 - The latest 0PSP functional CI passed at the baseline commit, but it does not prove the complete construction secure.

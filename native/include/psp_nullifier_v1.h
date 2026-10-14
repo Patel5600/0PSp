@@ -21,9 +21,10 @@ enum psp_nullifier_status {
 
 /*
  * Generate 36 fresh bytes for one coin-specific nullifier secret using the
- * linked OpenSSL CSPRNG. The caller must keep the result secret, bind it into
- * that coin's commitment opening, never reuse it for another coin, and manage
- * its remaining copies/lifetime. A correctly-sized output is cleared on error.
+ * OS kernel CSPRNG (BCryptGenRandom on Windows, getrandom(2) on Linux).
+ * The caller must keep the result secret, bind it into that coin's
+ * commitment opening, never reuse it for another coin, and manage its
+ * remaining copies/lifetime. A correctly-sized output is cleared on error.
  */
 int psp_nullifier_v1_generate_secret(uint8_t *out, size_t out_len);
 
@@ -33,10 +34,10 @@ int psp_nullifier_v1_generate_secret(uint8_t *out, size_t out_len);
  *      || uint16_le(r_nf_len) || r_nf[36]
  * Total absorbed message length: 99 bytes. Output is exactly 48 bytes.
  *
- * Lengths/pointers are public metadata. The wrapper has no source-level
- * branch or index controlled by secret bytes. This is NOT a constant-time
- * guarantee: compiler output, OpenSSL internals, hardware, FFI and callers
- * require separate review. Inputs and output must not overlap.
+ * Lengths/pointers are public metadata. The branchless C11 Keccak engine has no
+ * source-level branch or table lookup controlled by secret bytes. This is NOT an
+ * unconditional constant-time certification: compiler output, hardware, FFI,
+ * and callers require ongoing review. Inputs and output must not overlap.
  */
 int psp_nullifier_v1(const uint8_t *coin_id, size_t coin_id_len,
                      const uint8_t *r_nf, size_t r_nf_len,

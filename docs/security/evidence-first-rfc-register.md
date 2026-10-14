@@ -103,9 +103,9 @@ No C function-pointer API is being introduced before the relation and authorizat
 
 ## RFC-04 rules
 
-- The current native code uses `OPENSSL_cleanse`; this is not a claim that every process copy is erased.
-- Prefer a verified platform API such as `memset_explicit` or `explicit_bzero` only after checking actual target availability and semantics. Do not silently treat a volatile-pointer loop as equivalent certification.
-- A disassembly script may report expected wipe call sites in the built wrapper. It cannot prove that every secret copy is cleared or inspect OpenSSL provider internals.
+- The native engine uses `psp_secure_zero` (volatile compiler memory-barrier scrubbing) and physical RAM locking (`VirtualLock`/`mlock`); this is defense-in-depth, not a claim that every process copy across all system layers is erased.
+- Prefer verified platform memory zeroing and physical locking (`VirtualLock` / `mlock`). Do not treat memory scrubbing as a substitute for constant-time cryptographic design.
+- The advisory disassembly script (`scripts/audit_disasm_bzero.sh`) verifies expected zeroization call sites in the built wrapper. It cannot prove that every secret copy is cleared across hardware registers or OS caches.
 - Welch's t-test / dudect-style timing output is a diagnostic for its test distribution, binary and host. `|t| < 4.5` is not proof of constant-time behavior. Shared-runner timing is non-blocking and must not be interpreted as a release certificate.
 
 ## CHp4.3 identity-invariant review
