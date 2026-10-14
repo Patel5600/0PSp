@@ -1,6 +1,6 @@
 # 0PSP Production Gate Matrix
 
-**Main baseline:** `b13368326b8a515b4efd762efb0d5ee1237060a3` (PR #48 test/source-placement correction merged 2026-10-14). CHp4.26 remains unmerged; its code-bearing commit `9c24eecc306475e2f5fa47485901197d519f6680` passed exact-head Functional Checks (473 tests) and Repository Integrity Watch. Each later commit still needs fresh checks.  
+**Main baseline:** `aea1e31a0a96994155445f6a663c743da0473f3f` (PR #32 / CHp4.26 local SQLite concurrency remediation merged 2026-10-14; PR #48 test/source-placement correction also merged as `b13368326b8a515b4efd762efb0d5ee1237060a3`). PR #32's final exact head `c5d81f27dff74224b72d926244666c0fb0759575` passed Functional Checks (475 tests) and Repository Integrity Watch before merge. Component-level local ledger behavior only; full protocol remains NO-GO.  
 **Current overall production status: NO-GO.**  
 **External cryptographic audit:** NOT PERFORMED, and deliberately tracked separately as requested. That does not convert missing implementation or proof obligations into GO.
 
