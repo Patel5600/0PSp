@@ -410,6 +410,55 @@ def test_schema_v1_migrates_anchor_history_and_preserves_state(tmp_path):
     reopened.audit_integrity()
 
 
+def test_schema_v1_migration_rebuilds_bounded_anchor_window(tmp_path, monkeypatch):
+    # Use a small test window to exercise truncation without duplicating the
+    # 256-transition expiry test or making CI perform hundreds of extra writes.
+    monkeypatch.setattr("src.protocol.sqlite_ledger.ANCHOR_WINDOW", 4)
+    path = tmp_path / "anchor-migration-window.sqlite3"
+
+    def authorize(evidence):
+        return DepositAuthorization(
+            NS, b"deposit-" + evidence, 10, ANCHOR, BENEFICIARY
+        )
+
+    ledger = make_ledger(
+        path,
+        authorizer=authorize,
+        issuance_verifier=lambda _statement, _proof: True,
+    )
+    for index in range(7):
+        ledger.issue(
+            deposit_evidence=f"migration-{index}".encode(),
+            commitment=(100_000 + index).to_bytes(48, "big"),
+            params_id=PARAMS,
+            proof=b"valid-issue",
+        )
+    before = ledger.snapshot()
+
+    # Simulate a v1 database with canonical transition records but no anchor table.
+    with sqlite3.connect(path) as conn:
+        conn.execute("DROP TABLE commitment_anchors")
+        conn.execute("UPDATE ledger_meta SET schema_version=1 WHERE singleton=1")
+
+    reopened = make_ledger(
+        path,
+        authorizer=authorize,
+        issuance_verifier=lambda _statement, _proof: True,
+    )
+    assert reopened.snapshot() == before
+
+    with sqlite3.connect(path) as conn:
+        rows = conn.execute(
+            "SELECT state_version,commitment_count FROM commitment_anchors "
+            "ORDER BY state_version"
+        ).fetchall()
+    expected_versions = list(range(before.state_version - 3, before.state_version + 1))
+    assert [version for version, _count in rows] == expected_versions
+    # This fixture appends exactly one commitment at every state version.
+    assert [count for _version, count in rows] == expected_versions
+    reopened.audit_integrity()
+
+
 def test_concurrent_issuance_consumes_deposit_once(tmp_path):
     path = tmp_path / "issue-race.sqlite3"
     ledger = make_ledger(path)
