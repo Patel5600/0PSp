@@ -134,6 +134,7 @@ def test_invalid_policy_is_rejected_before_running_checker(
         commitment_root=tx.commitment_root,
         input_nullifier=tx.input_nullifier,
         ledger_state_head=tx.ledger_state_head,
+        state_context_digest=tx.state_context_digest,
         authorization_policy_id=b"unexpected-policy",
         fee=tx.fee,
         output_entropy=tx.output_entropy,

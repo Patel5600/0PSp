@@ -59,6 +59,7 @@ from src.protocol.trusted_state_v3 import (
 )
 
 HASH_BYTES = 48
+TRANSACTION_DIGEST_BYTES = 64
 PROFILE_ID_BYTES = 32
 LEDGER_ID_BYTES = 16
 SQLITE_INDEX_MAX = (1 << 63) - 1
@@ -347,7 +348,7 @@ class SQLiteV3CandidateLedger:
                 """CREATE TABLE IF NOT EXISTS v3_spent_nullifiers (
                     namespace_id BLOB NOT NULL CHECK(length(namespace_id)=48),
                     nullifier BLOB NOT NULL CHECK(length(nullifier)=48),
-                    transaction_digest BLOB NOT NULL CHECK(length(transaction_digest)=48),
+                    transaction_digest BLOB NOT NULL CHECK(length(transaction_digest)=64),
                     transaction_fields BLOB NOT NULL,
                     proof_anchor_version INTEGER NOT NULL CHECK(proof_anchor_version>=0),
                     proof_root BLOB NOT NULL CHECK(length(proof_root)=48),

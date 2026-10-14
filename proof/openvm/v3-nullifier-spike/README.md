@@ -5,7 +5,7 @@
 - `V3 nullifier slice`: proves a canonical BundleV3 key-commitment opening, the CommitV3 opening, and the candidate HMAC-SHA3-384 NullifierV3 equation.
 - `one-input/one-output V3 spend candidate`: additionally enforces canonical TxFieldsV3Candidate bytes, the exact `0PSP-V3-NK-POSSESSION-CANDIDATE-v1` policy identifier, a depth-63 namespace-bound membership path against the transaction's root, an output identity derived from the consumed input's nullifier/commitment/witness plus the ordered output slot and entropy, the output's CommitV3 opening, and `input_value = output_value + fee` without u64 overflow.
 
-The spend profile is deliberately limited to one input and exactly one output. Its public result is a 32-byte digest of the canonical V3 candidate transaction digest. The input commitment and key remain witness data; they are not emitted as public output. The application proof is checked against the expected executable commitment and exact expected public digest.
+The spend profile is deliberately limited to one input and exactly one output. Candidate encoding revision v2 includes a 64-byte state-context digest derived from the authenticated adapter's source ID, exact finalized-anchor bytes, and finality-policy ID. Its public result is the full 64-byte SHAKE256-512 digest of the canonical V3 candidate statement. The guest reveals 16 indexed little-endian words; two calls to `reveal_bytes32` would overwrite the same first 32 output bytes. The input commitment and nullifier key remain witness data; they are not emitted as public output. The application proof is checked against the expected executable commitment and exact expected 64-byte public digest.
 
 ## What this establishes
 
@@ -13,7 +13,7 @@ CI now runs a valid fixture and adversarial mutations through the OpenVM guest, 
 
 ## Still not established
 
-- The transaction root/state head is not made trusted by the guest. An independently reviewed state-evidence adapter must authenticate a finalized root/head, and host acceptance must compare them byte-for-byte to the fields in the proven transaction.
+- The transaction root/state head is not made trusted by the guest. An independently reviewed state-evidence adapter must authenticate a finalized root/head and return its explicit finality-policy ID. Host acceptance recomputes the 64-byte state-context digest from the source ID, exact finalized-anchor bytes, and policy ID, then compares that digest along with namespace, params ID, root and state head before invoking the candidate proof verifier. The current local SQLite policy is explicitly nonfinal and cannot stand in for an external consensus trust source.
 - The guest has no durable atomic transition. Ledger acceptance must atomically consume the input nullifier and append the output commitment, reject duplicate commitments/nullifiers, and recover correctly across crash/reorg.
 - Only one output is supported by this proved profile. Issuance, multiple outputs, globally anchored identity uniqueness, and all asset/custody/deposit paths are outside it.
 - The NK-possession equation is the candidate core-spend authorization. It authenticates control of the bundled nullifier key, not that the bundle belongs to an intended payee. Any required payee/address authenticity needs an independent authenticated anchor.
