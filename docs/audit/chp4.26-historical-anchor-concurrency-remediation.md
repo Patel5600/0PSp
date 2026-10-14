@@ -1,6 +1,6 @@
 # CHp4.26 — Historical Anchor Window and Concurrent Spend Remediation
 
-**Status:** local SQLite remediation candidate on `fix/historical-anchor-concurrency-2026-10-13`; code-bearing commit `9c24eecc306475e2f5fa47485901197d519f6680` passed Functional Checks (473 tests) and Repository Integrity Watch. These checks cover only their tested software scope. Any subsequent code or documentation commit needs its own exact-head checks. PR #32 remains the review/status source.  
+**Status:** local SQLite remediation candidate on `fix/historical-anchor-concurrency-2026-10-13`; code-bearing commit `37e9412a7c7f8111ebee5a1fd707a463a24339df` passed Functional Checks (475 tests) and Repository Integrity Watch. This proves only the exercised local-ledger behavior. Any subsequent code or documentation commit needs fresh exact-head checks. PR #32 remains draft pending review.  
 **Scope:** SQLite state progression and the host/API anchor contract only.  
 **Production decision:** **NO-GO**. This change does not instantiate or prove the spend relation.
 
@@ -38,7 +38,7 @@ The issuance path also records the new state anchor in the same database transac
 
 The schema version advances from 1 to 2 with an additive `commitment_anchors` table. When upgrading a pre-anchor database, the implementation reconstructs the ring from its existing event and transition records. Table creation, schema-version change and anchor backfill run in one SQLite transaction so a process crash cannot commit a partially populated migration. A subsequent startup still runs `audit_integrity()` before accepting new transitions.
 
-The new `SQLiteLedger.spend_context(commitment)` operation obtains the current snapshot and the commitment's Merkle membership path in one read transaction. Wallet/prover callers should use it rather than reading a snapshot and path separately, which could otherwise mix data from two tree versions.
+The new `SQLiteLedger.spend_context(commitment)` operation obtains the current snapshot and the commitment's Merkle membership path in one read transaction. Wallet/prover callers should use it rather than reading a snapshot and path separately, which could otherwise mix data from two tree versions. `audit_integrity()` also uses one explicit read transaction across its reconciliation queries; otherwise a concurrent write could make separate SELECT statements observe different committed states and produce a false audit failure. Because this project uses rollback-journal mode, a long audit can delay a concurrent writer's commit. Target-ledger-scale audit latency has not been measured, so startup/maintenance contention remains an operational limit to test before production.
 
 ## 5. Regression coverage and exact-head CI evidence
 
@@ -50,9 +50,12 @@ The remediation branch adds or updates tests for:
 - rejection when the anchor has expired;
 - schema-v1 anchor-history migration with unchanged ledger snapshot;
 - atomic snapshot plus membership-path consistency;
+- concurrent first-open initialization, forcing two openers to race on schema/anchor-table detection;
+- an explicit assertion that integrity reconstruction runs inside one consistent SQLite read transaction;
+- rejection of a valid-length but tampered historical anchor root;
 - full integrity reconstruction after transitions.
 
-These are code-level state-machine tests, not a cryptographic proof. At code-bearing commit `9c24eecc306475e2f5fa47485901197d519f6680`, [Functional Checks run 38527806198](https://github.com/Patel5600/0PSp/actions/runs/38527806198) passed with `473 passed in 2.95s`; [Repository Integrity Watch run 38527806232](https://github.com/Patel5600/0PSp/actions/runs/38527806232) succeeded. The new anchor-tampering fixture uses a different 48-byte root (`bytes([0xFD]) * 48`), preserving the SQLite row-length constraint so `audit_integrity()` must detect a validly sized but incorrect anchor value. These results apply to that exact code-bearing SHA only; any subsequent commit needs fresh checks.
+These are code-level state-machine tests, not a cryptographic proof. At code-bearing commit `37e9412a7c7f8111ebee5a1fd707a463a24339df`, [Functional Checks run 38528642753](https://github.com/Patel5600/0PSp/actions/runs/38528642753) passed with `475 passed in 8.99s`; [Repository Integrity Watch run 38528642727](https://github.com/Patel5600/0PSp/actions/runs/38528642727) succeeded. The tests cover retained-anchor accept/expiry, concurrent spends, duplicate-nullifier race, schema-v1 migration, concurrent fresh initialization, single-snapshot audit and a valid-length corrupted anchor. Results apply to that exact code-bearing SHA only.
 
 ## 6. What this does not fix
 
@@ -62,7 +65,7 @@ This change addresses the stale-moving-head concurrency defect only. It does **n
 - **Composite STARK/FRI soundness:** the full bound must be derived for one pinned proof composition, field/extension, trace, FRI rate/query count, transcript, masking and quantum Fiat–Shamir model. A proof-of-work multiplier cannot be asserted by itself.
 - **OpenVM NOAUTH:** PR #31 is explicitly research-only. No production authorization, trusted root/finality binding, complete relation or end-to-end proof is established.
 - **Backend feasibility:** the dense SmallWood adapter memory model and unbuilt/unreviewed Aurora/libiop candidate remain NO-GO until an actual backend is pinned, built, constrained, adversarially tested and benchmarked.
-- **Issuance/custody/value binding, authorization, privacy, side-channel behavior, distributed consensus, reorg/backup/power-loss recovery and external review:** still open production gates.
+- **Issuance/custody/value binding, authorization, privacy, side-channel behavior, distributed consensus, reorg/backup/power-loss recovery and full internal composition review:** still open production gates. External cryptographic audit is intentionally deferred until after launch and is not a pre-launch gate.
 
 ## 7. Audit finding disposition
 
@@ -78,16 +81,17 @@ This change addresses the stale-moving-head concurrency defect only. It does **n
 
 ## 8. Release decision
 
-The SQLite candidate remains single-node persistence. The local event hash chain and anchor ring do not provide distributed consensus or external protection against a privileged actor rewriting the complete database. The full protocol remains **NO-GO** until the exact proof relation, recipient authorization policy, trusted deposit/custody adapter, anchor/finality contract and recovery model are instantiated and independently reviewed. External cryptographic audit remains **NOT PERFORMED**.
+The SQLite candidate remains single-node persistence. The local event hash chain and anchor ring do not provide distributed consensus or external protection against a privileged actor rewriting the complete database. The full protocol remains **NO-GO** until the exact proof relation, recipient authorization policy, trusted deposit/custody adapter, anchor/finality contract and recovery model are instantiated, exercised adversarially and internally reviewed with reproducible evidence. External cryptographic audit remains **NOT PERFORMED** and is a separate post-launch milestone, not a launch gate.
 
 
 ## 9. CI and evidence chronology — 2026-10-14
 
-The following failed and successful runs are preserved rather than hidden:
+Failed attempts are retained in the record; they are not rewritten as successes:
 
-- PR #32 head `ac6b4908622aa12d124c1a968e511e388da0ed08` had Functional Checks [run 38526541253](https://github.com/Patel5600/0PSp/actions/runs/38526541253) fail during pytest collection because `tests/adversarial/test_transfer_identity_v3_candidate.py` imported V3 candidate modules absent from the base branch. Repository Integrity Watch [run 38526541334](https://github.com/Patel5600/0PSp/actions/runs/38526541334) passed. The failure was test/source placement, not a demonstrated defect in the SQLite remediation.
-- PR #48 removed that orphaned test from `main` and was merged as `b13368326b8a515b4efd762efb0d5ee1237060a3`. The same test was added alongside its implementation to draft PR #10; at its exact head, [Functional Checks run 38527035073](https://github.com/Patel5600/0PSp/actions/runs/38527035073) passed 594 tests and [Repository Integrity Watch run 38527035065](https://github.com/Patel5600/0PSp/actions/runs/38527035065) succeeded.
-- The first anchor-ring regression version on PR #32 head `d811426ff341049f31256df79b58614743229fa8` failed because the test fixture supplied a wrong-length byte string, correctly rejected by the SQLite `CHECK(length(commitment_root) = 48)` constraint before the audit was called. That was a **test-fixture defect**, not an audit success. It was corrected to use a 48-byte mutation.
-- The corrected code-bearing commit `9c24eecc306475e2f5fa47485901197d519f6680` then passed [Functional Checks run 38527806198](https://github.com/Patel5600/0PSp/actions/runs/38527806198) with 473 tests and [Repository Integrity Watch run 38527806232](https://github.com/Patel5600/0PSp/actions/runs/38527806232). The test explicitly corrupts the retained anchor root without violating the database's byte-length constraint and confirms reconstruction rejects it.
+- PR #32 head `ac6b4908622aa12d124c1a968e511e388da0ed08` had Functional Checks [run 38526541253](https://github.com/Patel5600/0PSp/actions/runs/38526541253) fail during pytest collection because a V3 candidate test imported implementation modules missing from the base branch. Repository Integrity Watch [run 38526541334](https://github.com/Patel5600/0PSp/actions/runs/38526541334) passed. This was a test/source placement defect, not evidence for or against the SQLite code.
+- PR #48 removed that orphaned test from `main` and merged as `b13368326b8a515b4efd762efb0d5ee1237060a3`. The test was added with the V3 candidate implementation on PR #10; its exact head passed [Functional Checks run 38527035073](https://github.com/Patel5600/0PSp/actions/runs/38527035073) with 594 tests and [Repository Integrity Watch run 38527035065](https://github.com/Patel5600/0PSp/actions/runs/38527035065). The separate OpenVM feasibility job remains non-production and must not be treated as the full spend relation.
+- The first anchor-ring tamper test on head `d811426ff341049f31256df79b58614743229fa8` failed because the test supplied a wrong-length byte string, correctly rejected by SQLite before the audit ran. That was a **test-fixture defect**, not a successful security check. The corrected 48-byte fixture at `9c24eecc306475e2f5fa47485901197d519f6680` passed [Functional Checks run 38527806198](https://github.com/Patel5600/0PSp/actions/runs/38527806198) with 473 tests and [Repository Integrity Watch run 38527806232](https://github.com/Patel5600/0PSp/actions/runs/38527806232).
+- Strict follow-up review then found a TOCTOU in fresh schema initialization: the anchor-table existence query ran before `BEGIN IMMEDIATE`. The query was moved under the write lock, and a deterministic concurrent-first-open regression was added. Functional Checks [run 38528394760](https://github.com/Patel5600/0PSp/actions/runs/38528394760) passed 474 tests; Repository Integrity Watch [run 38528394756](https://github.com/Patel5600/0PSp/actions/runs/38528394756) succeeded.
+- Further review found that multi-query `audit_integrity()` did not pin a single read snapshot. The audit now runs in one read transaction and an invariant test checks that boundary. At code-bearing commit `37e9412a7c7f8111ebee5a1fd707a463a24339df`, [Functional Checks run 38528642753](https://github.com/Patel5600/0PSp/actions/runs/38528642753) passed `475 passed in 8.99s`; [Repository Integrity Watch run 38528642727](https://github.com/Patel5600/0PSp/actions/runs/38528642727) succeeded.
 
-CI evidence is commit-specific and proves only the behavior that the workflows execute. Documentation updates after this code-bearing commit require their own fresh CI; historical green runs must not be relabeled as results for a later SHA.
+All cited runs are tied to the exact code SHA just named. Any later commit needs its own checks. These are internal software-regression evidence only; they do not prove cryptographic soundness, complete proof enforcement, production authorization or launch readiness. External cryptographic audit is **NOT PERFORMED**, intentionally deferred, and not a pre-launch gate.
