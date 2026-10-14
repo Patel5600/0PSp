@@ -120,7 +120,7 @@ fn peak_rss_kib() -> Result<u64> {
     let line = status
         .lines()
         .find(|line| line.starts_with("VmHWM:"))
-        .context("Linux status file omitted VmHWM")?;
+        .ok_or_else(|| eyre::eyre!("Linux status file omitted VmHWM"))?;
     let kib = line
         .split_whitespace()
         .nth(1)
