@@ -79,3 +79,13 @@ This change addresses the stale-moving-head concurrency defect only. It does **n
 ## 8. Release decision
 
 The SQLite candidate remains single-node persistence. The local event hash chain and anchor ring do not provide distributed consensus or external protection against a privileged actor rewriting the complete database. The full protocol remains **NO-GO** until the exact proof relation, recipient authorization policy, trusted deposit/custody adapter, anchor/finality contract and recovery model are instantiated and independently reviewed. External cryptographic audit remains **NOT PERFORMED**.
+
+
+## Test-collection failure disposition — 2026-10-14
+
+The prior PR #32 Functional Checks run `38526541253` failed during test collection at `tests/adversarial/test_transfer_identity_v3_candidate.py`, because that candidate test imported V3 implementation files that were absent from the base branch's tree. This was a test/source placement mismatch; it was not evidence for or against the historical-anchor implementation.
+
+Resolution and evidence:
+- PR #48 removed the orphaned candidate test from the stable `main` test tree and was merged as `b13368326b8a515b4efd762efb0d5ee1237060a3`.
+- The same test was added to draft PR #10 with its V3 candidate implementation at `30e268100b09ad8fd6af0675d3c28bad9b9821d4`. That exact branch's Functional Checks collected the candidate test and passed: [run 38527035073](https://github.com/Patel5600/0PSp/actions/runs/38527035073), 594 tests passed. Repository Integrity Watch passed at [run 38527035065](https://github.com/Patel5600/0PSp/actions/runs/38527035065).
+- These are test-suite/branch-placement checks only. They do not prove the V3 candidate's production security, and they do not substitute for a fresh PR #32 run on the updated base. The current PR #32 head must still have successful exact-merge-ref Functional Checks and Repository Integrity Watch before review readiness is reconsidered.
