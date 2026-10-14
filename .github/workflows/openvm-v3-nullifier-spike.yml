@@ -63,7 +63,7 @@ jobs:
           elf="$(find target/riscv32im-risc0-zkvm-elf/release -maxdepth 1 -type f -executable -print -quit)"
           test -n "$elf"
           test -s "$elf"
-          printf '%s\\n' "$elf" > "$RUNNER_TEMP/v3-nullifier-guest-elf.path"
+          printf '%s\n' "$elf" > "$RUNNER_TEMP/v3-nullifier-guest-elf.path"
           echo "V3_SPIKE_GUEST_ELF_PATH=$elf"
 
       - name: Generate deterministic witness fixtures and assert public digest KAT
