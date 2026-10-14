@@ -1,6 +1,6 @@
 # CHp4.26 — Historical Anchor Window and Concurrent Spend Remediation
 
-**Status:** implementation candidate on `fix/historical-anchor-concurrency-2026-10-13`; exact-head CI is required and PR #32 is the current status source.  
+**Status:** local SQLite remediation candidate on `fix/historical-anchor-concurrency-2026-10-13`; code-bearing commit `9c24eecc306475e2f5fa47485901197d519f6680` passed Functional Checks (473 tests) and Repository Integrity Watch. These checks cover only their tested software scope. Any subsequent code or documentation commit needs its own exact-head checks. PR #32 remains the review/status source.  
 **Scope:** SQLite state progression and the host/API anchor contract only.  
 **Production decision:** **NO-GO**. This change does not instantiate or prove the spend relation.
 
@@ -40,7 +40,7 @@ The schema version advances from 1 to 2 with an additive `commitment_anchors` ta
 
 The new `SQLiteLedger.spend_context(commitment)` operation obtains the current snapshot and the commitment's Merkle membership path in one read transaction. Wallet/prover callers should use it rather than reading a snapshot and path separately, which could otherwise mix data from two tree versions.
 
-## 5. Regression evidence required
+## 5. Regression coverage and exact-head CI evidence
 
 The remediation branch adds or updates tests for:
 
@@ -52,7 +52,7 @@ The remediation branch adds or updates tests for:
 - atomic snapshot plus membership-path consistency;
 - full integrity reconstruction after transitions.
 
-These are code-level state-machine tests, not a cryptographic proof. Exact-head CI must pass before merge; the workflow result applies only to the exact commit shown in PR #32, and any subsequent commit requires fresh checks.
+These are code-level state-machine tests, not a cryptographic proof. At code-bearing commit `9c24eecc306475e2f5fa47485901197d519f6680`, [Functional Checks run 38527806198](https://github.com/Patel5600/0PSp/actions/runs/38527806198) passed with `473 passed in 2.95s`; [Repository Integrity Watch run 38527806232](https://github.com/Patel5600/0PSp/actions/runs/38527806232) succeeded. The new anchor-tampering fixture uses a different 48-byte root (`bytes([0xFD]) * 48`), preserving the SQLite row-length constraint so `audit_integrity()` must detect a validly sized but incorrect anchor value. These results apply to that exact code-bearing SHA only; any subsequent commit needs fresh checks.
 
 ## 6. What this does not fix
 
@@ -81,11 +81,13 @@ This change addresses the stale-moving-head concurrency defect only. It does **n
 The SQLite candidate remains single-node persistence. The local event hash chain and anchor ring do not provide distributed consensus or external protection against a privileged actor rewriting the complete database. The full protocol remains **NO-GO** until the exact proof relation, recipient authorization policy, trusted deposit/custody adapter, anchor/finality contract and recovery model are instantiated and independently reviewed. External cryptographic audit remains **NOT PERFORMED**.
 
 
-## Test-collection failure disposition — 2026-10-14
+## 9. CI and evidence chronology — 2026-10-14
 
-The prior PR #32 Functional Checks run `38526541253` failed during test collection at `tests/adversarial/test_transfer_identity_v3_candidate.py`, because that candidate test imported V3 implementation files that were absent from the base branch's tree. This was a test/source placement mismatch; it was not evidence for or against the historical-anchor implementation.
+The following failed and successful runs are preserved rather than hidden:
 
-Resolution and evidence:
-- PR #48 removed the orphaned candidate test from the stable `main` test tree and was merged as `b13368326b8a515b4efd762efb0d5ee1237060a3`.
-- The same test was added to draft PR #10 with its V3 candidate implementation at `30e268100b09ad8fd6af0675d3c28bad9b9821d4`. That exact branch's Functional Checks collected the candidate test and passed: [run 38527035073](https://github.com/Patel5600/0PSp/actions/runs/38527035073), 594 tests passed. Repository Integrity Watch passed at [run 38527035065](https://github.com/Patel5600/0PSp/actions/runs/38527035065).
-- These are test-suite/branch-placement checks only. They do not prove the V3 candidate's production security, and they do not substitute for a fresh PR #32 run on the updated base. The current PR #32 head must still have successful exact-merge-ref Functional Checks and Repository Integrity Watch before review readiness is reconsidered.
+- PR #32 head `ac6b4908622aa12d124c1a968e511e388da0ed08` had Functional Checks [run 38526541253](https://github.com/Patel5600/0PSp/actions/runs/38526541253) fail during pytest collection because `tests/adversarial/test_transfer_identity_v3_candidate.py` imported V3 candidate modules absent from the base branch. Repository Integrity Watch [run 38526541334](https://github.com/Patel5600/0PSp/actions/runs/38526541334) passed. The failure was test/source placement, not a demonstrated defect in the SQLite remediation.
+- PR #48 removed that orphaned test from `main` and was merged as `b13368326b8a515b4efd762efb0d5ee1237060a3`. The same test was added alongside its implementation to draft PR #10; at its exact head, [Functional Checks run 38527035073](https://github.com/Patel5600/0PSp/actions/runs/38527035073) passed 594 tests and [Repository Integrity Watch run 38527035065](https://github.com/Patel5600/0PSp/actions/runs/38527035065) succeeded.
+- The first anchor-ring regression version on PR #32 head `d811426ff341049f31256df79b58614743229fa8` failed because the test fixture supplied a wrong-length byte string, correctly rejected by the SQLite `CHECK(length(commitment_root) = 48)` constraint before the audit was called. That was a **test-fixture defect**, not an audit success. It was corrected to use a 48-byte mutation.
+- The corrected code-bearing commit `9c24eecc306475e2f5fa47485901197d519f6680` then passed [Functional Checks run 38527806198](https://github.com/Patel5600/0PSp/actions/runs/38527806198) with 473 tests and [Repository Integrity Watch run 38527806232](https://github.com/Patel5600/0PSp/actions/runs/38527806232). The test explicitly corrupts the retained anchor root without violating the database's byte-length constraint and confirms reconstruction rejects it.
+
+CI evidence is commit-specific and proves only the behavior that the workflows execute. Documentation updates after this code-bearing commit require their own fresh CI; historical green runs must not be relabeled as results for a later SHA.
