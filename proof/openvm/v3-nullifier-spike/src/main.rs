@@ -10,11 +10,11 @@ fn main() {
     }
     .expect("V3 nullifier/spend candidate relation rejected its witness");
 
-    // reveal_u32's second argument is a BYTE OFFSET, not a word index.
-    // Write all 16 little-endian words at offsets 0, 4, ..., 60 so the
-    // 64-byte statement digest is contiguous and no words overlap.
+    // The high-level openvm::io::reveal_u32 API takes a WORD INDEX and
+    // multiplies it by four internally. Writing indexes 0..15 therefore emits
+    // the contiguous digest at byte offsets 0, 4, ..., 60.
     for (index, chunk) in public_statement_digest.chunks_exact(4).enumerate() {
         let word = u32::from_le_bytes(chunk.try_into().expect("four-byte digest chunk"));
-        reveal_u32(word, index * 4);
+        reveal_u32(word, index);
     }
 }

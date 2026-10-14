@@ -54,10 +54,10 @@ fn input_from_witness(path: &Path) -> Result<StdIn> {
     if bytes.is_empty() {
         bail!("witness fixture is empty: {}", path.display());
     }
-    let mut stdin = StdIn::default();
-    // read_vec() in the guest expects a serde-encoded Vec<u8>, including its length.
-    stdin.write(&bytes);
-    Ok(stdin)
+    // read_vec() reads a u32 byte length followed by the raw bytes from one
+    // hint stream. StdIn::write_bytes creates that byte-oriented stream; write()
+    // would serde-encode Vec<u8> into a different format and corrupt the magic.
+    Ok(StdIn::from_bytes(&bytes))
 }
 
 fn as_public_bytes(values: &[openvm_sdk::F]) -> Result<Vec<u8>> {
