@@ -1,6 +1,6 @@
 # 0PSP Production Gate Matrix
 
-**Maintained against:** main at `ccb56a9c3dcbb8f87fc1d45f6d7381063ba4ecbd` (CHp4.22 SmallWood adapter scaling audit merged 2026-10-13).  
+**Maintained against:** audit/pr10-issue34-remediation at `f44fba9` (PR #30 smoke harness & cross-platform stability consolidated 2026-10-14).  
 **Current overall production status: NO-GO.**  
 **External cryptographic audit:** NOT PERFORMED, and deliberately tracked separately as requested. That does not convert missing implementation or proof obligations into GO.
 

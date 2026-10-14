@@ -4,9 +4,13 @@
 
 0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization and one post-quantum zero-knowledge proof over the complete spend relation. This repository currently implements hash/encoding components and test models. It does **not** yet implement a live minting ledger, a production threshold-authorization adapter, or the end-to-end proof.
 
-## Current security gate (2026-10-13; CHp4.25 namespace smoke harness and CHp4.7 identity candidate reviewed)
+## Current security gate (2026-10-14; PR #30 namespace smoke consolidated, 5-pillar adversarial suite integrated, Binius64 feasibility evaluated)
 
-**Complete protocol: NO-GO.** CHp4.25 adds a fail-closed exact-height Mainnet smoke harness, but no intended-deployment smoke has run because the independently approved deployment manifest/trust pins are missing. CHp4.7 adds V3 identity/nullifier reference candidates, but no complete proof relation or production enforcement is integrated. The repository does not activate production minting or establish external audit status.
+**Complete protocol: NO-GO.** The internal test harness achieves 100% green execution across Linux WSL (611 passed, 8 skipped, 0 failures) and Windows 11 (617 passed, 9 skipped, 0 failures), with 30 differential tests passing against independent reference implementations. However, production release remains strictly **NO-GO** because:
+1. **Zero-Knowledge Prover Trace Privacy:** OpenVM v2.0.2 STARK baseline does not randomize intermediate wire traces; application-level statement non-leakage is proven, but proof-level witness hiding requires an audited ZK masking layer.
+2. **128-Bit Post-Quantum Soundness:** The 23-round sumcheck bound is demonstrated at $\epsilon \le 2^{-122.48}$, below the 128-bit PQ target, and 97-round Fiat-Shamir simulation under DFM20 is vacuous under standard NIST query bounds.
+3. **Independent External Audit:** No internal battery, regardless of rigor, substitutes for an independent external audit prior to mainnet financial value.
+4. **Authorized Trust Pins:** Mainnet light-client deployment trust pins remain unapproved.
 
 Canonical review tracker: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), plus the [binary Production Gate Matrix](docs/security/production-gate-matrix.md). Every mandatory gate is explicitly GO or NO-GO; the complete protocol remains NO-GO until each mandatory gate is evidenced closed.
 - [RFC-01: user-committed issuance](docs/security/rfc-01-user-committed-issuance.md) is blocked on a proof/verified mechanism binding the hidden commitment opening to the deposited public value and on a durable ledger.
