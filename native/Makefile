@@ -22,7 +22,7 @@ TEST_KECCAK_KAT_BIN := $(BUILD_DIR)/test_keccak_kat
 TEST_V3_BIN := $(BUILD_DIR)/test_v3_primitives
 TIMING_V3_BIN := $(BUILD_DIR)/timing_probe_v3_native
 
-NATIVE_V3_SRCS := keccak_f1600.c random.c namespace_v3.c nullifier_v2.c nullifier_v3.c coin_commitment_v2.c coin_commitment_v3.c merkle_tree_v3.c
+NATIVE_V3_SRCS := keccak_f1600.c random.c nullifier_v1.c namespace_v3.c nullifier_v2.c nullifier_v3.c coin_commitment_v2.c coin_commitment_v3.c merkle_tree_v3.c
 
 .PHONY: all test test-v3 audit timing timing-v2 timing-v3 clean
 all: $(LIB) $(LIB_V3)

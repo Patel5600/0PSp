@@ -83,13 +83,10 @@ Run locally:
 
 ## Build and verification
 
-Requirements: Python 3.11+, C compiler, OpenSSL development headers and binutils.
+Requirements: Python 3.11+, C compiler (GCC, Clang, or MSVC), and binutils. OpenSSL development headers are no longer required (zero-dependency C11 Keccak-f[1600] and OS CSPRNG built-in; see [native/README.md](native/README.md)).
 
     python -m pip install -e ".[dev]"
-    make -C native clean test
-    make -C native sanitize-test
-    make -C native audit
-    export PSP_NULLIFIER_LIBRARY="$PWD/native/build/libpsp_nullifier.so"
+    make -C native test
     python -m pytest tests/ -q
 
 To run the V2 timing screen locally, use a quiet machine and the release compiler flags:
