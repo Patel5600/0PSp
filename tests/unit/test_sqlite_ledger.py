@@ -628,7 +628,7 @@ def test_integrity_audit_rejects_tampered_historical_anchor_ring(tmp_path):
     with sqlite3.connect(path) as conn:
         conn.execute(
             "UPDATE commitment_anchors SET commitment_root=? WHERE state_version=1",
-            (b"\\xfd" * 48,),
+            (bytes([0xFD]) * 48,),
         )
 
     with pytest.raises(
