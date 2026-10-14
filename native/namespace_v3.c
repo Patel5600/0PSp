@@ -1,7 +1,5 @@
 #include "psp_namespace_v3.h"
-
-#include <openssl/crypto.h>
-#include <openssl/evp.h>
+#include "psp_keccak.h"
 
 static const uint8_t DOMAIN_NAMESPACE_V3[] = "0PSP-NAMESPACE-v3-SHAKE256";
 static const uint8_t VERSION_V3 = PSP_NAMESPACE_V3_VERSION;
@@ -25,16 +23,17 @@ int psp_namespace_v3_derive(
     const uint8_t *deployment_identity, size_t deployment_identity_len,
     const uint8_t *asset_identity, size_t asset_identity_len,
     uint8_t *out, size_t out_len) {
-    EVP_MD_CTX *ctx = NULL;
+    const uint8_t *parts[8];
+    size_t lengths[8];
     uint8_t ledger_len_le[4];
     uint8_t deployment_len_le[4];
     uint8_t asset_len_le[4];
-    int status = PSP_NULLIFIER_ERR_CRYPTO;
+    int status;
 
     if (out == NULL || out_len != PSP_NAMESPACE_V3_ID_BYTES) {
         return PSP_NULLIFIER_ERR_ARGUMENT;
     }
-    OPENSSL_cleanse(out, PSP_NAMESPACE_V3_ID_BYTES);
+    psp_secure_zero(out, PSP_NAMESPACE_V3_ID_BYTES);
 
     if (!valid_component(ledger_identity, ledger_identity_len) ||
         !valid_component(deployment_identity, deployment_identity_len) ||
@@ -46,32 +45,24 @@ int psp_namespace_v3_derive(
     encode_u32_le(deployment_identity_len, deployment_len_le);
     encode_u32_le(asset_identity_len, asset_len_le);
 
-    ctx = EVP_MD_CTX_new();
-    if (ctx == NULL) {
-        goto cleanup;
-    }
-    if (EVP_DigestInit_ex(ctx, EVP_shake256(), NULL) != 1 ||
-        EVP_DigestUpdate(ctx, DOMAIN_NAMESPACE_V3,
-                         sizeof(DOMAIN_NAMESPACE_V3) - 1u) != 1 ||
-        EVP_DigestUpdate(ctx, &VERSION_V3, sizeof(VERSION_V3)) != 1 ||
-        EVP_DigestUpdate(ctx, ledger_len_le, sizeof(ledger_len_le)) != 1 ||
-        EVP_DigestUpdate(ctx, ledger_identity, ledger_identity_len) != 1 ||
-        EVP_DigestUpdate(ctx, deployment_len_le, sizeof(deployment_len_le)) != 1 ||
-        EVP_DigestUpdate(ctx, deployment_identity, deployment_identity_len) != 1 ||
-        EVP_DigestUpdate(ctx, asset_len_le, sizeof(asset_len_le)) != 1 ||
-        EVP_DigestUpdate(ctx, asset_identity, asset_identity_len) != 1 ||
-        EVP_DigestFinalXOF(ctx, out, PSP_NAMESPACE_V3_ID_BYTES) != 1) {
-        goto cleanup;
-    }
-    status = PSP_NULLIFIER_OK;
+    parts[0] = DOMAIN_NAMESPACE_V3; lengths[0] = sizeof(DOMAIN_NAMESPACE_V3) - 1u;
+    parts[1] = &VERSION_V3; lengths[1] = sizeof(VERSION_V3);
+    parts[2] = ledger_len_le; lengths[2] = sizeof(ledger_len_le);
+    parts[3] = ledger_identity; lengths[3] = ledger_identity_len;
+    parts[4] = deployment_len_le; lengths[4] = sizeof(deployment_len_le);
+    parts[5] = deployment_identity; lengths[5] = deployment_identity_len;
+    parts[6] = asset_len_le; lengths[6] = sizeof(asset_len_le);
+    parts[7] = asset_identity; lengths[7] = asset_identity_len;
 
-cleanup:
-    EVP_MD_CTX_free(ctx);
-    OPENSSL_cleanse(ledger_len_le, sizeof(ledger_len_le));
-    OPENSSL_cleanse(deployment_len_le, sizeof(deployment_len_le));
-    OPENSSL_cleanse(asset_len_le, sizeof(asset_len_le));
-    if (status != PSP_NULLIFIER_OK) {
-        OPENSSL_cleanse(out, PSP_NAMESPACE_V3_ID_BYTES);
+    status = psp_shake256_parts(parts, lengths, 8u, out, PSP_NAMESPACE_V3_ID_BYTES);
+
+    psp_secure_zero(ledger_len_le, sizeof(ledger_len_le));
+    psp_secure_zero(deployment_len_le, sizeof(deployment_len_le));
+    psp_secure_zero(asset_len_le, sizeof(asset_len_le));
+
+    if (status != PSP_CRYPTO_OK) {
+        psp_secure_zero(out, PSP_NAMESPACE_V3_ID_BYTES);
+        return PSP_NULLIFIER_ERR_CRYPTO;
     }
-    return status;
+    return PSP_NULLIFIER_OK;
 }

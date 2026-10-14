@@ -1,7 +1,6 @@
 #include "psp_nullifier_v2.h"
 #include "psp_coin_commitment_v2.h"
-
-#include <openssl/crypto.h>
+#include "psp_keccak.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -151,8 +150,8 @@ int main(void) {
         psp_coin_id_v2_generate(generated_id_b, sizeof(generated_id_b)) != PSP_NULLIFIER_OK ||
         memcmp(generated_id_a, generated_id_b, sizeof(generated_id_a)) == 0) {
         fputs("FAIL: coin-ID RNG smoke check\n", stderr);
-        OPENSSL_cleanse(generated_id_a, sizeof(generated_id_a));
-        OPENSSL_cleanse(generated_id_b, sizeof(generated_id_b));
+        psp_secure_zero(generated_id_a, sizeof(generated_id_a));
+        psp_secure_zero(generated_id_b, sizeof(generated_id_b));
         return 1;
     }
 
@@ -160,8 +159,8 @@ int main(void) {
         psp_nullifier_v2_generate_secret(generated_secret_b, sizeof(generated_secret_b)) != PSP_NULLIFIER_OK ||
         memcmp(generated_secret_a, generated_secret_b, sizeof(generated_secret_a)) == 0) {
         fputs("FAIL: V2 nullifier-secret RNG smoke check\n", stderr);
-        OPENSSL_cleanse(generated_secret_a, sizeof(generated_secret_a));
-        OPENSSL_cleanse(generated_secret_b, sizeof(generated_secret_b));
+        psp_secure_zero(generated_secret_a, sizeof(generated_secret_a));
+        psp_secure_zero(generated_secret_b, sizeof(generated_secret_b));
         return 1;
     }
 
@@ -170,10 +169,10 @@ int main(void) {
         memcmp(salt_a, salt_b, sizeof(salt_a)) == 0 ||
         memcmp(salt_a, generated_secret_a, sizeof(salt_a)) == 0) {
         fputs("FAIL: V2 commitment-salt RNG smoke check\n", stderr);
-        OPENSSL_cleanse(salt_a, sizeof(salt_a));
-        OPENSSL_cleanse(salt_b, sizeof(salt_b));
-        OPENSSL_cleanse(generated_secret_a, sizeof(generated_secret_a));
-        OPENSSL_cleanse(generated_secret_b, sizeof(generated_secret_b));
+        psp_secure_zero(salt_a, sizeof(salt_a));
+        psp_secure_zero(salt_b, sizeof(salt_b));
+        psp_secure_zero(generated_secret_a, sizeof(generated_secret_a));
+        psp_secure_zero(generated_secret_b, sizeof(generated_secret_b));
         return 1;
     }
 
@@ -196,14 +195,14 @@ int main(void) {
         return 1;
     }
 
-    OPENSSL_cleanse(secret, sizeof(secret));
-    OPENSSL_cleanse(rho_commit, sizeof(rho_commit));
-    OPENSSL_cleanse(generated_id_a, sizeof(generated_id_a));
-    OPENSSL_cleanse(generated_id_b, sizeof(generated_id_b));
-    OPENSSL_cleanse(generated_secret_a, sizeof(generated_secret_a));
-    OPENSSL_cleanse(generated_secret_b, sizeof(generated_secret_b));
-    OPENSSL_cleanse(salt_a, sizeof(salt_a));
-    OPENSSL_cleanse(salt_b, sizeof(salt_b));
+    psp_secure_zero(secret, sizeof(secret));
+    psp_secure_zero(rho_commit, sizeof(rho_commit));
+    psp_secure_zero(generated_id_a, sizeof(generated_id_a));
+    psp_secure_zero(generated_id_b, sizeof(generated_id_b));
+    psp_secure_zero(generated_secret_a, sizeof(generated_secret_a));
+    psp_secure_zero(generated_secret_b, sizeof(generated_secret_b));
+    psp_secure_zero(salt_a, sizeof(salt_a));
+    psp_secure_zero(salt_b, sizeof(salt_b));
     puts("PASS: namespace, commitment and nullifier V2 vectors, domain separation, independent secret/salt RNG smoke checks");
     puts("LIMIT: duplicate mint prevention must be atomic in ledger state; tests do not prove security");
     return 0;

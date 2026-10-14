@@ -1,6 +1,6 @@
 #include "psp_namespace_v3.h"
+#include "psp_keccak.h"
 
-#include <openssl/crypto.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -78,10 +78,10 @@ static size_t build_evm_descriptors(
     memset(asset + offset, 0, 8u);
     asset[offset + 7u] = asset_epoch;
 
-    OPENSSL_cleanse(chain_id, sizeof(chain_id));
-    OPENSSL_cleanse(genesis_hash, sizeof(genesis_hash));
-    OPENSSL_cleanse(protocol_address, sizeof(protocol_address));
-    OPENSSL_cleanse(asset_address, sizeof(asset_address));
+    psp_secure_zero(chain_id, sizeof(chain_id));
+    psp_secure_zero(genesis_hash, sizeof(genesis_hash));
+    psp_secure_zero(protocol_address, sizeof(protocol_address));
+    psp_secure_zero(asset_address, sizeof(asset_address));
     return 1u;
 }
 
@@ -146,8 +146,8 @@ int main(void) {
         return 1;
     }
 
-    OPENSSL_cleanse(out, sizeof(out));
-    OPENSSL_cleanse(changed, sizeof(changed));
+    psp_secure_zero(out, sizeof(out));
+    psp_secure_zero(changed, sizeof(changed));
     puts("PASS: Namespace V3 direct SHAKE256-384 vector, deterministic mapping, deployment separation and fail-closed bounds");
     puts("LIMIT: this proves implementation behavior for test vectors, not hash injectivity or RPC consensus");
     return 0;
