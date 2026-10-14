@@ -30,7 +30,7 @@ extract_function() {
     ' "$disasm"
 }
 
-# These entry points currently contain explicit OPENSSL_cleanse calls.
+# These entry points currently contain explicit psp_secure_zero / cleansing calls.
 # If source/compiler/linker changes alter this shape, investigate manually rather
 # than treating this script's output as a universal zeroization guarantee.
 symbols=(
@@ -48,8 +48,8 @@ for symbol in "${symbols[@]}"; do
         failures=$((failures + 1))
         continue
     fi
-    if grep -Eiq 'OPENSSL_cleanse|explicit_bzero|memset_explicit|memset_s' <<<"$body"; then
-        hits="$(grep -Eio 'OPENSSL_cleanse|explicit_bzero|memset_explicit|memset_s' <<<"$body" | sort -u | paste -sd ',' -)"
+    if grep -Eiq 'psp_secure_zero|OPENSSL_cleanse|explicit_bzero|memset_explicit|memset_s' <<<"$body"; then
+        hits="$(grep -Eio 'psp_secure_zero|OPENSSL_cleanse|explicit_bzero|memset_explicit|memset_s' <<<"$body" | sort -u | paste -sd ',' -)"
         printf 'OBSERVED: %s references %s\n' "$symbol" "$hits"
     else
         printf 'WARN: no recognized cleansing symbol visible in %s\n' "$symbol" >&2

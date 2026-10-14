@@ -1,6 +1,5 @@
 #include "psp_nullifier_v1.h"
-
-#include <openssl/crypto.h>
+#include "psp_keccak.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -98,12 +97,12 @@ int main(void) {
     }
     if (memcmp(secret_a, secret_b, sizeof(secret_a)) == 0) {
         fputs("FAIL: identical consecutive random secret samples\n", stderr);
-        OPENSSL_cleanse(secret_a, sizeof(secret_a));
-        OPENSSL_cleanse(secret_b, sizeof(secret_b));
+        psp_secure_zero(secret_a, sizeof(secret_a));
+        psp_secure_zero(secret_b, sizeof(secret_b));
         return 1;
     }
-    OPENSSL_cleanse(secret_a, sizeof(secret_a));
-    OPENSSL_cleanse(secret_b, sizeof(secret_b));
+    psp_secure_zero(secret_a, sizeof(secret_a));
+    psp_secure_zero(secret_b, sizeof(secret_b));
 
     puts("PASS: native nullifier-v1 vectors, canonical lengths and RNG smoke check");
     puts("SECURITY LIMIT: functional tests are not a constant-time proof or crypto audit");

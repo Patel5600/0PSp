@@ -1,8 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 #include "psp_coin_commitment_v2.h"
+#include "psp_keccak.h"
 
 #include <math.h>
-#include <openssl/crypto.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -179,11 +179,11 @@ static int run_experiment(int control, int variant, unsigned repeat, double *t_o
 
 cleanup:
     if (random_values != NULL) {
-        OPENSSL_cleanse(random_values, SAMPLE_COUNT * sizeof(*random_values));
+        psp_secure_zero(random_values, SAMPLE_COUNT * sizeof(*random_values));
     }
-    OPENSSL_cleanse(secret, sizeof(secret));
-    OPENSSL_cleanse(salt, sizeof(salt));
-    OPENSSL_cleanse(output, sizeof(output));
+    psp_secure_zero(secret, sizeof(secret));
+    psp_secure_zero(salt, sizeof(salt));
+    psp_secure_zero(output, sizeof(output));
     free(random_values);
     free(classes);
     free(times_a);

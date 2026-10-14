@@ -1,8 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 #include "psp_nullifier_v2.h"
+#include "psp_keccak.h"
 
 #include <math.h>
-#include <openssl/crypto.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -154,10 +154,10 @@ static int run_experiment(int control, unsigned repeat, double *t_out) {
 
 cleanup:
     if (random_secrets != NULL) {
-        OPENSSL_cleanse(random_secrets, SAMPLE_COUNT * sizeof(*random_secrets));
+        psp_secure_zero(random_secrets, SAMPLE_COUNT * sizeof(*random_secrets));
     }
-    OPENSSL_cleanse(secret, sizeof(secret));
-    OPENSSL_cleanse(output, sizeof(output));
+    psp_secure_zero(secret, sizeof(secret));
+    psp_secure_zero(output, sizeof(output));
     free(random_secrets);
     free(classes);
     free(times_a);
