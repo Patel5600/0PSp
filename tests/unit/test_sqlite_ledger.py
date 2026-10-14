@@ -610,3 +610,29 @@ def test_fresh_ledger_initializes_empty_state_and_audits_on_startup(tmp_path):
     assert ledger.issued_count() == 0
     assert ledger.spent_count() == 0
     ledger.audit_integrity()
+
+
+def test_integrity_audit_rejects_tampered_historical_anchor_ring(tmp_path):
+    path = tmp_path / "tamper-anchor-ring.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(
+        deposit_evidence=b"evidence",
+        commitment=C1,
+        params_id=PARAMS,
+        proof=b"valid-issue",
+    )
+    ledger.audit_integrity()
+
+    # The ledger metadata, event chain and Merkle tree remain untouched. Only
+    # the separately persisted historical-anchor table is corrupted.
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE commitment_anchors SET commitment_root=? WHERE state_version=1",
+            (b"\\xfd" * 48,),
+        )
+
+    with pytest.raises(
+        LedgerIntegrityError,
+        match="commitment anchor ring buffer differs from the reconstructed state history",
+    ):
+        ledger.audit_integrity()
