@@ -299,7 +299,7 @@ def main() -> int:
             NULLIFIER,
         )
     )
-    public_digest = hashlib.shake_256(public_statement).digest(32)
+    public_digest = hashlib.shake_256(public_statement).digest(64)
     expected_digest_kat = "82ec02fc6689a4c56038463a780a9d3e75d5075043645cdb754a4d9c73b21df665303861e54f2a07876f811f1fdb38f353f1572367db5fb4a36f27672983b5ee"
     if public_digest.hex() != expected_digest_kat:
         raise ValueError("public statement digest KAT mismatch")
