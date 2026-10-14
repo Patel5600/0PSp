@@ -65,12 +65,13 @@ SQLITE_INDEX_MAX = (1 << 63) - 1
 MAX_PROOF_BYTES = 2_000_000
 MAX_TX_BYTES = 1_000_000
 DEFAULT_ANCHOR_WINDOW = 256
+LOCAL_FINALITY_POLICY_ID = b"0PSP-SQLITE-V3-CANDIDATE-LOCAL-STATE-NONFINAL-v1"
 
 _EVENT_DOMAIN = b"0PSP-V3-CANDIDATE-LEDGER-EVENT-v1-SHAKE256"
 _STATE_DOMAIN = b"0PSP-V3-CANDIDATE-LEDGER-STATE-v1-SHAKE256"
 _SOURCE_DOMAIN = b"0PSP-SQLITE-V3-CANDIDATE-STATE-SOURCE-v1"
 _LOCAL_EVIDENCE_DOMAIN = b"0PSP-SQLITE-V3-CANDIDATE-LOCAL-STATE-EVIDENCE-v1"
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 class SQLiteV3CandidateLedgerError(ValueError):
@@ -525,6 +526,11 @@ class SQLiteV3CandidateLedger:
     def anchor_window(self) -> int:
         return self._anchor_window
 
+    @property
+    def finality_policy_id(self) -> bytes:
+        """Return the pinned local non-final candidate policy label."""
+        return LOCAL_FINALITY_POLICY_ID
+
     def _meta(self, conn: sqlite3.Connection) -> tuple[int, bytes, int, bytes]:
         row = conn.execute(
             "SELECT state_version,state_head,commitment_count,commitment_root "
@@ -614,6 +620,7 @@ class SQLiteV3CandidateLedger:
             return VerifiedStateSnapshotV3(
                 source_id=source_id,
                 finalized_anchor=anchor_payload,
+                finality_policy_id=LOCAL_FINALITY_POLICY_ID,
                 namespace_id=NamespaceIdV3(bytes(meta[0])),
                 params_id=bytes(meta[1]),
                 commitment_root=root,

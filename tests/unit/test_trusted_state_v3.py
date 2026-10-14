@@ -17,6 +17,7 @@ from src.protocol.trusted_state_v3 import (
 from src.protocol.transaction_v3_candidate import (
     V3_NK_POSSESSION_POLICY_CANDIDATE,
     TxFieldsV3Candidate,
+    state_context_digest_v3_candidate,
 )
 
 PARAMS = b"candidate-v3"
@@ -25,6 +26,7 @@ ROOT = b"\x02" * 48
 STATE_HEAD = b"\x03" * 48
 SOURCE = b"evm-mainnet"
 ANCHOR = b"finalized-block-hash-123"
+FINALITY_POLICY = b"fixture-finalized-state-policy-v1"
 EVIDENCE = StateAnchorEvidenceV3(
     source_id=SOURCE,
     finalized_anchor=ANCHOR,
@@ -39,6 +41,7 @@ def transaction(**overrides: object) -> TxFieldsV3Candidate:
         "commitment_root": ROOT,
         "input_nullifier": NullifierV3(b"\x04" * 48),
         "ledger_state_head": STATE_HEAD,
+        "state_context_digest": state_context_digest_v3_candidate(SOURCE, ANCHOR, FINALITY_POLICY),
         "authorization_policy_id": V3_NK_POSSESSION_POLICY_CANDIDATE,
         "fee": 9,
         "output_entropy": b"\x05" * 32,
@@ -56,6 +59,7 @@ def snapshot_for(tx: TxFieldsV3Candidate | None = None, **overrides: object) -> 
     fields: dict[str, object] = {
         "source_id": SOURCE,
         "finalized_anchor": ANCHOR,
+        "finality_policy_id": FINALITY_POLICY,
         "namespace_id": tx.namespace_id,
         "params_id": tx.params_id,
         "commitment_root": tx.commitment_root,
@@ -274,6 +278,19 @@ def test_unknown_authorization_policy_fails_before_state_or_proof_verifier() -> 
 
     assert state_calls == []
     assert proof_calls == []
+
+
+def test_state_context_digest_binds_source_anchor_and_finality_policy() -> None:
+    tx = transaction()
+    with pytest.raises(TrustedStateRejected, match="state_context_digest"):
+        validate_transaction_state_binding_v3(
+            replace(tx, state_context_digest=bytes([0xFF]) * 64),
+            EVIDENCE,
+            verifier_for(snapshot_for(tx)),
+        )
+    alternate_policy_snapshot = snapshot_for(tx, finality_policy_id=b"other-finality-policy-v1")
+    with pytest.raises(TrustedStateRejected, match="state_context_digest"):
+        validate_transaction_state_binding_v3(tx, EVIDENCE, verifier_for(alternate_policy_snapshot))
 
 
 def test_exact_nk_possession_policy_is_preserved_in_bound_transaction() -> None:

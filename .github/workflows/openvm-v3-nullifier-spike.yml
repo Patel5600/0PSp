@@ -64,7 +64,7 @@ jobs:
         run: |
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
           python3 scripts/make_witnesses.py "$fixture_dir"
-          test "$(cat "$fixture_dir/expected-public-digest.txt")" = "0e56393a40f9cb5480bce7830aaed68573f828953d1b711f10064893c62fde21"
+          test "$(cat "$fixture_dir/expected-public-digest.txt")" = "82ec02fc6689a4c56038463a780a9d3e75d5075043645cdb754a4d9c73b21df665303861e54f2a07876f811f1fdb38f353f1572367db5fb4a36f27672983b5ee"
 
       - name: Test proof-output checker and resolve its host-only dependency graph
         run: |

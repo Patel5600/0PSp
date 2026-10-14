@@ -29,12 +29,13 @@ from src.protocol.output_identity import derive_output_identity_v3_candidate
 from src.protocol.transaction_v3_candidate import (
     V3_NK_POSSESSION_POLICY_CANDIDATE,
     TxFieldsV3Candidate,
+    state_context_digest_v3_candidate,
     transaction_digest_v3_candidate,
 )
 
 # The first group remains the narrow nullifier-relation regression fixture.
 MAGIC = b"0PSP-OPENVM-V3-NULLIFIER-SPIKE-WITNESS-v1"
-PUBLIC_STATEMENT_DOMAIN = b"0PSP-OPENVM-V3-NULLIFIER-PUBLIC-STATEMENT"
+PUBLIC_STATEMENT_DOMAIN = b"0PSP-OPENVM-V3-NULLIFIER-PUBLIC-STATEMENT-v2"
 PARAMS_ID = b"v3-candidate-params"
 NAMESPACE_BYTES = bytes([0x11]) * 48
 COIN_ID_BYTES_VALUE = bytes([0x22]) * 32
@@ -66,12 +67,15 @@ EXPECTED_KEY_COMMITMENT = bytes.fromhex(
 )
 
 SPEND_MAGIC = b"0PSP-OPENVM-V3-SPEND-CANDIDATE-WITNESS-v1"
-SPEND_PUBLIC_DOMAIN = b"0PSP-OPENVM-V3-SPEND-PUBLIC-STATEMENT-CANDIDATE-v1"
+SPEND_PUBLIC_DOMAIN = b"0PSP-OPENVM-V3-SPEND-PUBLIC-STATEMENT-CANDIDATE-v2"
 SPEND_VALUE_IN = 500
 SPEND_FEE = 3
 SPEND_VALUE_OUT = 497
 SPEND_OUTPUT_ENTROPY = bytes([0x66]) * 32
 SPEND_STATE_HEAD = bytes([0x77]) * 48
+SPEND_STATE_SOURCE = b"openvm-ci-fixture-state-source"
+SPEND_FINALIZED_ANCHOR = b"openvm-ci-fixture-finalized-anchor-v1"
+SPEND_FINALITY_POLICY = b"nonprod-openvm-fixture-finality-v1"
 SPEND_INPUT_RHO = RHO_A
 SPEND_OUTPUT_RHO = bytes([0xB1]) * 36
 SPEND_OUTPUT_KEY = bytes([0x55]) * 48
@@ -166,6 +170,9 @@ def make_spend_context():
         commitment_root=tree.root,
         input_nullifier=input_nullifier,
         ledger_state_head=SPEND_STATE_HEAD,
+        state_context_digest=state_context_digest_v3_candidate(
+            SPEND_STATE_SOURCE, SPEND_FINALIZED_ANCHOR, SPEND_FINALITY_POLICY
+        ),
         authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE,
         fee=SPEND_FEE,
         output_entropy=SPEND_OUTPUT_ENTROPY,
@@ -252,7 +259,7 @@ def expected_spend_digest(tx: TxFieldsV3Candidate) -> bytes:
     tx_digest = transaction_digest_v3_candidate(tx)
     return hashlib.shake_256(
         SPEND_PUBLIC_DOMAIN + b"\x03" + tx_digest
-    ).digest(32)
+    ).digest(64)
 
 
 def write_case(output: Path, name: str, payload: bytes) -> None:
@@ -293,7 +300,7 @@ def main() -> int:
         )
     )
     public_digest = hashlib.shake_256(public_statement).digest(32)
-    expected_digest_kat = "0e56393a40f9cb5480bce7830aaed68573f828953d1b711f10064893c62fde21"
+    expected_digest_kat = "82ec02fc6689a4c56038463a780a9d3e75d5075043645cdb754a4d9c73b21df665303861e54f2a07876f811f1fdb38f353f1572367db5fb4a36f27672983b5ee"
     if public_digest.hex() != expected_digest_kat:
         raise ValueError("public statement digest KAT mismatch")
     (output / "expected-public-digest.txt").write_text(public_digest.hex() + "\n", encoding="ascii")

@@ -17,8 +17,11 @@ from src.protocol.note_public_key_bundle_v3 import (
     decode_note_public_key_bundle_v3,
 )
 
-TX_FIELDS_V3_CANDIDATE_DOMAIN = b"0PSP-TX-FIELDS-v3-CANDIDATE-SHAKE256"
-TX_DIGEST_V3_CANDIDATE_DOMAIN = b"0PSP-TX-DIGEST-v3-CANDIDATE-SHAKE256"
+TX_FIELDS_V3_CANDIDATE_DOMAIN = b"0PSP-TX-FIELDS-v3-CANDIDATE-v2-SHAKE256"
+TX_DIGEST_V3_CANDIDATE_DOMAIN = b"0PSP-TX-DIGEST-v3-CANDIDATE-v2-SHAKE256"
+STATE_CONTEXT_V3_CANDIDATE_DOMAIN = b"0PSP-V3-STATE-CONTEXT-CANDIDATE-v1-SHAKE256"
+STATE_CONTEXT_BYTES = 64
+MAX_FINALITY_POLICY_ID_BYTES = 128
 TX_V3_CANDIDATE_VERSION = b"\x03"
 HASH_BYTES = 48
 OUTPUT_ENTROPY_BYTES = 32
@@ -50,6 +53,20 @@ def _require_hash(value: object, field: str) -> bytes:
     return _require_bytes(value, field, min_len=HASH_BYTES, max_len=HASH_BYTES)
 
 
+def state_context_digest_v3_candidate(source_id: bytes, finalized_anchor: bytes, finality_policy_id: bytes) -> bytes:
+    """Bind a candidate statement to source, anchor and finality-policy identifiers."""
+    _require_bytes(source_id, "state source ID", min_len=1, max_len=128)
+    _require_bytes(finalized_anchor, "finalized anchor", min_len=1, max_len=256)
+    _require_bytes(finality_policy_id, "finality policy ID", min_len=1, max_len=MAX_FINALITY_POLICY_ID_BYTES)
+    preimage = b"".join((
+        STATE_CONTEXT_V3_CANDIDATE_DOMAIN, b"\x01",
+        len(source_id).to_bytes(2, "little"), source_id,
+        len(finalized_anchor).to_bytes(2, "little"), finalized_anchor,
+        len(finality_policy_id).to_bytes(2, "little"), finality_policy_id,
+    ))
+    return hashlib.shake_256(preimage).digest(STATE_CONTEXT_BYTES)
+
+
 @dataclass(frozen=True, slots=True)
 class TxFieldsV3Candidate:
     """Single-input candidate statement; output tuple order defines global slots.
@@ -66,6 +83,7 @@ class TxFieldsV3Candidate:
     commitment_root: bytes
     input_nullifier: NullifierV3
     ledger_state_head: bytes
+    state_context_digest: bytes
     authorization_policy_id: bytes
     fee: int
     output_entropy: bytes
@@ -79,6 +97,7 @@ class TxFieldsV3Candidate:
         if not isinstance(self.input_nullifier, NullifierV3):
             raise TransactionV3CandidateError("input_nullifier must be NullifierV3")
         _require_hash(self.ledger_state_head, "ledger_state_head")
+        _require_bytes(self.state_context_digest, "state_context_digest", min_len=STATE_CONTEXT_BYTES, max_len=STATE_CONTEXT_BYTES)
         _require_bytes(
             self.authorization_policy_id,
             "authorization_policy_id",
@@ -124,6 +143,7 @@ class TxFieldsV3Candidate:
                 self.commitment_root,
                 self.input_nullifier.value,
                 self.ledger_state_head,
+                self.state_context_digest,
                 len(self.authorization_policy_id).to_bytes(2, "little"),
                 self.authorization_policy_id,
                 self.fee.to_bytes(8, "little"),
@@ -183,6 +203,7 @@ def decode_tx_fields_v3_candidate(encoded: bytes) -> TxFieldsV3Candidate:
     commitment_root = reader.take(HASH_BYTES, "commitment_root")
     input_nullifier = NullifierV3(reader.take(HASH_BYTES, "input_nullifier"))
     ledger_state_head = reader.take(HASH_BYTES, "ledger_state_head")
+    state_context_digest = reader.take(STATE_CONTEXT_BYTES, "state_context_digest")
     policy_len = reader.u16_le("authorization_policy_id length")
     if not 1 <= policy_len <= 0xFFFF:
         raise TransactionV3CandidateError(
@@ -207,6 +228,7 @@ def decode_tx_fields_v3_candidate(encoded: bytes) -> TxFieldsV3Candidate:
         commitment_root=commitment_root,
         input_nullifier=input_nullifier,
         ledger_state_head=ledger_state_head,
+        state_context_digest=state_context_digest,
         authorization_policy_id=authorization_policy_id,
         fee=fee,
         output_entropy=output_entropy,
@@ -220,7 +242,7 @@ def decode_tx_fields_v3_candidate(encoded: bytes) -> TxFieldsV3Candidate:
 def transaction_digest_v3_candidate(
     statement_or_encoded: TxFieldsV3Candidate | bytes,
 ) -> bytes:
-    """Return the 48-byte domain-separated digest to be signed by candidate auth."""
+    """Return the 64-byte domain-separated candidate digest used in authorization binding."""
     if isinstance(statement_or_encoded, TxFieldsV3Candidate):
         fields = statement_or_encoded.encode()
     elif isinstance(statement_or_encoded, bytes):
@@ -236,7 +258,7 @@ def transaction_digest_v3_candidate(
         + len(fields).to_bytes(4, "little")
         + fields
     )
-    return hashlib.shake_256(preimage).digest(HASH_BYTES)
+    return hashlib.shake_256(preimage).digest(64)
 
 def authorization_input_v3_candidate(
     statement_or_encoded: TxFieldsV3Candidate | bytes,

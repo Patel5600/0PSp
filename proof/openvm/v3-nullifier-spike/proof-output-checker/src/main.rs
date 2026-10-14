@@ -30,8 +30,8 @@ fn parse_hex_file(path: &Path, expected_bytes: usize, label: &str) -> Result<Vec
 }
 
 fn exact_public_output(actual: &[u8], expected: &[u8]) -> Result<()> {
-    if expected.len() != 32 {
-        bail!("expected public statement digest must be exactly 32 bytes");
+    if expected.len() != 64 {
+        bail!("expected public statement digest must be exactly 64 bytes");
     }
     if actual.len() != expected.len() {
         bail!(
@@ -66,7 +66,7 @@ fn main() -> Result<()> {
         parse_hex_file(expected_exe_path, 32, "expected app executable commitment")?
             .try_into()
             .expect("width checked");
-    let expected_digest = parse_hex_file(expected_digest_path, 32, "expected public digest")?;
+    let expected_digest = parse_hex_file(expected_digest_path, 64, "expected public digest")?;
 
     let app_vk: AppVerifyingKey =
         read_object_from_file(vk_path).with_context(|| format!("reading {}", vk_path.display()))?;
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
     }
     exact_public_output(&actual, &expected_digest)?;
     println!(
-        "PASS: OpenVM app proof verifies for executable {} and exposes exactly the expected 32-byte public digest {}",
+        "PASS: OpenVM app proof verifies for executable {} and exposes exactly the expected 64-byte public digest {}",
         hex::encode(expected_exe_bytes),
         hex::encode(expected_digest),
     );
@@ -115,21 +115,21 @@ mod tests {
     use super::exact_public_output;
 
     #[test]
-    fn exact_32_byte_public_output_is_accepted() {
-        let expected: Vec<u8> = (0..32).collect();
+    fn exact_64_byte_public_output_is_accepted() {
+        let expected: Vec<u8> = (0..64).collect();
         assert!(exact_public_output(&expected, &expected).is_ok());
     }
 
     #[test]
     fn appended_or_truncated_public_output_is_rejected() {
-        let expected: Vec<u8> = (0..32).collect();
+        let expected: Vec<u8> = (0..64).collect();
         assert!(exact_public_output(&[expected.clone(), vec![0]].concat(), &expected).is_err());
         assert!(exact_public_output(&expected[..31], &expected).is_err());
     }
 
     #[test]
     fn mutated_public_output_is_rejected() {
-        let expected: Vec<u8> = (0..32).collect();
+        let expected: Vec<u8> = (0..64).collect();
         let mut actual = expected.clone();
         actual[0] ^= 1;
         assert!(exact_public_output(&actual, &expected).is_err());
@@ -137,6 +137,6 @@ mod tests {
 
     #[test]
     fn wrong_expected_digest_width_is_rejected() {
-        assert!(exact_public_output(&[0u8; 32], &[0u8; 31]).is_err());
+        assert!(exact_public_output(&[0u8; 64], &[0u8; 63]).is_err());
     }
 }

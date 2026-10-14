@@ -16,7 +16,7 @@ pub const NULLIFIER_DOMAIN_V3: &[u8] = b"0PSP-NULLIFIER-v3-HMAC-SHA3-384";
 pub const NULLIFIER_KEY_COMMITMENT_DOMAIN_V3: &[u8] =
     b"0PSP-NULLIFIER-KEY-COMMIT-v3-SHAKE256";
 pub const PUBLIC_STATEMENT_DOMAIN: &[u8] =
-    b"0PSP-OPENVM-V3-NULLIFIER-PUBLIC-STATEMENT";
+    b"0PSP-OPENVM-V3-NULLIFIER-PUBLIC-STATEMENT-v2";
 pub const HASH_BYTES: usize = 48;
 pub const KEY_BYTES: usize = 48;
 pub const COIN_ID_BYTES: usize = 32;
@@ -81,6 +81,46 @@ pub fn shake256_384(input: &[u8]) -> [u8; HASH_BYTES] {
         Update::update(&mut hasher, input);
         let mut reader = hasher.finalize_xof();
         let mut output = [0u8; HASH_BYTES];
+        reader.read(&mut output);
+        output
+    }
+}
+
+/// SHAKE256-512 using FIPS 202 domain byte 0x1f and rate 136 bytes.
+/// The full 64-byte candidate statement digest is exposed to the verifier.
+pub fn shake256_512(input: &[u8]) -> [u8; 64] {
+    #[cfg(target_os = "zkvm")]
+    {
+        use openvm_keccak256_guest::{native_keccakf, native_xorin};
+        let mut state = AlignedState([0u8; 200]);
+        let mut input_offset = 0usize;
+        let mut rate_offset = 0usize;
+        while input_offset < input.len() {
+            let take = min(SHAKE256_RATE - rate_offset, input.len() - input_offset);
+            // SAFETY: state is 200 bytes and 4-byte aligned; rate region is at least take bytes.
+            unsafe { native_xorin(state.0[rate_offset..].as_mut_ptr(), input[input_offset..].as_ptr(), take); }
+            rate_offset += take;
+            input_offset += take;
+            if rate_offset == SHAKE256_RATE {
+                // SAFETY: state has the size and alignment required by the extension.
+                unsafe { native_keccakf(state.0.as_mut_ptr()) };
+                rate_offset = 0;
+            }
+        }
+        state.0[rate_offset] ^= 0x1f;
+        state.0[SHAKE256_RATE - 1] ^= 0x80;
+        // SAFETY: state has the size and alignment required by the extension.
+        unsafe { native_keccakf(state.0.as_mut_ptr()) };
+        let mut output = [0u8; 64];
+        output.copy_from_slice(&state.0[..64]);
+        output
+    }
+    #[cfg(not(target_os = "zkvm"))]
+    {
+        let mut hasher = Shake256::default();
+        Update::update(&mut hasher, input);
+        let mut reader = hasher.finalize_xof();
+        let mut output = [0u8; 64];
         reader.read(&mut output);
         output
     }
@@ -342,7 +382,7 @@ fn nullifier_message_v3(
 ///
 /// The returned 32-byte digest is a small guest output. This spike does not
 /// authenticate the source of the statement or prove a full spend.
-pub fn verify_v3_nullifier_witness(witness: &[u8]) -> Result<[u8; 32], String> {
+pub fn verify_v3_nullifier_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     if witness.is_empty() || witness.len() > MAX_WITNESS_BYTES {
         return Err("witness length outside configured bounds".into());
     }
@@ -394,9 +434,7 @@ pub fn verify_v3_nullifier_witness(witness: &[u8]) -> Result<[u8; 32], String> {
     public_statement.extend_from_slice(&namespace);
     public_statement.extend_from_slice(&expected_commitment);
     public_statement.extend_from_slice(&expected_nullifier);
-    let full_digest = shake256_384(&public_statement);
-    let mut public_digest = [0u8; 32];
-    public_digest.copy_from_slice(&full_digest[..32]);
+    let public_digest = shake256_512(&public_statement);
     Ok(public_digest)
 }
 
@@ -517,7 +555,7 @@ mod tests {
         );
         assert_eq!(
             verify_v3_nullifier_witness(&valid_witness()).unwrap(),
-            fixed::<32>("0e56393a40f9cb5480bce7830aaed68573f828953d1b711f10064893c62fde21"),
+            fixed::<64>("82ec02fc6689a4c56038463a780a9d3e75d5075043645cdb754a4d9c73b21df665303861e54f2a07876f811f1fdb38f353f1572367db5fb4a36f27672983b5ee"),
         );
     }
 

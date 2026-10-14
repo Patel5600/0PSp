@@ -10,7 +10,7 @@ from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print("usage: check_public_output.py OPENVM_RUN_LOG EXPECTED_DIGEST_HEX", file=sys.stderr)
+        print("usage: check_public_output.py OPENVM_RUN_LOG EXPECTED_64_BYTE_DIGEST_HEX", file=sys.stderr)
         return 2
 
     log_path = Path(sys.argv[1])
@@ -34,11 +34,14 @@ def main() -> int:
         return 1
 
     expected_hex = expected_path.read_text(encoding="ascii").strip().lower()
-    if len(expected_hex) != 64 or not re.fullmatch(r"[0-9a-f]{64}", expected_hex):
-        print("expected public statement digest must be exactly 32 bytes (64 lowercase hex characters)", file=sys.stderr)
+    if len(expected_hex) != 128 or not re.fullmatch(r"[0-9a-f]{128}", expected_hex):
+        print("expected public statement digest must be exactly 64 bytes (128 lowercase hex characters)", file=sys.stderr)
         return 1
 
     expected = bytes.fromhex(expected_hex)
+    if len(actual) != 64:
+        print(f"OpenVM exposed {len(actual)} public bytes; expected exactly 64", file=sys.stderr)
+        return 1
     if len(actual) != len(expected):
         print(
             f"OpenVM exposed {len(actual)} public bytes; expected exactly {len(expected)}",
@@ -52,7 +55,7 @@ def main() -> int:
         )
         return 1
 
-    print(f"OpenVM public output matches exact 32-byte digest KAT: {expected.hex()}")
+    print(f"OpenVM public output matches exact 64-byte digest KAT: {expected.hex()}")
     return 0
 
 

@@ -80,10 +80,10 @@ def read_text(path: Path) -> str:
         fail(f"cannot read {path}: {exc}")
 
 
-def read_digest(path: Path, label: str) -> str:
+def read_digest(path: Path, label: str, expected_bytes: int = 32) -> str:
     value = read_text(path)
-    if not HEX_256_RE.fullmatch(value):
-        fail(f"{label} must contain exactly 64 lowercase hexadecimal characters")
+    if len(value) != expected_bytes * 2 or not re.fullmatch(r"[0-9a-f]+", value):
+        fail(f"{label} must contain exactly {expected_bytes} bytes of lowercase hexadecimal")
     return value
 
 
@@ -163,10 +163,10 @@ def build_manifest(fixture_dir: Path, checker_path: Path) -> dict[str, Any]:
         Path("expected-app-exe-commit.txt"), "OpenVM executable commitment"
     )
     app_public_digest = read_digest(
-        fixture_dir / "expected-public-digest.txt", "expected app public digest"
+        fixture_dir / "expected-public-digest.txt", "expected app public digest", expected_bytes=64
     )
     spend_public_digest = read_digest(
-        fixture_dir / "expected-spend-public-digest.txt", "expected spend public digest"
+        fixture_dir / "expected-spend-public-digest.txt", "expected spend public digest", expected_bytes=64
     )
     app_vk = require_file(Path("openvm/app.vk"))
     checker = require_file(checker_path.resolve())

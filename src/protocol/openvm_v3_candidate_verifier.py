@@ -24,11 +24,10 @@ from src.protocol.transaction_v3_candidate import (
 )
 
 PUBLIC_STATEMENT_DOMAIN_V3_SPEND_CANDIDATE = (
-    b"0PSP-OPENVM-V3-SPEND-PUBLIC-STATEMENT-CANDIDATE-v1"
+    b"0PSP-OPENVM-V3-SPEND-PUBLIC-STATEMENT-CANDIDATE-v2"
 )
-HASH_BYTES = 48
 APP_EXECUTABLE_COMMITMENT_BYTES = 32
-PUBLIC_DIGEST_BYTES = 32
+PUBLIC_DIGEST_BYTES = 64
 MAX_PROOF_BYTES = 2_000_000
 
 
@@ -66,7 +65,7 @@ def _regular_file_sha256(path: Path, *, executable: bool = False) -> bytes:
 
 
 def v3_spend_public_digest_candidate(statement: TxFieldsV3Candidate) -> bytes:
-    """Match the guest's public output: SHAKE256-384 preimage, truncated to 32 bytes."""
+    """Match the guest's full 64-byte, versioned public-statement digest."""
     if not isinstance(statement, TxFieldsV3Candidate):
         raise TypeError("statement must be TxFieldsV3Candidate")
     validate_nk_possession_policy_v3_candidate(statement)
@@ -80,7 +79,7 @@ def v3_spend_public_digest_candidate(statement: TxFieldsV3Candidate) -> bytes:
         + TX_V3_CANDIDATE_VERSION
         + tx_digest
     )
-    return hashlib.shake_256(preimage).digest(HASH_BYTES)[:PUBLIC_DIGEST_BYTES]
+    return hashlib.shake_256(preimage).digest(PUBLIC_DIGEST_BYTES)
 
 
 class OpenVMV3CandidateProofVerifier:

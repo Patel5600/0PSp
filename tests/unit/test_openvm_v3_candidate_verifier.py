@@ -31,6 +31,7 @@ def statement() -> TxFieldsV3Candidate:
         commitment_root=bytes([0x22]) * 48,
         input_nullifier=NullifierV3(bytes([0x33]) * 48),
         ledger_state_head=bytes([0x44]) * 48,
+        state_context_digest=bytes([0x77]) * 64,
         authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE,
         fee=7,
         output_entropy=bytes([0x55]) * 32,
@@ -60,7 +61,7 @@ def test_candidate_public_digest_matches_fixed_guest_vector() -> None:
     # Independently calculated from the frozen candidate TX_FIELDS/TX_DIGEST
     # domains and the guest's public-statement domain.
     assert v3_spend_public_digest_candidate(statement()).hex() == (
-        "95494296e82749971b1acb561f0c01a586c0290a0bd45115d0416e357418a14f"
+        "bc065015515112dd8a826a5009441c5148d87ecc2d53ca954df5e5572937167e624de15f69453d6f6400a01c67d84c81f69ccf6477f7f81d709e3b2dfb9ec488"
     )
 
 
@@ -77,7 +78,7 @@ def test_verifier_binds_proof_to_exact_executable_and_transaction_digest(
         assert Path(command[2]).read_bytes() == PROOF_BYTES
         assert Path(command[3]).read_text(encoding="ascii").strip() == APP_COMMITMENT.hex()
         assert Path(command[4]).read_text(encoding="ascii").strip() == (
-            "95494296e82749971b1acb561f0c01a586c0290a0bd45115d0416e357418a14f"
+            "bc065015515112dd8a826a5009441c5148d87ecc2d53ca954df5e5572937167e624de15f69453d6f6400a01c67d84c81f69ccf6477f7f81d709e3b2dfb9ec488"
         )
         return subprocess.CompletedProcess(command, 0, stdout="verified\n", stderr="")
 

@@ -30,6 +30,7 @@ NS = NamespaceIdV3(bytes([0x01]) * 48)
 ROOT = bytes([0x02]) * 48
 INPUT_NULLIFIER = NullifierV3(bytes([0x03]) * 48)
 STATE_HEAD = bytes([0x04]) * 48
+STATE_CONTEXT = bytes([0x08]) * 64
 POLICY = b"candidate-threshold-v1"
 OUTPUT_ENTROPY = bytes([0x05]) * 32
 OUTPUT_A = CoinCommitmentV3(bytes([0x06]) * 48)
@@ -43,6 +44,7 @@ def statement(**overrides: object) -> TxFieldsV3Candidate:
         "commitment_root": ROOT,
         "input_nullifier": INPUT_NULLIFIER,
         "ledger_state_head": STATE_HEAD,
+        "state_context_digest": STATE_CONTEXT,
         "authorization_policy_id": POLICY,
         "fee": 7,
         "output_entropy": OUTPUT_ENTROPY,
@@ -55,13 +57,13 @@ def statement(**overrides: object) -> TxFieldsV3Candidate:
 def test_v3_candidate_roundtrip_and_digest_known_answer() -> None:
     tx = statement()
     encoded = tx.encode()
-    assert len(encoded) == 407
+    assert len(encoded) == 474
     assert encoded.startswith(TX_FIELDS_V3_CANDIDATE_DOMAIN + b"\x03")
     assert decode_tx_fields_v3_candidate(encoded) == tx
     assert decode_tx_fields_v3_candidate(encoded).encode() == encoded
     expected_digest = (
-        "4653bd7615487423cf9f90e71bc09d7e2d1246d7aa4e82033d6ba4c909a67edef"
-        "2082c822064788a2c0249d6b2fbaaaa"
+        "b4a6e5c09c22194b2e79977f5fc6d8b675bd28fc9d7d6afa80520014ae188f47"
+        "29d1a9074484a6465b6d94d4a9aad95a766552985ba0c4f0939930628a7f6eac"
     )
     assert transaction_digest_v3_candidate(tx).hex() == expected_digest
     assert transaction_digest_v3_candidate(encoded) == transaction_digest_v3_candidate(tx)

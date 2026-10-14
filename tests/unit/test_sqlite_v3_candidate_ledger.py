@@ -19,6 +19,7 @@ from src.protocol.commitment_tree import CommitmentTree
 from src.protocol.transaction_v3_candidate import (
     V3_NK_POSSESSION_POLICY_CANDIDATE,
     TxFieldsV3Candidate,
+    state_context_digest_v3_candidate,
 )
 from src.protocol.trusted_state_v3 import (
     StateAnchorEvidenceV3,
@@ -40,6 +41,7 @@ BOOTSTRAP_COMMITMENTS = (b"\x31" * 48, b"\x32" * 48)
 BOOTSTRAP_HEAD = b"\x44" * 48
 SOURCE_ID = b"fixture-state-source"
 FINALIZED_ANCHOR = b"fixture-finalized-checkpoint"
+BOOTSTRAP_FINALITY_POLICY_ID = b"fixture-bootstrap-finality-policy-v1"
 EVIDENCE_BYTES = b"fixture-evidence-not-cryptographic"
 VALID_PROOF = b"test-double-accepts-this-proof"
 NULLIFIER_A = b"\x51" * 48
@@ -66,6 +68,7 @@ def make_environment(
     snapshot = VerifiedStateSnapshotV3(
         source_id=SOURCE_ID,
         finalized_anchor=FINALIZED_ANCHOR,
+        finality_policy_id=BOOTSTRAP_FINALITY_POLICY_ID,
         namespace_id=NAMESPACE,
         params_id=PARAMS_ID,
         commitment_root=tree.root,
@@ -110,6 +113,11 @@ def statement_for(
         commitment_root=current.commitment_root if root is None else root,
         input_nullifier=NullifierV3(nullifier),
         ledger_state_head=current.ledger_state_head if state_head is None else state_head,
+        state_context_digest=state_context_digest_v3_candidate(
+            (evidence := ledger.state_evidence_for_version(current.state_version)).source_id,
+            evidence.finalized_anchor,
+            ledger.finality_policy_id,
+        ),
         authorization_policy_id=policy,
         fee=0,
         output_entropy=b"\x71" * 32,
@@ -162,6 +170,7 @@ def test_bad_bootstrap_commitment_list_cannot_claim_authenticated_root(tmp_path)
     authenticated = VerifiedStateSnapshotV3(
         source_id=SOURCE_ID,
         finalized_anchor=FINALIZED_ANCHOR,
+        finality_policy_id=BOOTSTRAP_FINALITY_POLICY_ID,
         namespace_id=NAMESPACE,
         params_id=PARAMS_ID,
         commitment_root=ledger_root,

@@ -18,6 +18,7 @@ from src.protocol.transaction_v3_candidate import (
     decode_tx_fields_v3_candidate,
     transaction_digest_v3_candidate,
     validate_nk_possession_policy_v3_candidate,
+    state_context_digest_v3_candidate,
 )
 
 HASH_BYTES = 48
@@ -59,6 +60,7 @@ class VerifiedStateSnapshotV3:
 
     source_id: bytes
     finalized_anchor: bytes
+    finality_policy_id: bytes
     namespace_id: NamespaceIdV3
     params_id: bytes
     commitment_root: bytes
@@ -67,6 +69,7 @@ class VerifiedStateSnapshotV3:
     def __post_init__(self) -> None:
         _require_bytes("source_id", self.source_id, 1, MAX_SOURCE_ID_BYTES)
         _require_bytes("finalized_anchor", self.finalized_anchor, 1, MAX_FINALIZED_ANCHOR_BYTES)
+        _require_bytes("finality_policy_id", self.finality_policy_id, 1, 128)
         if not isinstance(self.namespace_id, NamespaceIdV3):
             raise TrustedStateRejected("verified snapshot namespace must be NamespaceIdV3")
         _require_bytes("params_id", self.params_id, 1, 0xFFFF)
@@ -160,6 +163,13 @@ def validate_transaction_state_binding_v3(
     ):
         raise TrustedStateRejected(
             "verified snapshot does not bind the exact supplied source/finalized anchor"
+        )
+    expected_context = state_context_digest_v3_candidate(
+        snapshot.source_id, snapshot.finalized_anchor, snapshot.finality_policy_id
+    )
+    if statement.state_context_digest != expected_context:
+        raise TrustedStateRejected(
+            "V3 transaction state_context_digest does not bind authenticated source, finalized anchor, and finality policy"
         )
 
     mismatches: list[str] = []

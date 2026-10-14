@@ -2,7 +2,8 @@
 
 **Decision:** adopt a recipient-keyed, versioned V3 nullifier candidate and anchor every output identity to a one-use creation anchor plus a canonical global output slot.  
 **Reference implementation:** V3 nullifier, recipient key bundle, V3 commitment and issuance/transfer identity candidates plus known-answer/adversarial tests. `generate_nullifier_deriving_key_v3()` now requests 48 bytes from the OS-backed CSPRNG; tests cover requested width, redacted repr, invalid output, and entropy-source failure.  
-**Proof/backend status:** NOT IMPLEMENTED.  
+**Candidate proof status:** OpenVM executes and proves two limited predicate slices; the complete production spend relation is **NOT IMPLEMENTED**.  
+**Public-output correction:** the old candidate exposed only 32 bytes from a 48-byte intermediate. Candidate revision v2 now binds a 64-byte state-context digest in canonical TxFieldsV3, computes SHAKE256-512 transaction/public-statement digests, and exposes the full 64-byte public statement through indexed OpenVM word output. The host adapter checks that exact width and value.  
 **Production:** **NO-GO**.  
 **Compatibility rule:** frozen V1/V2 functions and vectors are unchanged. V3 is additive and must not be silently treated as V2.
 
@@ -211,6 +212,14 @@ The sender may know the derivation inputs, including the output tuple, and still
 - Same tuple, different `nk` and distinct key-bundle commitments: different V3 nullifier inputs and different note identities. Global `coin_id` uniqueness is not a requirement.
 - Distinct identity derivation inputs: hashes can still collide. These functions are not mathematically injective. The joint identity collision bound must be analyzed under the actual adversarial and quantum-query model; no combined bit-strength claim is made here.
 - Equal V3 public nullifiers for distinct notes: the ledger must reject the later spend. That finite-output collision may still make the later note unspendable; it is a negligible-probability cryptographic risk only after the concrete construction is analyzed, not an impossible event.
+
+## 3.7 Candidate public-statement and trust-context binding (revision v2)
+
+The prior guest copied only 32 bytes from a 48-byte intermediate statement digest into its revealed output. The versioned v2 candidate rejects compatibility with that old candidate encoding: TxFieldsV3Candidate and the Rust guest use new domain labels, carry a 64-byte state_context_digest, derive a 64-byte SHAKE256 transaction digest and reveal the complete 64-byte public-statement digest. The OpenVM output checker rejects any width other than 64 bytes and compares every output byte with the host-derived value. Indexed reveal_u32 calls are required because reveal_bytes32 overwrites the first 32 output bytes on each call.
+
+state_context_digest_v3_candidate hashes the canonical source ID, exact finalized-anchor bytes and exact finality-policy ID. VerifiedStateSnapshotV3 must return the policy ID after its injected adapter verifies the evidence; the host acceptance boundary recomputes and compares the digest before proof verification. The local SQLite candidate policy is explicitly labeled non-final/non-consensus and cannot be used to claim trusted finality. The 64-byte digest raises the generic BHT-style collision-query scale for that digest to roughly 2^170.7 under an idealized random-oracle model. That estimate is not a complete composed post-quantum proof-system bound and does not establish zero knowledge, intended-payee authenticity, consensus finality or production readiness.
+
+The source changes affect the non-normative V3 candidate only. Frozen V1/V2 contracts and known-answer vectors are not changed. A V3 candidate protocol revision must be reviewed before any wire-contract freeze.
 
 ## 4. Required V3 proof relation
 
