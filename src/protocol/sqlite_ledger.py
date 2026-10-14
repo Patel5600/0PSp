@@ -2,10 +2,10 @@
 
 This is the persistence/state-transition layer, not a cryptographic verifier.
 It requires explicit deposit and proof-verifier dependencies, pins the namespace,
-parameter ID, policy ID and deployment profile, validates the append-only Merkle
-root plus state-chain head before spend verification, and rechecks both inside
-the write transaction before committing a spend. A test double must never be
-configured as a production verifier.
+parameter ID, policy ID and deployment profile. Spend proofs bind a retained
+historical commitment-root/state-head anchor; the anchor is rechecked atomically
+while outputs append to the latest state. A test double must never be configured
+as a production verifier.
 """
 from __future__ import annotations
 
@@ -29,7 +29,11 @@ from src.protocol.commitment_tree import (
     leaf_hash,
     node_hash,
 )
-from src.protocol.transaction_v2 import CanonicalTransactionError, validate_spend_statement_transaction
+from src.protocol.transaction_v2 import (
+    CanonicalTransactionError,
+    decode_spend_transaction_v2,
+    validate_spend_statement_transaction,
+)
 from src.protocol.reference_ledger import (
     AcceptedSpend,
     DepositAuthorization,
@@ -51,6 +55,8 @@ from src.protocol.reference_ledger import (
 
 U64_MAX = (1 << 64) - 1
 SQLITE_INDEX_MAX = (1 << 63) - 1
+LEDGER_SCHEMA_VERSION = 2
+ANCHOR_WINDOW = 256
 COMMITMENT_BYTES = 48
 NULLIFIER_BYTES = 48
 LEDGER_HEAD_BYTES = 48
@@ -66,7 +72,7 @@ class PersistentLedgerError(LedgerRejected):
 
 
 class StaleLedgerState(PersistentLedgerError):
-    """Proof references a state root/head that is no longer current."""
+    """Proof references an unknown or expired retained anchor."""
 
 
 class LedgerConfigurationMismatch(PersistentLedgerError):
@@ -113,6 +119,15 @@ class PersistentAcceptedSpend:
     state_version: int
     state_head: bytes
     commitment_root: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class PersistentSpendContext:
+    """Consistent state snapshot and membership witness for one spend proof."""
+
+    snapshot: PersistentLedgerSnapshot
+    commitment_index: int
+    merkle_siblings: tuple[bytes, ...]
 
 
 def _shake384(data: bytes) -> bytes:
@@ -201,8 +216,9 @@ class SQLiteLedger:
 
     Every issue/spend state transition is one SQLite IMMEDIATE transaction.
     Merkle commitments are append-only and ordered by insertion index. Spend
-    proofs must bind both the current commitment root and the current 48-byte
-    state-chain head; the values are rechecked after proof verification.
+    proofs bind a retained historical commitment root and the state-chain head
+    that was current when that root was published. The 256-state anchor window
+    is rechecked after proof verification; outputs append to the latest state.
     """
 
     def __init__(
@@ -272,7 +288,7 @@ class SQLiteLedger:
 
     def _expected_meta(self) -> tuple[object, ...]:
         return (
-            1, self._namespace.data, self._params_id, self._policy_id,
+            LEDGER_SCHEMA_VERSION, self._namespace.data, self._params_id, self._policy_id,
             self._profile_id, 0,
             _genesis_head(self._namespace, self._params_id, self._policy_id, self._profile_id),
             self._defaults[TREE_DEPTH],
@@ -281,6 +297,14 @@ class SQLiteLedger:
     def _ensure_schema(self) -> None:
         with closing(self._connect()) as conn:
             conn.execute("PRAGMA journal_mode = DELETE")
+            # Serialize schema observation with migrations/first initialization.
+            # Reading sqlite_master before this lock lets concurrent openers cache
+            # a stale "table missing" result and backfill genesis twice.
+            # Schema creation and anchor backfill remain one atomic transaction.
+            conn.execute("BEGIN IMMEDIATE")
+            anchor_table_existed = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='commitment_anchors'"
+            ).fetchone() is not None
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS ledger_meta (
                     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -360,6 +384,14 @@ class SQLiteLedger:
                     PRIMARY KEY(level, node_index)
                 )"""
             )
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS commitment_anchors (
+                    state_version INTEGER PRIMARY KEY CHECK(state_version >= 0),
+                    state_head BLOB NOT NULL CHECK(length(state_head) = 48),
+                    commitment_count INTEGER NOT NULL CHECK(commitment_count >= 0),
+                    commitment_root BLOB NOT NULL CHECK(length(commitment_root) = 48)
+                )"""
+            )
             row = conn.execute(
                 "SELECT schema_version, namespace_id, params_id, policy_id, profile_id, state_version, state_head, commitment_root "
                 "FROM ledger_meta WHERE singleton = 1"
@@ -373,10 +405,110 @@ class SQLiteLedger:
                 )
             else:
                 expected = self._expected_meta()
-                if tuple(row[:5]) != expected[:5]:
+                if tuple(row[1:5]) != expected[1:5]:
                     raise LedgerConfigurationMismatch(
                         "existing database metadata differs from the pinned namespace, parameter, policy or profile"
                     )
+                existing_schema = int(row[0])
+                if existing_schema == 1 and expected[0] == LEDGER_SCHEMA_VERSION:
+                    # The anchor table is additive. Its contents are reconstructed
+                    # below and then checked against the durable event/tree history.
+                    conn.execute(
+                        "UPDATE ledger_meta SET schema_version=? WHERE singleton=1",
+                        (LEDGER_SCHEMA_VERSION,),
+                    )
+                elif existing_schema != expected[0]:
+                    raise LedgerConfigurationMismatch("existing database schema version is unsupported")
+
+            if (
+                not anchor_table_existed
+                or conn.execute("SELECT 1 FROM commitment_anchors LIMIT 1").fetchone() is None
+            ):
+                # Empty is recoverable after an interrupted additive migration:
+                # canonical event/tree records are the source for rebuilding it.
+                # Non-empty corruption is left to audit_integrity() to reject.
+                self._backfill_anchor_history(conn)
+            conn.execute("COMMIT")
+
+    def _backfill_anchor_history(self, conn: sqlite3.Connection) -> None:
+        """Migrate a pre-anchor ledger by reconstructing snapshots from durable records."""
+        genesis_head = _genesis_head(
+            self._namespace, self._params_id, self._policy_id, self._profile_id
+        )
+        conn.execute(
+            "INSERT INTO commitment_anchors(state_version,state_head,commitment_count,commitment_root) "
+            "VALUES(0,?,?,?)",
+            (genesis_head, 0, self._defaults[TREE_DEPTH]),
+        )
+        transitions = conn.execute(
+            "SELECT e.state_version,e.new_head,i.commitment_root_after "
+            "FROM ledger_events e JOIN issuance_records i ON i.state_version=e.state_version "
+            "WHERE e.event_type='issue' "
+            "UNION ALL "
+            "SELECT e.state_version,e.new_head,s.commitment_root_after "
+            "FROM ledger_events e JOIN spent_nullifiers s ON s.state_version=e.state_version "
+            "WHERE e.event_type='spend' ORDER BY 1"
+        ).fetchall()
+        # Aggregate once instead of issuing a cumulative COUNT query for every
+        # historical state. The latter repeatedly scans an unindexed state_version
+        # column and can make schema migration quadratic in ledger history size.
+        counts_by_version = {
+            int(state_version): int(commitment_count)
+            for state_version, commitment_count in conn.execute(
+                "SELECT state_version, COUNT(*) FROM commitments GROUP BY state_version"
+            )
+        }
+        commitment_count = 0
+        for raw_version, raw_head, raw_root in transitions:
+            state_version = int(raw_version)
+            commitment_count += counts_by_version.get(state_version, 0)
+            conn.execute(
+                "INSERT INTO commitment_anchors(state_version,state_head,commitment_count,commitment_root) "
+                "VALUES(?,?,?,?)",
+                (state_version, bytes(raw_head), commitment_count, bytes(raw_root)),
+            )
+        current_version, _head, _count, _root = self._meta(conn)
+        first_retained = max(0, current_version - ANCHOR_WINDOW + 1)
+        conn.execute(
+            "DELETE FROM commitment_anchors WHERE state_version < ?",
+            (first_retained,),
+        )
+
+    def _record_anchor(
+        self,
+        conn: sqlite3.Connection,
+        state_version: int,
+        state_head: bytes,
+        commitment_count: int,
+        commitment_root: bytes,
+    ) -> None:
+        conn.execute(
+            "INSERT INTO commitment_anchors(state_version,state_head,commitment_count,commitment_root) "
+            "VALUES(?,?,?,?)",
+            (state_version, state_head, commitment_count, commitment_root),
+        )
+        first_retained = max(0, state_version - ANCHOR_WINDOW + 1)
+        conn.execute(
+            "DELETE FROM commitment_anchors WHERE state_version < ?",
+            (first_retained,),
+        )
+
+    def _find_anchor_version(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        state_head: bytes,
+        commitment_root: bytes,
+        current_state_version: int,
+    ) -> int | None:
+        first_retained = max(0, current_state_version - ANCHOR_WINDOW + 1)
+        row = conn.execute(
+            "SELECT state_version FROM commitment_anchors "
+            "WHERE state_head=? AND commitment_root=? AND state_version>=? AND state_version<=? "
+            "ORDER BY state_version DESC LIMIT 1",
+            (state_head, commitment_root, first_retained, current_state_version),
+        ).fetchone()
+        return None if row is None else int(row[0])
 
     def _meta(self, conn: sqlite3.Connection) -> tuple[int, bytes, int, bytes]:
         row = conn.execute(
@@ -536,6 +668,7 @@ class SQLiteLedger:
                 "UPDATE ledger_meta SET state_version=?, state_head=?, commitment_count=?, commitment_root=? WHERE singleton=1",
                 (next_version, new_head, count + 1, root),
             )
+            self._record_anchor(conn, next_version, new_head, count + 1, root)
             conn.execute("COMMIT")
             return PersistentIssuedRecord(
                 self._namespace, commitment, authorization.authorized_value,
@@ -592,9 +725,17 @@ class SQLiteLedger:
             raise InvalidInput(f"invalid canonical V2 transaction: {exc}") from None
 
         with closing(self._connect()) as conn:
-            version, previous_head, count, current_root = self._meta(conn)
-        if statement.ledger_state != previous_head or statement.commitment_root != current_root:
-            raise StaleLedgerState("spend proof does not bind the currently committed state head and commitment root")
+            version, _current_head, _count, _current_root = self._meta(conn)
+            anchor_version = self._find_anchor_version(
+                conn,
+                state_head=statement.ledger_state,
+                commitment_root=statement.commitment_root,
+                current_state_version=version,
+            )
+        if anchor_version is None:
+            raise StaleLedgerState(
+                "spend proof does not bind a retained commitment-root/state-head anchor"
+            )
         try:
             if self._verify_spend_proof(statement, proof) is not True:
                 raise ProofRejected("spend proof rejected")
@@ -607,8 +748,15 @@ class SQLiteLedger:
         try:
             conn.execute("BEGIN IMMEDIATE")
             version_now, previous_now, count_now, root_now = self._meta(conn)
-            if (version_now, previous_now, count_now, root_now) != (version, previous_head, count, current_root):
-                raise StaleLedgerState("ledger changed while spend proof was being verified")
+            if self._find_anchor_version(
+                conn,
+                state_head=statement.ledger_state,
+                commitment_root=statement.commitment_root,
+                current_state_version=version_now,
+            ) is None:
+                raise StaleLedgerState(
+                    "spend anchor expired while proof was being verified"
+                )
             if conn.execute(
                 "SELECT 1 FROM spent_nullifiers WHERE namespace_id=? AND nullifier=?",
                 (self._namespace.data, statement.nullifier),
@@ -652,6 +800,10 @@ class SQLiteLedger:
                 "UPDATE ledger_meta SET state_version=?, state_head=?, commitment_count=?, commitment_root=? WHERE singleton=1",
                 (next_version, new_head, count_now + len(statement.new_commitments), new_root),
             )
+            self._record_anchor(
+                conn, next_version, new_head,
+                count_now + len(statement.new_commitments), new_root,
+            )
             conn.execute("COMMIT")
             return PersistentAcceptedSpend(
                 self._namespace, statement.nullifier, statement.transaction_digest,
@@ -685,6 +837,42 @@ class SQLiteLedger:
                 siblings.append(self._node(conn, level, cursor ^ 1))
                 cursor >>= 1
             return index, tuple(siblings)
+
+    def spend_context(self, commitment: bytes) -> PersistentSpendContext:
+        """Atomically capture an anchor snapshot and membership path for a commitment.
+
+        Callers should use this instead of fetching snapshot() and membership_path()
+        separately, since a state transition between separate reads can pair a root
+        with a path reconstructed from a different tree state.
+        """
+        _require_bytes(commitment, "commitment", minimum=48, maximum=48)
+        conn = self._connect()
+        try:
+            conn.execute("BEGIN")
+            version, head, count, root = self._meta(conn)
+            row = conn.execute(
+                "SELECT commitment_index FROM commitments WHERE namespace_id=? AND commitment=?",
+                (self._namespace.data, commitment),
+            ).fetchone()
+            if row is None:
+                raise KeyError("commitment is not registered")
+            index = int(row[0])
+            siblings = []
+            cursor = index
+            for level in range(TREE_DEPTH):
+                siblings.append(self._node(conn, level, cursor ^ 1))
+                cursor >>= 1
+            snapshot = PersistentLedgerSnapshot(
+                self._namespace, version, head, count, root
+            )
+            conn.execute("COMMIT")
+            return PersistentSpendContext(snapshot, index, tuple(siblings))
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
 
     def snapshot(self) -> PersistentLedgerSnapshot:
         with closing(self._connect()) as conn:
@@ -744,6 +932,11 @@ class SQLiteLedger:
         database; use an external signed/anchored checkpoint for that threat model.
         """
         with closing(self._connect()) as conn:
+            # This audit spans multiple SELECT statements. isolation_level=None
+            # otherwise gives each statement its own snapshot, so a concurrent
+            # commit could make the audit compare records from different states.
+            # Use one read snapshot; a failure closes the connection and rolls it back.
+            conn.execute("BEGIN")
             # The database is single-namespace by design. Unexpected rows scoped to
             # another namespace are corruption, not harmless unrelated records.
             expected_namespace = self._namespace.data
@@ -784,6 +977,8 @@ class SQLiteLedger:
                 commitments_by_index[index] = (commitment, source_kind, source_id, row_version)
 
             roots_by_version: dict[int, bytes] = {0: tree.root}
+            counts_by_version: dict[int, int] = {0: 0}
+            cumulative_count = 0
             for state_version in range(1, version + 1):
                 entries = commitments_by_version.get(state_version)
                 if not entries:
@@ -793,7 +988,9 @@ class SQLiteLedger:
                 for commitment, index, _kind, _source_id in entries:
                     if tree.append(commitment) != index:
                         raise LedgerIntegrityError("reconstructed tree index differs from the persisted append index")
+                cumulative_count += len(entries)
                 roots_by_version[state_version] = tree.root
+                counts_by_version[state_version] = cumulative_count
             if set(commitments_by_version) != set(range(1, version + 1)):
                 raise LedgerIntegrityError("commitment rows refer to missing or unexpected state versions")
             if rebuild_merkle_root and tree.root != root:
@@ -852,6 +1049,7 @@ class SQLiteLedger:
             expected_head = _genesis_head(
                 self._namespace, self._params_id, self._policy_id, self._profile_id
             )
+            state_heads_by_version: dict[int, bytes] = {0: expected_head}
             for expected_version, event in enumerate(event_rows, start=1):
                 event_version, event_type, event_id, event_payload, event_digest, previous, new = event
                 event_version = int(event_version)
@@ -928,6 +1126,37 @@ class SQLiteLedger:
                     outputs = tuple(entry[0] for entry in entries)
                     if any(entry[2] != "spend" or entry[3] != nullifier for entry in entries):
                         raise LedgerIntegrityError("spend outputs do not match their source nullifier")
+                    try:
+                        transaction = decode_spend_transaction_v2(transaction_fields)
+                    except (CanonicalTransactionError, TypeError, ValueError):
+                        raise LedgerIntegrityError(
+                            "persisted spend contains invalid canonical transaction fields"
+                        ) from None
+                    if (
+                        transaction.digest != transaction_digest
+                        or transaction.namespace_id != self._namespace
+                        or transaction.params_id != self._params_id
+                        or transaction.authorization_policy_id != self._policy_id
+                        or transaction.nullifier != nullifier
+                        or transaction.new_commitments != outputs
+                    ):
+                        raise LedgerIntegrityError(
+                            "persisted spend transaction fields disagree with its accepted transition"
+                        )
+                    first_anchor_version = max(0, expected_version - ANCHOR_WINDOW)
+                    anchor_version = next(
+                        (
+                            candidate
+                            for candidate in range(first_anchor_version, expected_version)
+                            if roots_by_version[candidate] == transaction.commitment_root
+                            and state_heads_by_version.get(candidate) == transaction.ledger_state
+                        ),
+                        None,
+                    )
+                    if anchor_version is None:
+                        raise LedgerIntegrityError(
+                            "accepted spend references a root/head pair outside its allowed historical anchor window"
+                        )
                     payload_expected = _event_payload_spend(
                         self._namespace, nullifier, transaction_digest, transaction_fields,
                         self._policy_id, root_before, first_index, outputs,
@@ -938,6 +1167,30 @@ class SQLiteLedger:
                 if event_payload != payload_expected:
                     raise LedgerIntegrityError("ledger event payload does not match its issuance/spend record")
                 expected_head = calculated_head
+                state_heads_by_version[expected_version] = calculated_head
 
             if expected_head != head or len(event_rows) != version:
                 raise LedgerIntegrityError("ledger meta head/version differs from reconstructed event chain")
+
+            first_retained = max(0, version - ANCHOR_WINDOW + 1)
+            expected_anchor_rows = [
+                (
+                    state_version,
+                    state_heads_by_version[state_version],
+                    counts_by_version[state_version],
+                    roots_by_version[state_version],
+                )
+                for state_version in range(first_retained, version + 1)
+            ]
+            actual_anchor_rows = [
+                (int(raw_version), bytes(raw_head), int(raw_count), bytes(raw_root))
+                for raw_version, raw_head, raw_count, raw_root in conn.execute(
+                    "SELECT state_version,state_head,commitment_count,commitment_root "
+                    "FROM commitment_anchors ORDER BY state_version"
+                )
+            ]
+            if actual_anchor_rows != expected_anchor_rows:
+                raise LedgerIntegrityError(
+                    "commitment anchor ring buffer differs from the reconstructed state history"
+                )
+            conn.execute("COMMIT")

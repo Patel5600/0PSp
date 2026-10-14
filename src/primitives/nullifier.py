@@ -1,13 +1,19 @@
 """0PSP nullifier interfaces.
 
-V2 is the active namespace-bound target: SHAKE256-384 over a domain/version,
-48-byte NamespaceId, 32-byte ScopedCoinId and 36-byte per-coin secret. The
-old compute_nullifier API and its 99-byte V1 input remain only for historical
-vectors and must not be used for new scoped spends.
+V2 is the active namespace-bound **byte-contract target**, not a production-safe
+recipient-privacy construction. Its nullifier preimage includes the note's
+coin_id and r_nf but no recipient-held secret. A party that creates/knows those
+opening values can precompute and recognize the resulting V2 nullifier; the
+V2 API must not be represented as protecting recipients from their note creator.
+Keep the V2 bytes frozen for compatibility, but do not use them to authorize a
+production private-spend deployment. PR #10's recipient-keyed V3 is a separate,
+unmerged candidate and does not become safe merely by adding its hash helper.
 
-Python routines are functional references, not constant-time paths. Native
-functional agreement does not prove a spend, mint correctness, commitment
-security, QROM security or absence of side channels.
+The old compute_nullifier API and its 99-byte V1 input remain only for historical
+vectors and must not be used for new scoped spends. Python routines are functional
+references, not constant-time paths. Native functional agreement does not prove
+a spend, mint correctness, commitment security, QROM security or absence of side
+channels.
 """
 
 from __future__ import annotations

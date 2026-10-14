@@ -20,6 +20,7 @@ from src.protocol.reference_ledger import (
 )
 from src.protocol.transaction_v2 import encode_spend_transaction_v2
 from src.protocol.sqlite_ledger import (
+    ANCHOR_WINDOW,
     LedgerConfigurationMismatch,
     LedgerIntegrityError,
     SQLiteLedger,
@@ -113,6 +114,13 @@ def test_durable_issuance_pins_value_and_survives_restart(tmp_path):
     assert ledger.contains_commitment(C1)
     index, path_nodes = ledger.membership_path(C1)
     assert verify_member(NS, snap.commitment_root, index, C1, path_nodes)
+    spend_context = ledger.spend_context(C1)
+    assert spend_context.snapshot == snap
+    assert spend_context.commitment_index == index
+    assert verify_member(
+        NS, spend_context.snapshot.commitment_root, spend_context.commitment_index,
+        C1, spend_context.merkle_siblings,
+    )
     ledger.audit_integrity()
 
     reopened = make_ledger(path)
@@ -237,7 +245,7 @@ def test_spend_rejects_stale_or_substituted_state_and_rolls_back(tmp_path, mutat
     ledger.audit_integrity()
 
 
-def test_spend_requires_fresh_state_after_verification_race(tmp_path):
+def test_concurrent_spends_from_retained_anchor_both_commit(tmp_path):
     path = tmp_path / "race.sqlite3"
     gate = threading.Barrier(2)
     def verifying(statement, proof):
@@ -257,10 +265,198 @@ def test_spend_requires_fresh_state_after_verification_race(tmp_path):
             return exc
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(attempt, statements))
+    assert sum(not isinstance(result, Exception) for result in results) == 2
+    assert all(not isinstance(result, Exception) for result in results)
+    assert ledger.snapshot().state_version == 3
+    assert ledger.spent_count() == 2
+    ledger.audit_integrity()
+
+
+
+
+def test_concurrent_duplicate_nullifier_anchored_spends_only_one_commits(tmp_path):
+    path = tmp_path / "duplicate-nullifier-race.sqlite3"
+    gate = threading.Barrier(2)
+
+    def verifying(statement, proof):
+        gate.wait(timeout=5)
+        return proof == b"valid-spend"
+
+    ledger = make_ledger(path, spend_verifier=verifying)
+    ledger.issue(
+        deposit_evidence=b"evidence", commitment=C1, params_id=PARAMS, proof=b"valid-issue"
+    )
+    snapshot = ledger.snapshot()
+    statements = [
+        spend_statement(snapshot, nullifier=NF1, outputs=(bytes([0x61]) * 48,)),
+        spend_statement(snapshot, nullifier=NF1, outputs=(bytes([0x62]) * 48,)),
+    ]
+
+    def attempt(statement):
+        try:
+            return ledger.accept_spend(statement=statement, proof=b"valid-spend")
+        except Exception as exc:
+            return exc
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, statements))
+
     assert sum(not isinstance(result, Exception) for result in results) == 1
-    assert sum(isinstance(result, StaleLedgerState) for result in results) == 1
+    assert sum(isinstance(result, DuplicateNullifier) for result in results) == 1
+    assert ledger.spent_count() == 1
     assert ledger.snapshot().state_version == 2
     ledger.audit_integrity()
+
+
+def test_spend_accepts_retained_historical_anchor_after_state_advance(tmp_path):
+    path = tmp_path / "historical-anchor.sqlite3"
+
+    def authorize(evidence):
+        return DepositAuthorization(
+            NS, b"deposit-" + evidence, 10, ANCHOR, BENEFICIARY
+        )
+
+    ledger = make_ledger(
+        path,
+        authorizer=authorize,
+        issuance_verifier=lambda _statement, _proof: True,
+    )
+    ledger.issue(
+        deposit_evidence=b"one", commitment=C1, params_id=PARAMS, proof=b"valid-issue"
+    )
+    anchor = ledger.snapshot()
+
+    # Advance the append-only commitment tree after the wallet obtains its
+    # anchor. The original anchor remains eligible during the 256-state window.
+    ledger.issue(
+        deposit_evidence=b"two", commitment=C3, params_id=PARAMS, proof=b"valid-issue"
+    )
+    before_spend = ledger.snapshot()
+    assert before_spend.state_version == anchor.state_version + 1
+    statement = spend_statement(anchor, nullifier=NF1, outputs=(C2,))
+    accepted = ledger.accept_spend(statement=statement, proof=b"valid-spend")
+
+    after_spend = ledger.snapshot()
+    assert accepted.state_version == before_spend.state_version + 1
+    assert after_spend.state_version == before_spend.state_version + 1
+    assert ledger.is_nullifier_spent(NF1)
+    ledger.audit_integrity()
+
+
+def test_expired_anchor_is_rejected_after_window_advances(tmp_path):
+    path = tmp_path / "expired-anchor.sqlite3"
+
+    def authorize(evidence):
+        return DepositAuthorization(
+            NS, b"deposit-" + evidence, 1, ANCHOR, BENEFICIARY
+        )
+
+    ledger = make_ledger(
+        path,
+        authorizer=authorize,
+        issuance_verifier=lambda _statement, _proof: True,
+    )
+    ledger.issue(
+        deposit_evidence=b"initial", commitment=C1, params_id=PARAMS, proof=b"valid-issue"
+    )
+    old_anchor = ledger.snapshot()
+
+    # Each issuance advances the state version. After 256 additional states,
+    # version 1 falls outside the inclusive last-256-state retention window.
+    for index in range(ANCHOR_WINDOW):
+        ledger.issue(
+            deposit_evidence=f"advance-{index}".encode(),
+            commitment=(1_000_000 + index).to_bytes(48, "big"),
+            params_id=PARAMS,
+            proof=b"valid-issue",
+        )
+
+    before = ledger.snapshot()
+    assert before.state_version == old_anchor.state_version + ANCHOR_WINDOW
+    with pytest.raises(StaleLedgerState):
+        ledger.accept_spend(
+            statement=spend_statement(old_anchor, nullifier=NF1, outputs=(C2,)),
+            proof=b"valid-spend",
+        )
+    assert ledger.snapshot() == before
+    ledger.audit_integrity()
+
+
+def test_schema_v1_migrates_anchor_history_and_preserves_state(tmp_path):
+    path = tmp_path / "anchor-migration.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(
+        deposit_evidence=b"evidence", commitment=C1, params_id=PARAMS, proof=b"valid-issue"
+    )
+    before = ledger.snapshot()
+
+    # Simulate a pre-anchor v1 database, preserving its canonical state records.
+    with sqlite3.connect(path) as conn:
+        conn.execute("DROP TABLE commitment_anchors")
+        conn.execute("UPDATE ledger_meta SET schema_version=1 WHERE singleton=1")
+
+    reopened = make_ledger(path)
+    assert reopened.snapshot() == before
+    with sqlite3.connect(path) as conn:
+        schema_version = conn.execute(
+            "SELECT schema_version FROM ledger_meta WHERE singleton=1"
+        ).fetchone()[0]
+        anchors = conn.execute(
+            "SELECT state_version,state_head,commitment_count,commitment_root "
+            "FROM commitment_anchors ORDER BY state_version"
+        ).fetchall()
+    assert schema_version == 2
+    assert [row[0] for row in anchors] == [0, 1]
+    reopened.audit_integrity()
+
+
+def test_schema_v1_migration_rebuilds_bounded_anchor_window(tmp_path, monkeypatch):
+    # Use a small test window to exercise truncation without duplicating the
+    # 256-transition expiry test or making CI perform hundreds of extra writes.
+    monkeypatch.setattr("src.protocol.sqlite_ledger.ANCHOR_WINDOW", 4)
+    path = tmp_path / "anchor-migration-window.sqlite3"
+
+    def authorize(evidence):
+        return DepositAuthorization(
+            NS, b"deposit-" + evidence, 10, ANCHOR, BENEFICIARY
+        )
+
+    ledger = make_ledger(
+        path,
+        authorizer=authorize,
+        issuance_verifier=lambda _statement, _proof: True,
+    )
+    for index in range(7):
+        ledger.issue(
+            deposit_evidence=f"migration-{index}".encode(),
+            commitment=(100_000 + index).to_bytes(48, "big"),
+            params_id=PARAMS,
+            proof=b"valid-issue",
+        )
+    before = ledger.snapshot()
+
+    # Simulate a v1 database with canonical transition records but no anchor table.
+    with sqlite3.connect(path) as conn:
+        conn.execute("DROP TABLE commitment_anchors")
+        conn.execute("UPDATE ledger_meta SET schema_version=1 WHERE singleton=1")
+
+    reopened = make_ledger(
+        path,
+        authorizer=authorize,
+        issuance_verifier=lambda _statement, _proof: True,
+    )
+    assert reopened.snapshot() == before
+
+    with sqlite3.connect(path) as conn:
+        rows = conn.execute(
+            "SELECT state_version,commitment_count FROM commitment_anchors "
+            "ORDER BY state_version"
+        ).fetchall()
+    expected_versions = list(range(before.state_version - 3, before.state_version + 1))
+    assert [version for version, _count in rows] == expected_versions
+    # This fixture appends exactly one commitment at every state version.
+    assert [count for _version, count in rows] == expected_versions
+    reopened.audit_integrity()
 
 
 def test_concurrent_issuance_consumes_deposit_once(tmp_path):
@@ -414,3 +610,121 @@ def test_fresh_ledger_initializes_empty_state_and_audits_on_startup(tmp_path):
     assert ledger.issued_count() == 0
     assert ledger.spent_count() == 0
     ledger.audit_integrity()
+
+
+def test_integrity_audit_rejects_tampered_historical_anchor_ring(tmp_path):
+    path = tmp_path / "tamper-anchor-ring.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(
+        deposit_evidence=b"evidence",
+        commitment=C1,
+        params_id=PARAMS,
+        proof=b"valid-issue",
+    )
+    ledger.audit_integrity()
+
+    # The ledger metadata, event chain and Merkle tree remain untouched. Only
+    # the separately persisted historical-anchor table is corrupted.
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "UPDATE commitment_anchors SET commitment_root=? WHERE state_version=1",
+            (bytes([0xFD]) * 48,),
+        )
+
+    with pytest.raises(
+        LedgerIntegrityError,
+        match="commitment anchor ring buffer differs from the reconstructed state history",
+    ):
+        ledger.audit_integrity()
+
+
+def test_concurrent_fresh_initialization_serializes_anchor_schema_creation(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "concurrent-init.sqlite3"
+    start = threading.Barrier(2)
+    pre_lock_anchor_reads = threading.Barrier(2)
+    original_connect = sqlite3.connect
+    anchor_query = (
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='commitment_anchors'"
+    )
+
+    class ConnectionProxy:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def execute(self, sql, *args):
+            cursor = self._inner.execute(sql, *args)
+            # Deterministically expose the old TOCTOU: before the fix, both
+            # connections read "table missing" before either begins its write
+            # transaction. With the fix, the query is inside BEGIN IMMEDIATE
+            # and this barrier is deliberately not entered.
+            if sql == anchor_query and not self._inner.in_transaction:
+                pre_lock_anchor_reads.wait(timeout=5)
+            return cursor
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    def synchronized_connect(*args, **kwargs):
+        return ConnectionProxy(original_connect(*args, **kwargs))
+
+    monkeypatch.setattr(sqlite3, "connect", synchronized_connect)
+
+    def initialize(_index):
+        start.wait(timeout=5)
+        return make_ledger(path)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        ledgers = list(pool.map(initialize, range(2)))
+
+    snapshots = [ledger.snapshot() for ledger in ledgers]
+    assert snapshots[0] == snapshots[1]
+    assert snapshots[0].state_version == 0
+    assert snapshots[0].commitment_count == 0
+    for ledger in ledgers:
+        ledger.audit_integrity()
+
+    # Use the captured unpatched connector for an independent schema-state read.
+    with original_connect(path) as conn:
+        anchors = conn.execute(
+            "SELECT state_version,state_head,commitment_count,commitment_root "
+            "FROM commitment_anchors ORDER BY state_version"
+        ).fetchall()
+    assert len(anchors) == 1
+    assert anchors[0][0] == 0
+    assert anchors[0][2] == 0
+
+
+def test_integrity_audit_reads_from_one_sqlite_snapshot(tmp_path, monkeypatch):
+    path = tmp_path / "audit-snapshot.sqlite3"
+    ledger = make_ledger(path)
+    ledger.issue(
+        deposit_evidence=b"evidence",
+        commitment=C1,
+        params_id=PARAMS,
+        proof=b"valid-issue",
+    )
+    original_connect = sqlite3.connect
+    transaction_states = []
+
+    class ConnectionProxy:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def execute(self, sql, *args):
+            if sql == "SELECT DISTINCT namespace_id FROM commitments":
+                transaction_states.append(self._inner.in_transaction)
+            return self._inner.execute(sql, *args)
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    def instrumented_connect(*args, **kwargs):
+        return ConnectionProxy(original_connect(*args, **kwargs))
+
+    monkeypatch.setattr(sqlite3, "connect", instrumented_connect)
+    ledger.audit_integrity()
+
+    # A single read transaction must surround every reconciliation query.
+    assert transaction_states == [True]

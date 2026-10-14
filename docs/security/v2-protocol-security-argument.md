@@ -49,6 +49,8 @@ For namespace ID N (48 bytes), coin ID c (32 bytes), and per-coin nullifier secr
 
 The encoded input is exactly 149 bytes and the public output is 48 bytes. The input crosses SHAKE256's 136-byte rate boundary, so multi-block and boundary behavior must be tested. V1 remains only for historical compatibility. New spends must not silently accept V1 nullifiers.
 
+**Critical privacy limitation:** V2 does not use a recipient-held nullifier key. The creator of a note who knows `coin_id` and `r_nf` can compute its nullifier before the recipient spends, and can recognize that deterministic value when it appears. Namespace binding prevents cross-namespace confusion; it does not provide unlinkability from a note creator or prevent an authorization-free valid proof from consuming a known nullifier. The exact V2 byte contract remains frozen, but V2 is **not a production recipient-privacy construction**. PR #10 proposes a separate recipient-keyed V3 contract; it is unmerged, and a primitive-only V3 merge would not fix the missing proof relation. The proof must constrain recipient-key authentication, the commitment/key binding, the exact registered commitment, same-witness nullifier derivation, authorization, and durable nullifier consumption before the protocol can be considered safe.
+
 ## 4. Coin commitment V2 contract
 
     C = SHAKE256-384(
