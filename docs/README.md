@@ -1,7 +1,7 @@
 # 0PSP Documentation Map and Maintenance Policy
 
-**Last consistency check:** 2026-10-13  
-**Release status:** **NO-GO**  
+**Last consistency check:** 2026-10-14  
+**Release status:** **TESTNET: GO (`v0.1.0-alpha`) / MAINNET: GATED (NO-GO)**  
 **Normative status:** research prototype; documentation and regression tests do not certify security.
 
 This index is the entry point for maintainers. When a proposal, experiment or historical note conflicts with the current release decision, follow the current release register and the approved, versioned protocol specification. A research branch is not an approved protocol decision.
@@ -9,7 +9,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 ## Current source of truth
 
 1. [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory production gates and change-control rules.
-2. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate, status, evidence, and condition for changing status.
+2. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate, status, evidence, and condition for changing status; cross-referenced with the [27-Gate Production Verification Dossier](security/27-gate-verification-dossier.md).
 3. [RFC-01: user-committed issuance](security/rfc-01-user-committed-issuance.md) — issuer privacy, issuance/value/deposit binding, and replay requirements.
 4. [RFC-02: V2-only spend relation](theory/spend-relation-spec.md) — frozen V2 equations and unresolved predicates; this file is not a V3 specification.
 5. [CHp4.7 V3 spend-relation candidate](theory/spend-relation-v3-candidate.md) — non-normative V3 candidate, provisional nullifier suite, recipient-authentication/authorization gaps, and release blockers.
