@@ -92,6 +92,7 @@ def test_manifest_records_hashes_metrics_provenance_and_limits(
     assert manifest["proof_slice"]["spend_candidate"]["verify"] == {
         "seconds": 0.2,
         "max_rss_kib": 1024,
+        "rss_scope": "combined SDK runner high-water mark shared across stage timings; not a per-stage measurement",
     }
     assert manifest["validation_scope"]["complete_production_relation_established"] is False
     assert manifest["validation_scope"]["zero_knowledge_guarantee_independently_established"] is False
