@@ -6,6 +6,9 @@ publish = false
 
 [dependencies]
 openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", rev = "59a69b8b0cbee7011ac978e4cc07707ee3681944", default-features = false }
+openvm-continuations = { git = "https://github.com/openvm-org/openvm.git", rev = "59a69b8b0cbee7011ac978e4cc07707ee3681944", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", rev = "59a69b8b0cbee7011ac978e4cc07707ee3681944", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.1", default-features = false }
 openvm-stark-backend = { version = "2.0.1", git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.1", default-features = false }
 hex = "0.4"
 eyre = "0.6"

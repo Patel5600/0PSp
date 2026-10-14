@@ -98,7 +98,11 @@ def timed_metrics(path: Path, expected_key: str) -> dict[str, Any]:
     rss_kib = int(match.group(3))
     if not math.isfinite(seconds) or seconds < 0 or rss_kib < 1:
         fail(f"invalid measured timing/RSS values in {path}")
-    return {"seconds": seconds, "max_rss_kib": rss_kib}
+    return {
+        "seconds": seconds,
+        "max_rss_kib": rss_kib,
+        "rss_scope": "combined SDK runner high-water mark shared across stage timings; not a per-stage measurement",
+    }
 
 
 def command_record(argv: list[str]) -> dict[str, Any]:

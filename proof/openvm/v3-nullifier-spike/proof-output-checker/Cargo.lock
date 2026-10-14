@@ -3058,8 +3058,11 @@ version = "0.1.0"
 dependencies = [
  "eyre",
  "hex",
+ "openvm-continuations",
  "openvm-sdk",
+ "openvm-sdk-config",
  "openvm-stark-backend",
+ "openvm-stark-sdk",
  "serde_json",
 ]
 

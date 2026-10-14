@@ -50,7 +50,7 @@ def main() -> int:
     context = make_spend_context()
     statement = context["tx"]
     expected_digest = v3_spend_public_digest_candidate(statement)
-    expected_kat = read_lower_hex(digest_path, 32, "expected spend public digest")
+    expected_kat = read_lower_hex(digest_path, 64, "expected spend public digest")
     if expected_digest != expected_kat or expected_digest != expected_spend_digest(statement):
         raise OpenVMV3CandidateVerifierError(
             "Python adapter digest does not match the deterministic spend fixture KAT"
