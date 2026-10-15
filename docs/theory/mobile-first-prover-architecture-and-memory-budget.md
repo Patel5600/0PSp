@@ -5,7 +5,12 @@
 **Maximum Client Memory Budget:** $\le 128\text{ MB}$ RAM  
 **Maximum Client Proving Latency:** $\le 5.0\text{ seconds}$  
 **Reference Model:** [`scripts/estimate_mobile_prover_budget.py`](../../scripts/estimate_mobile_prover_budget.py)  
-**Security Invariant:** Zero private witness leakage (Zero-Knowledge Blind Delegation)
+**Security Invariant:** Formal Statistical & Computational Witness Hiding under Blind Delegation
+
+> [!IMPORTANT]
+> **Methodological Distinction: Empirical Measurements vs. Analytical Projections**
+> - **Empirically Measured (x86_64 CI Server):** The OpenVM v2.0.2 peak memory figure ($2,732\text{ MB}$ peak RSS) was empirically captured during automated GitHub CI runs on an Ubuntu x86_64 runner.
+> - **Analytical Projections & Target Budgets:** ARM64 latencies, Native AIR estimates, and Tier 1 mobile footprint ($22.5\text{ MB}$) are analytical models derived from constraint row calculations, hardware instruction models, and BabyBear field evaluation domains. They represent strict engineering budgets and architectural targets, not physical device benchmarks of a production mobile client.
 
 ---
 
@@ -25,9 +30,9 @@ A privacy primitive that requires a supercomputer or a 64 GB workstation is dead
 | Architecture | Peak RAM | ARM64 Time | Android Status | iOS Status | Feasibility on Mobile |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Dense R1CS (SmallWood)** | $\ge 2.082\text{ TiB}$ | $\infty$ | **FATAL OOM** | **FATAL OOM** | ⛔ **REJECTED (CHp4.22)** |
-| **Monolithic zkVM (OpenVM v2.0.2)** | $2,732\text{ MB}$ | $185\text{ s}$ | **FATAL OOM** | **FATAL OOM** | ⛔ **OOM Crash on Phone** |
-| **Native Keccak AIR (Plonky3/Binius)** | $180\text{ MB}$ | $9.5\text{ s}$ | **BORDERLINE** | **BORDERLINE** | ⚠️ **High Pressure** |
-| **2-Tier Blinded Split-Prover (Tier 1)** | **$22.5\text{ MB}$** | **$0.38\text{ s}$** | **✅ FEASIBLE** | **✅ FEASIBLE** | **PRODUCTION TARGET** |
+| **Monolithic zkVM (OpenVM v2.0.2)** | $2,732\text{ MB}$ *(Measured CI)* | $185\text{ s}$ *(Projected)* | **FATAL OOM** | **FATAL OOM** | ⛔ **OOM Crash on Phone** |
+| **Native Keccak AIR (Plonky3/Binius)** | $180\text{ MB}$ *(Model)* | $9.5\text{ s}$ *(Model)* | **BORDERLINE** | **BORDERLINE** | ⚠️ **High Pressure** |
+| **2-Tier Blinded Split-Prover (Tier 1)** | **$22.5\text{ MB}$** *(Target)* | **$0.38\text{ s}$** *(Target)* | **✅ FEASIBLE** | **✅ FEASIBLE** | **TARGET ARCHITECTURE** |
 
 ---
 
@@ -52,7 +57,7 @@ To enable instant, zero-crash mobile spend generation, 0PSP defines the **2-Tier
 +-----------------------------------------------------------------------------------------+
 |                                MOBILE DEVICE (Tier 1 Client)                             |
 |  - Private Witness: (nk, coin_id, r_nf, salt, value v)                                   |
-|  - Peak RAM: <= 22.5 MB  |  Execution Time: <= 0.38 s                                   |
+|  - Peak RAM Target: <= 22.5 MB  |  Target Latency: <= 0.38 s                             |
 |                                                                                         |
 |  1. Verify CommitV3 opening: C_in = SHAKE256(params, bundle, v, coin_id, r_nf, salt)    |
 |  2. Verify NullifierV3:     N_V3 = HMAC-SHA3-384_nk(ns, C_in, params, coin_id, r_nf)    |
@@ -60,7 +65,7 @@ To enable instant, zero-crash mobile spend generation, 0PSP defines the **2-Tier
 |  4. Generate Proof:         pi_local (Tier 1 ZK Proof over only 5 SHAKE calls)          |
 +-----------------------------------------------------------------------------------------+
                                          │
-                                         ▼ [Public Statement + pi_local]
+                                         ▼ [Public Request: (C_in, N_V3, pi_local, outputs)]
                         (No secret keys, amounts, or salts sent)
                                          │
 +-----------------------------------------------------------------------------------------+
@@ -69,7 +74,7 @@ To enable instant, zero-crash mobile spend generation, 0PSP defines the **2-Tier
 |  - Hardware: Server / Desktop / High-Spec Node                                          |
 |                                                                                         |
 |  1. Verify pi_local (Recursive STARK / SNARK verification)                              |
-|  2. Prove Merkle Path: C_in in Tree(root) across 63 levels                              |
+|  2. Prove Merkle Path: C_in in Tree(root) across tree_depth levels                       |
 |  3. Output Composed Proof: pi_spend                                                     |
 +-----------------------------------------------------------------------------------------+
 ```
@@ -80,20 +85,25 @@ To enable instant, zero-crash mobile spend generation, 0PSP defines the **2-Tier
   2. Nullifier derivation: $N_{\text{V3}} = \text{NullifierV3}(nk, C_{\text{in}}, \dots)$.
   3. Output commitment openings and range-bound value balance: $v_{\text{in}} = \sum v_{\text{out}} + \text{fee}$.
 - **Workload:** Only **5 SHAKE calls** (compared to 68 in the full relation).
-- **Resource Footprint:**
+- **Resource Footprint Target:**
   - Trace Rows: $32,768$ ($2^{15}$ rows).
-  - Peak RAM: **$22.5\text{ MB}$** (94% below the 384 MB Android LMK threshold).
+  - Peak RAM: **$22.5\text{ MB}$** for 1 output ($40.5\text{ MB}$ for 5 outputs, scaling with $18.0 + 4.5m\text{ MB}$).
   - Proving Time: **$\approx 380\text{ ms}$** on mobile ARM64 NEON.
 
-### 3.2 Tier 2: Delegated Relayer Prover (Zero-Witness Leakage)
-- **Blind Delegation Theorem:**
-  $$\text{Leakage}(\text{Tier 1 Request}) = \{ C_{\text{in}}, N_{\text{V3}}, \pi_{\text{local}}, C_{\text{out}}, \text{fee} \}$$
-  Because $C_{\text{in}}$ is already an opaque, statistically hiding commitment published on the public ledger, and $N_{\text{V3}}$ is a pseudorandom nullifier, the relayer learns **zero information** about:
-  - The hidden note value $v$
-  - The recipient nullifier key $nk$
-  - The private coin identity $coin\_id$
-  - The blinding secrets $r_{\text{nf}}$ and $salt$
-- **Relayer Role:** The untrusted relayer proves that $C_{\text{in}}$ is an included leaf in the consensus Merkle root and recursively verifies $\pi_{\text{local}}$.
+### 3.2 Tier 2: Delegated Relayer Prover & Formal Witness Hiding
+
+> [!CAUTION]
+> **Formal Blind Delegation Theorem & Cryptographic Assumptions**
+>
+> Let the public handoff tuple sent by the mobile client to the untrusted relayer be:
+> $$\text{Req}_{\text{Tier1}} = \left( C_{\text{in}}, N_{\text{V3}}, \pi_{\text{local}}, \{C_{\text{out}}^{(j)}\}, \text{fee} \right)$$
+>
+> An untrusted relayer observing $\text{Req}_{\text{Tier1}}$ learns zero non-trivial information regarding the private witness $w = (v, nk, coin\_id, r_{\text{nf}}, salt)$ **if and only if** the following three cryptographic conditions hold:
+> 1. **Commitment Hiding:** $C_{\text{in}}$ is statistically hiding in the QROM ($\text{Adv}^{\text{hide}} \le 2^{-160}$, formally proven in [`commitment-hiding-and-binding-proof.md`](commitment-hiding-and-binding-proof.md)).
+> 2. **Nullifier Pseudorandomness:** $N_{\text{V3}}$ is computed via HMAC-SHA3-384 under key $nk$, acting as a cryptographically secure PRF over distinct canonical preimages.
+> 3. **Prover Zero-Knowledge (ZK Blinding Rows):** The local argument $\pi_{\text{local}}$ is generated by a prover with randomized blinding rows enabled in its execution trace and quotient polynomial.
+>
+> **Residual Risk Warning:** If $\pi_{\text{local}}$ is generated using a transparent (non-ZK) STARK configuration without randomized blinding rows, polynomial evaluation queries could potentially allow an adversarial relayer to extract linear combinations of witness bits. Complete ZK masking remains a mandatory implementation gate.
 
 ---
 
@@ -119,13 +129,16 @@ $$2^{32} = 4,294,967,296 \text{ coins (4.29 Billion Coins)}$$
 - Accommodates global consumer scale.
 - Eliminates 31 levels of hash operations from the client-side tree verification path.
 - Reduces permutation count by **$49.2\%$**, cutting proof generation latency in half.
+- Evaluated dynamically in [`scripts/estimate_mobile_prover_budget.py`](../../scripts/estimate_mobile_prover_budget.py).
 
 ---
 
-## 6. Engineering Implementation Checklist for Mobile
+## 6. Implementation Status and Roadmap Checklist
 
-- [x] Hardware memory budget model implemented ([`scripts/estimate_mobile_prover_budget.py`](../../scripts/estimate_mobile_prover_budget.py)).
-- [x] Zero-dependency C11 constant-time engine ([`native/`](../../native)) tested and compatible with Android NDK and iOS Clang.
-- [ ] Implement Tier 1 Secret-Binding Guest Circuit in OpenVM / Plonky3 (5-hash relation).
-- [ ] Implement Blind Delegation RPC interface in `src/adapters/` for untrusted relayer handoff.
-- [ ] Provide Android Kotlin (JNI) and iOS Swift (C-FFI) wallet client bindings.
+The mobile-first architecture is an active engineering track with the following milestone boundaries:
+
+- [x] **Analytical Memory & Resource Model:** Parameterized scaling script implemented and verified ([`scripts/estimate_mobile_prover_budget.py`](../../scripts/estimate_mobile_prover_budget.py)).
+- [x] **Native Cryptographic Engine:** Zero-dependency C11 constant-time engine ([`native/`](../../native)) tested and compatible with Android NDK and iOS Clang.
+- [ ] **Tier 1 Guest Spend Circuit (Open Engineering Milestone):** Implement isolated 5-hash private witness circuit in OpenVM / Plonky3 with verified ZK trace blinding.
+- [ ] **Blind Delegation RPC Protocol (Open Engineering Milestone):** Define fail-closed client-relayer JSON-RPC interface with mutual authentication and relay censorship resistance.
+- [ ] **Mobile Language Bindings (Open Engineering Milestone):** Android Kotlin (JNI) and iOS Swift (C-FFI) client libraries.

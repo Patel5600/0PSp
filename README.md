@@ -6,11 +6,14 @@
 
 0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization, and post-quantum zero-knowledge proofs over the spend relation. This repository implements the zero-dependency C11 constant-time cryptographic engine (`libpsp_native`), durable SQLite ledger with a 256-state historical anchor ring, EVM light-client state verifier, and the OpenVM v2.0.2 zkVM guest circuit.
 
-## Current security gate (2026-10-14; Testnet Production Release v0.1.0-alpha)
+## Current security gate (2026-10-15; Testnet Release Candidate v0.1.0-alpha)
 
-**Testnet Protocol Status: GO.** The entire protocol battery is 100% green (650 passed, 2 skipped, 0 failures), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
-- **Testnet Operation:** Ready for testnet coin issuance, shielded transfers, and nullifier consumption without real monetary assets.
-- **Mainnet Real-Value Transfer: Gated (NO-GO).** Live mainnet real-value transfer remains strictly blocked until external third-party audits and prover trace zero-knowledge masking are completed.
+- **Testnet Operational Status: GO (`v0.1.0-alpha`).** The local protocol test suite is 100% green (652 collected, 650 passed, 2 skipped, 0 failures), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
+  - *Operational Scope:* Enabled strictly for testnet coin issuance, shielded transfers, and nullifier consumption with testnet tokens (zero financial risk, testnet assets only).
+- **Mainnet Real-Value Transfer: STRICTLY GATED (NO-GO).** The complete end-to-end protocol for real-value assets remains strictly NO-GO. A green test suite or passing candidate slice does not constitute production certification. Live mainnet value transfer requires:
+  - Resolution of open P0 release blockers (Issues #33, #34, #35, #36, #38, #41, #42).
+  - Pinned prover trace zero-knowledge masking and composed 128-bit PQ soundness reduction.
+  - Independent external third-party cryptographic audits.
 
 ## Engineering Doctrine (The 5 Pillars)
 
