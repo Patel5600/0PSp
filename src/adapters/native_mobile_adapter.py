@@ -128,6 +128,24 @@ class NativeMobileEngine:
         ]
         self._lib.psp_merkle_verify_path.restype = ctypes.c_int
 
+        # psp_derive_keys_v3: (sk_spend[48], ak_out[48], nk_out[48], pk_owner_out[48])
+        self._lib.psp_derive_keys_v3.argtypes = [
+            u8_p, u8_p, u8_p, u8_p,
+        ]
+        self._lib.psp_derive_keys_v3.restype = ctypes.c_int
+
+        # psp_compute_spend_auth_token_v3: (sk_spend[48], tx_digest[64], commitment[48], auth_token_out[48])
+        self._lib.psp_compute_spend_auth_token_v3.argtypes = [
+            u8_p, u8_p, u8_p, u8_p,
+        ]
+        self._lib.psp_compute_spend_auth_token_v3.restype = ctypes.c_int
+
+        # psp_verify_spend_auth_token_v3: (sk_spend[48], tx_digest[64], commitment[48], auth_token[48])
+        self._lib.psp_verify_spend_auth_token_v3.argtypes = [
+            u8_p, u8_p, u8_p, u8_p,
+        ]
+        self._lib.psp_verify_spend_auth_token_v3.restype = ctypes.c_int
+
     def derive_output_identity_v3(
         self,
         *,
@@ -293,3 +311,64 @@ class NativeMobileEngine:
             (ctypes.c_uint8 * len(expected_root)).from_buffer_copy(expected_root),
         )
         return st == PSP_CRYPTO_OK
+
+    def derive_keys_v3(self, sk_spend: bytes) -> tuple[bytes, bytes, bytes]:
+        """Derive (ak, nk, pk_owner) from sk_spend using native C11 constant-time engine."""
+        if len(sk_spend) != 48:
+            raise ValueError(f"sk_spend must be 48 bytes, got {len(sk_spend)}")
+        ak_buf = (ctypes.c_uint8 * 48)()
+        nk_buf = (ctypes.c_uint8 * 48)()
+        pk_owner_buf = (ctypes.c_uint8 * 48)()
+        st = self._lib.psp_derive_keys_v3(
+            (ctypes.c_uint8 * 48).from_buffer_copy(sk_spend),
+            ak_buf,
+            nk_buf,
+            pk_owner_buf,
+        )
+        if st != PSP_CRYPTO_OK:
+            raise ValueError(f"psp_derive_keys_v3 failed with code {st}")
+        return bytes(ak_buf), bytes(nk_buf), bytes(pk_owner_buf)
+
+    def compute_spend_auth_token_v3(
+        self,
+        *,
+        sk_spend: bytes,
+        tx_digest: bytes,
+        commitment: bytes,
+    ) -> bytes:
+        """Compute 48-byte spend authorization token tau_auth."""
+        if len(sk_spend) != 48:
+            raise ValueError(f"sk_spend must be 48 bytes, got {len(sk_spend)}")
+        if len(tx_digest) != 64:
+            raise ValueError(f"tx_digest must be 64 bytes, got {len(tx_digest)}")
+        if len(commitment) != 48:
+            raise ValueError(f"commitment must be 48 bytes, got {len(commitment)}")
+        token_buf = (ctypes.c_uint8 * 48)()
+        st = self._lib.psp_compute_spend_auth_token_v3(
+            (ctypes.c_uint8 * 48).from_buffer_copy(sk_spend),
+            (ctypes.c_uint8 * 64).from_buffer_copy(tx_digest),
+            (ctypes.c_uint8 * 48).from_buffer_copy(commitment),
+            token_buf,
+        )
+        if st != PSP_CRYPTO_OK:
+            raise ValueError(f"psp_compute_spend_auth_token_v3 failed with code {st}")
+        return bytes(token_buf)
+
+    def verify_spend_auth_token_v3(
+        self,
+        *,
+        sk_spend: bytes,
+        tx_digest: bytes,
+        commitment: bytes,
+        token: bytes,
+    ) -> bool:
+        """Verify spend authorization token tau_auth in constant time."""
+        if len(sk_spend) != 48 or len(tx_digest) != 64 or len(commitment) != 48 or len(token) != 48:
+            return False
+        st = self._lib.psp_verify_spend_auth_token_v3(
+            (ctypes.c_uint8 * 48).from_buffer_copy(sk_spend),
+            (ctypes.c_uint8 * 64).from_buffer_copy(tx_digest),
+            (ctypes.c_uint8 * 48).from_buffer_copy(commitment),
+            (ctypes.c_uint8 * 48).from_buffer_copy(token),
+        )
+        return st == 1

@@ -289,3 +289,45 @@ def test_native_merkle_path_differential(native_engine):
         expected_root=tree.root,
     )
 
+
+def test_native_keys_v3_differential(native_engine):
+    """Assert byte-for-byte differential match between C11 and Python V3 key hierarchy."""
+    from src.primitives.keys_v3 import (
+        derive_keys_v3,
+        compute_spend_auth_token_v3,
+        verify_spend_auth_token_v3,
+    )
+
+    sk_bytes = b"\x77" * 48
+
+    # 1. Derive keys in Python
+    keys_py = derive_keys_v3(sk_bytes)
+
+    # 2. Derive keys in Native C11
+    ak_c, nk_c, pk_owner_c = native_engine.derive_keys_v3(sk_bytes)
+
+    assert ak_c == keys_py.ak
+    assert nk_c == keys_py.nk
+    assert pk_owner_c == keys_py.pk_owner
+
+    # 3. Spend auth token differential
+    tx_digest = b"\xaa" * 64
+    commitment = b"\xbb" * 48
+
+    token_py = compute_spend_auth_token_v3(sk_bytes, tx_digest, commitment)
+    token_c = native_engine.compute_spend_auth_token_v3(
+        sk_spend=sk_bytes, tx_digest=tx_digest, commitment=commitment
+    )
+
+    assert token_c == token_py
+
+    # 4. Verification in native
+    assert native_engine.verify_spend_auth_token_v3(
+        sk_spend=sk_bytes, tx_digest=tx_digest, commitment=commitment, token=token_c
+    )
+    # Tampered token must fail
+    tampered = bytes([token_c[0] ^ 0xFF]) + token_c[1:]
+    assert not native_engine.verify_spend_auth_token_v3(
+        sk_spend=sk_bytes, tx_digest=tx_digest, commitment=commitment, token=tampered
+    )
+

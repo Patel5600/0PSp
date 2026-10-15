@@ -10,7 +10,7 @@ Composes:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from src.adapters.evm_deposit_evidence import QuorumObservedEvmDeposit
 from src.adapters.evm_deposit_proof import verify_mpt_inclusion
@@ -137,3 +137,40 @@ class TrustedDepositAuthorizer:
             finalized_anchor=finalized_header.block_hash,
             beneficiary_address=observed_deposit.depositor,
         )
+
+    def ingest_deposit_atomic(
+        self,
+        *,
+        ledger: Any,
+        observed_deposit: QuorumObservedEvmDeposit,
+        finalized_header: AuthenticatedExecutionHeader,
+        receipt_rlp: bytes,
+        receipt_mpt_proof: bytes,
+        receipt_path_rlp: bytes,
+        custody_snapshot: CustodySolvencySnapshot,
+        current_finalized_block_number: int,
+        commitment: bytes,
+        params_id: bytes,
+        proof: bytes,
+    ) -> Any:
+        """Authorize deposit evidence and commit directly to the durable SQLite ledger.
+
+        Enforces atomic EIP-1186 receipt trie verification, custody solvency validation,
+        and SQLite WAL issue state transition in one fail-closed sequence.
+        """
+        auth = self.authorize(
+            observed_deposit=observed_deposit,
+            finalized_header=finalized_header,
+            receipt_rlp=receipt_rlp,
+            receipt_mpt_proof=receipt_mpt_proof,
+            receipt_path_rlp=receipt_path_rlp,
+            custody_snapshot=custody_snapshot,
+            current_finalized_block_number=current_finalized_block_number,
+        )
+        return ledger.issue(
+            deposit_evidence=auth.deposit_id,
+            commitment=commitment,
+            params_id=params_id,
+            proof=proof,
+        )
+

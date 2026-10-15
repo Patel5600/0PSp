@@ -7,6 +7,10 @@ const uint8_t PSP_DOMAIN_NOTE_BUNDLE_V3[] = "0PSP-NOTE-PK-BUNDLE-v3";
 const uint8_t PSP_DOMAIN_TX_FIELDS_V3[] = "0PSP-TX-FIELDS-v3-CANDIDATE-v2-SHAKE256";
 const uint8_t PSP_DOMAIN_TX_DIGEST_V3[] = "0PSP-TX-DIGEST-v3-CANDIDATE-v2-SHAKE256";
 const uint8_t PSP_POLICY_NK_POSSESSION_V3[] = "0PSP-V3-NK-POSSESSION-CANDIDATE-v1";
+const uint8_t PSP_DOMAIN_AK_V3[] = "0PSP_AK_DERIVE_V3";
+const uint8_t PSP_DOMAIN_NK_V3[] = "0PSP_NK_DERIVE_V3";
+const uint8_t PSP_DOMAIN_OWNER_V3[] = "0PSP_OWNER_V3";
+const uint8_t PSP_DOMAIN_SPEND_AUTH_V3[] = "0PSP_SPEND_AUTH_V3";
 
 static const uint8_t VERSION_V3 = 0x03;
 
@@ -557,4 +561,90 @@ int psp_tier1_verify_spend_package(
     }
 
     return PSP_CRYPTO_OK;
+}
+
+int psp_derive_keys_v3(
+    const uint8_t sk_spend[48],
+    uint8_t ak_out[48],
+    uint8_t nk_out[48],
+    uint8_t pk_owner_out[48]) {
+    const uint8_t *parts[3];
+    size_t lengths[3];
+
+    if (sk_spend == NULL || ak_out == NULL || nk_out == NULL || pk_owner_out == NULL) {
+        return PSP_CRYPTO_ERR_ARGUMENT;
+    }
+
+    /* 1. ak = SHAKE256-384("0PSP_AK_DERIVE_V3" || sk_spend) */
+    parts[0] = PSP_DOMAIN_AK_V3;
+    lengths[0] = sizeof(PSP_DOMAIN_AK_V3) - 1u;
+    parts[1] = sk_spend;
+    lengths[1] = 48u;
+    psp_shake256_parts(parts, lengths, 2, ak_out, 48u);
+
+    /* 2. nk = SHAKE256-384("0PSP_NK_DERIVE_V3" || sk_spend) */
+    parts[0] = PSP_DOMAIN_NK_V3;
+    lengths[0] = sizeof(PSP_DOMAIN_NK_V3) - 1u;
+    parts[1] = sk_spend;
+    lengths[1] = 48u;
+    psp_shake256_parts(parts, lengths, 2, nk_out, 48u);
+
+    /* 3. pk_owner = SHAKE256-384("0PSP_OWNER_V3" || ak || nk) */
+    parts[0] = PSP_DOMAIN_OWNER_V3;
+    lengths[0] = sizeof(PSP_DOMAIN_OWNER_V3) - 1u;
+    parts[1] = ak_out;
+    lengths[1] = 48u;
+    parts[2] = nk_out;
+    lengths[2] = 48u;
+    psp_shake256_parts(parts, lengths, 3, pk_owner_out, 48u);
+
+    return PSP_CRYPTO_OK;
+}
+
+int psp_compute_spend_auth_token_v3(
+    const uint8_t sk_spend[48],
+    const uint8_t tx_digest[64],
+    const uint8_t commitment[48],
+    uint8_t auth_token_out[48]) {
+    const uint8_t *parts[3];
+    size_t lengths[3];
+
+    if (sk_spend == NULL || tx_digest == NULL || commitment == NULL || auth_token_out == NULL) {
+        return PSP_CRYPTO_ERR_ARGUMENT;
+    }
+
+    parts[0] = PSP_DOMAIN_SPEND_AUTH_V3;
+    lengths[0] = sizeof(PSP_DOMAIN_SPEND_AUTH_V3) - 1u;
+    parts[1] = tx_digest;
+    lengths[1] = 64u;
+    parts[2] = commitment;
+    lengths[2] = 48u;
+
+    return psp_hmac_sha3_384_parts(sk_spend, 48u, parts, lengths, 3, auth_token_out);
+}
+
+int psp_verify_spend_auth_token_v3(
+    const uint8_t sk_spend[48],
+    const uint8_t tx_digest[64],
+    const uint8_t commitment[48],
+    const uint8_t auth_token[48]) {
+    uint8_t expected[48];
+    uint8_t diff = 0;
+    int st;
+
+    if (sk_spend == NULL || tx_digest == NULL || commitment == NULL || auth_token == NULL) {
+        return 0;
+    }
+
+    st = psp_compute_spend_auth_token_v3(sk_spend, tx_digest, commitment, expected);
+    if (st != PSP_CRYPTO_OK) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < 48; ++i) {
+        diff |= (uint8_t)(expected[i] ^ auth_token[i]);
+    }
+    psp_secure_zero(expected, sizeof(expected));
+
+    return (diff == 0) ? 1 : 0;
 }

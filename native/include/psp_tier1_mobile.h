@@ -34,6 +34,10 @@ extern const uint8_t PSP_DOMAIN_NOTE_BUNDLE_V3[];
 extern const uint8_t PSP_DOMAIN_TX_FIELDS_V3[];
 extern const uint8_t PSP_DOMAIN_TX_DIGEST_V3[];
 extern const uint8_t PSP_POLICY_NK_POSSESSION_V3[];
+extern const uint8_t PSP_DOMAIN_AK_V3[];
+extern const uint8_t PSP_DOMAIN_NK_V3[];
+extern const uint8_t PSP_DOMAIN_OWNER_V3[];
+extern const uint8_t PSP_DOMAIN_SPEND_AUTH_V3[];
 
 /*
  * Tier 1 Mobile Edge Spend Package.
@@ -171,6 +175,40 @@ int psp_tier1_verify_spend_package(
     const psp_tier1_spend_package_t *pkg,
     const uint8_t *expected_input_commitment,
     const uint8_t *expected_input_nullifier);
+
+/*
+ * 3-Tier Key Hierarchy Derivation (V3):
+ *   ak = SHAKE256-384("0PSP_AK_DERIVE_V3" || sk_spend)
+ *   nk = SHAKE256-384("0PSP_NK_DERIVE_V3" || sk_spend)
+ *   pk_owner = SHAKE256-384("0PSP_OWNER_V3" || ak || nk)
+ * All inputs and outputs are exactly 48 bytes.
+ */
+int psp_derive_keys_v3(
+    const uint8_t sk_spend[48],
+    uint8_t ak_out[48],
+    uint8_t nk_out[48],
+    uint8_t pk_owner_out[48]);
+
+/*
+ * Compute transaction-bound spend authorization token (tau_auth):
+ *   tau_auth = HMAC-SHA3-384(sk_spend, "0PSP_SPEND_AUTH_V3" || tx_digest || commitment)
+ * Output is exactly 48 bytes.
+ */
+int psp_compute_spend_auth_token_v3(
+    const uint8_t sk_spend[48],
+    const uint8_t tx_digest[64],
+    const uint8_t commitment[48],
+    uint8_t auth_token_out[48]);
+
+/*
+ * Verify spend authorization token in constant time.
+ * Returns 1 on success, 0 on mismatch or invalid argument.
+ */
+int psp_verify_spend_auth_token_v3(
+    const uint8_t sk_spend[48],
+    const uint8_t tx_digest[64],
+    const uint8_t commitment[48],
+    const uint8_t auth_token[48]);
 
 #ifdef __cplusplus
 }

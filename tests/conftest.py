@@ -6,6 +6,7 @@ from pathlib import Path
 
 def pytest_configure(config):
     """Auto-detect native library if not explicitly provided in environment."""
+    os.environ.setdefault("ALLOW_LEGACY_V2_KATS", "1")
     if "PSP_NULLIFIER_LIBRARY" not in os.environ:
         repo_root = Path(__file__).resolve().parent.parent
         candidates = [

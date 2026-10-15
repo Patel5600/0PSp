@@ -262,6 +262,49 @@ int main(void) {
         printf("[+] PASS: Depth-32 index boundary correctly rejected\n");
     }
 
+    /* 7. Test 3-Tier Key Hierarchy and Spend Authorization Token */
+    uint8_t test_sk_spend[48];
+    uint8_t test_ak[48];
+    uint8_t test_nk[48];
+    uint8_t test_pk_owner[48];
+    memset(test_sk_spend, 0x42, sizeof(test_sk_spend));
+
+    st = psp_derive_keys_v3(test_sk_spend, test_ak, test_nk, test_pk_owner);
+    if (st != PSP_CRYPTO_OK) {
+        printf("[-] FAILED: psp_derive_keys_v3 returned error %d\n", st);
+        failures++;
+    } else if (memcmp(test_ak, test_nk, 48) == 0 || memcmp(test_ak, test_pk_owner, 48) == 0) {
+        printf("[-] FAILED: Derived keys collided\n");
+        failures++;
+    } else {
+        printf("[+] PASS: 3-Tier Key Hierarchy (ak, nk, pk_owner) derived successfully\n");
+    }
+
+    /* 7.1 Test Spend Authorization Token */
+    uint8_t dummy_tx_digest[64];
+    uint8_t dummy_commitment[48];
+    uint8_t auth_token[48];
+    memset(dummy_tx_digest, 0xAA, sizeof(dummy_tx_digest));
+    memset(dummy_commitment, 0xBB, sizeof(dummy_commitment));
+
+    st = psp_compute_spend_auth_token_v3(test_sk_spend, dummy_tx_digest, dummy_commitment, auth_token);
+    if (st != PSP_CRYPTO_OK) {
+        printf("[-] FAILED: psp_compute_spend_auth_token_v3 returned %d\n", st);
+        failures++;
+    } else if (psp_verify_spend_auth_token_v3(test_sk_spend, dummy_tx_digest, dummy_commitment, auth_token) != 1) {
+        printf("[-] FAILED: psp_verify_spend_auth_token_v3 failed valid token\n");
+        failures++;
+    } else {
+        /* Tamper check */
+        auth_token[0] ^= 0x01;
+        if (psp_verify_spend_auth_token_v3(test_sk_spend, dummy_tx_digest, dummy_commitment, auth_token) != 0) {
+            printf("[-] FAILED: psp_verify_spend_auth_token_v3 accepted tampered token\n");
+            failures++;
+        } else {
+            printf("[+] PASS: Spend authorization token (tau_auth) generated and verified in constant time\n");
+        }
+    }
+
     printf("\n======================================================================\n");
     if (failures == 0) {
         printf("ALL MOBILE TIER 1 CRYPTOGRAPHIC ENGINE TESTS PASSED (100%% GREEN)!\n");

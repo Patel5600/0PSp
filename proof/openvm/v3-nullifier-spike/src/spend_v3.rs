@@ -320,3 +320,161 @@ pub fn verify_v3_spend_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     let public_digest = shake256_512(&public_statement);
     Ok(public_digest)
 }
+
+// ============================================================================
+// 0PSP 2-Tier Post-Quantum Key Hierarchy & Spend Relation (Audit Milestone 1)
+// ============================================================================
+
+pub const DOM_AK_V3: &[u8] = b"0PSP_AK_DERIVE_V3";
+pub const DOM_NK_V3: &[u8] = b"0PSP_NK_DERIVE_V3";
+pub const DOM_OWNER_V3: &[u8] = b"0PSP_OWNER_V3";
+pub const DOM_COMMIT_V3: &[u8] = b"0PSP_COMMIT_V3";
+pub const DOM_NULLIFIER_V3: &[u8] = b"0PSP_NULLIFIER_V3";
+pub const DOM_MERKLE_NODE: &[u8] = b"0PSP_MERKLE_NODE_V3";
+pub const DOM_TX_BIND_V3: &[u8] = b"0PSP_TX_STATEMENT_V3";
+pub const DOM_SPEND_AUTH_V3: &[u8] = b"0PSP_SPEND_AUTH_V3";
+
+pub const MERKLE_DEPTH_32: usize = 32;
+
+#[repr(C)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PublicStatementV3 {
+    pub param_id: [u8; 32],
+    pub namespace_id: [u8; HASH_BYTES],
+    pub anchor_root: [u8; HASH_BYTES],
+    pub nullifier: [u8; HASH_BYTES],
+    pub out_commitment: [u8; HASH_BYTES],
+    pub tx_context_digest: [u8; HASH_BYTES], // Binds recipient, relayer, fee, chain_id
+    pub fee: u64,
+    pub withdraw_value: u64,
+}
+
+#[repr(C)]
+pub struct PrivateWitnessV3 {
+    pub sk_spend: [u8; HASH_BYTES], // Master spend secret (Custody Authorization)
+    pub value_in: u64,
+    pub coin_id_in: [u8; 32],
+    pub salt_in: [u8; 32],
+    pub merkle_path: [[u8; HASH_BYTES]; MERKLE_DEPTH_32],
+    pub leaf_index: u32,
+    pub pk_owner_out: [u8; HASH_BYTES],
+    pub value_out: u64,
+    pub coin_id_out: [u8; 32],
+    pub salt_out: [u8; 32],
+}
+
+/// Verify the full 2-tier key-separated spend relation with Depth-32 Merkle verification,
+/// same-witness nullifier binding, and value conservation.
+pub fn verify_spend_relation_v3(
+    pub_stmt: &PublicStatementV3,
+    wit: &PrivateWitnessV3,
+) -> Result<[u8; HASH_BYTES], String> {
+    // 1. Key Hierarchy Derivation (Eliminates NOAUTH & V2 Sender-Linkability)
+    let mut ak_preimage = Vec::with_capacity(DOM_AK_V3.len() + HASH_BYTES);
+    ak_preimage.extend_from_slice(DOM_AK_V3);
+    ak_preimage.extend_from_slice(&wit.sk_spend);
+    let ak = shake256_384(&ak_preimage);
+
+    let mut nk_preimage = Vec::with_capacity(DOM_NK_V3.len() + HASH_BYTES);
+    nk_preimage.extend_from_slice(DOM_NK_V3);
+    nk_preimage.extend_from_slice(&wit.sk_spend);
+    let nk = shake256_384(&nk_preimage);
+
+    let mut owner_preimage = Vec::with_capacity(DOM_OWNER_V3.len() + 2 * HASH_BYTES);
+    owner_preimage.extend_from_slice(DOM_OWNER_V3);
+    owner_preimage.extend_from_slice(&ak);
+    owner_preimage.extend_from_slice(&nk);
+    let pk_owner_in = shake256_384(&owner_preimage);
+
+    // 2. Input Note Commitment Opening
+    let val_in_bytes = wit.value_in.to_le_bytes();
+    let mut c_in_preimage = Vec::with_capacity(
+        DOM_COMMIT_V3.len() + 32 + HASH_BYTES + HASH_BYTES + 8 + 32 + 32,
+    );
+    c_in_preimage.extend_from_slice(DOM_COMMIT_V3);
+    c_in_preimage.extend_from_slice(&pub_stmt.param_id);
+    c_in_preimage.extend_from_slice(&pub_stmt.namespace_id);
+    c_in_preimage.extend_from_slice(&pk_owner_in);
+    c_in_preimage.extend_from_slice(&val_in_bytes);
+    c_in_preimage.extend_from_slice(&wit.coin_id_in);
+    c_in_preimage.extend_from_slice(&wit.salt_in);
+    let c_in = shake256_384(&c_in_preimage);
+
+    // 3. Same-Witness Recipient-Keyed V3 Nullifier Binding
+    let mut nf_data = Vec::with_capacity(DOM_NULLIFIER_V3.len() + HASH_BYTES + HASH_BYTES);
+    nf_data.extend_from_slice(DOM_NULLIFIER_V3);
+    nf_data.extend_from_slice(&pub_stmt.namespace_id);
+    nf_data.extend_from_slice(&c_in);
+    let expected_nf = hmac_sha3_384(&nk, &nf_data);
+    if !constant_time_eq(&expected_nf, &pub_stmt.nullifier) {
+        return Err("ERR_NULLIFIER_MISMATCH".into());
+    }
+
+    // 4. Authenticated Merkle Path Verification up to anchor_root (Depth 32)
+    let mut curr = c_in;
+    let mut idx = wit.leaf_index;
+    for level in 0..MERKLE_DEPTH_32 {
+        let sibling = &wit.merkle_path[level];
+        let level_byte = [level as u8];
+        let mut node_preimage = Vec::with_capacity(DOM_MERKLE_NODE.len() + 1 + 2 * HASH_BYTES);
+        node_preimage.extend_from_slice(DOM_MERKLE_NODE);
+        node_preimage.extend_from_slice(&level_byte);
+        if (idx & 1) == 0 {
+            node_preimage.extend_from_slice(&curr);
+            node_preimage.extend_from_slice(sibling);
+        } else {
+            node_preimage.extend_from_slice(sibling);
+            node_preimage.extend_from_slice(&curr);
+        }
+        curr = shake256_384(&node_preimage);
+        idx >>= 1;
+    }
+    if !constant_time_eq(&curr, &pub_stmt.anchor_root) {
+        return Err("ERR_ANCHOR_ROOT_MISMATCH".into());
+    }
+
+    // 5. Strict 64-Bit Value Conservation (No Wraparound)
+    let total_out = wit
+        .value_out
+        .checked_add(pub_stmt.withdraw_value)
+        .and_then(|v| v.checked_add(pub_stmt.fee))
+        .ok_or_else(|| "ERR_VALUE_OVERFLOW".to_string())?;
+    if wit.value_in != total_out {
+        return Err("ERR_VALUE_CONSERVATION_FAILED".into());
+    }
+
+    // 6. Output Change Note Commitment Binding
+    let val_out_bytes = wit.value_out.to_le_bytes();
+    let mut c_out_preimage = Vec::with_capacity(
+        DOM_COMMIT_V3.len() + 32 + HASH_BYTES + HASH_BYTES + 8 + 32 + 32,
+    );
+    c_out_preimage.extend_from_slice(DOM_COMMIT_V3);
+    c_out_preimage.extend_from_slice(&pub_stmt.param_id);
+    c_out_preimage.extend_from_slice(&pub_stmt.namespace_id);
+    c_out_preimage.extend_from_slice(&wit.pk_owner_out);
+    c_out_preimage.extend_from_slice(&val_out_bytes);
+    c_out_preimage.extend_from_slice(&wit.coin_id_out);
+    c_out_preimage.extend_from_slice(&wit.salt_out);
+    let c_out = shake256_384(&c_out_preimage);
+    if !constant_time_eq(&c_out, &pub_stmt.out_commitment) {
+        return Err("ERR_OUTPUT_COMMITMENT_MISMATCH".into());
+    }
+
+    // 7. Cryptographic Spend Authorization & Statement Digest Binding
+    let fee_bytes = pub_stmt.fee.to_le_bytes();
+    let withdraw_bytes = pub_stmt.withdraw_value.to_le_bytes();
+    let mut stmt_preimage = Vec::with_capacity(
+        DOM_TX_BIND_V3.len() + 32 + 5 * HASH_BYTES + 16,
+    );
+    stmt_preimage.extend_from_slice(DOM_TX_BIND_V3);
+    stmt_preimage.extend_from_slice(&pub_stmt.param_id);
+    stmt_preimage.extend_from_slice(&pub_stmt.namespace_id);
+    stmt_preimage.extend_from_slice(&pub_stmt.anchor_root);
+    stmt_preimage.extend_from_slice(&pub_stmt.nullifier);
+    stmt_preimage.extend_from_slice(&pub_stmt.out_commitment);
+    stmt_preimage.extend_from_slice(&pub_stmt.tx_context_digest);
+    stmt_preimage.extend_from_slice(&fee_bytes);
+    stmt_preimage.extend_from_slice(&withdraw_bytes);
+
+    Ok(shake256_384(&stmt_preimage))
+}

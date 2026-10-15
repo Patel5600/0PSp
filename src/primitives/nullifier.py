@@ -21,10 +21,15 @@ from __future__ import annotations
 import ctypes
 import hashlib
 import hmac
+import os
 from dataclasses import dataclass
 from pathlib import Path
 import threading
 from typing import Final
+
+
+class DeprecatedPrimitiveError(RuntimeError):
+    """Raised when deprecated V2 nullifier primitive is invoked outside KAT test suite."""
 
 from .namespace import (
     NAMESPACE_ID_BYTES,
@@ -291,6 +296,12 @@ def compute_nullifier_v2(
     commitment and the full proof relation. This helper alone validates neither
     minting nor spend eligibility.
     """
+    if os.environ.get("ALLOW_LEGACY_V2_KATS", "0") != "1":
+        raise DeprecatedPrimitiveError(
+            "compute_nullifier_v2 is deprecated due to V2 sender-linkability. "
+            "Use V3 recipient-keyed nullifier for production spends. "
+            "Set ALLOW_LEGACY_V2_KATS=1 to run legacy regression tests."
+        )
     preimage = _nullifier_v2_preimage(namespace_id, coin_id, r_nf)
     return Nullifier(hashlib.shake_256(preimage).digest(NULLIFIER_BYTES))
 
@@ -308,6 +319,12 @@ def compute_nullifier_v2_native(
     coin ID directly. Passing ScopedCoinId is convenient for tests, but copies
     its immutable bytes into a ctypes buffer.
     """
+    if os.environ.get("ALLOW_LEGACY_V2_KATS", "0") != "1":
+        raise DeprecatedPrimitiveError(
+            "compute_nullifier_v2_native is deprecated due to V2 sender-linkability. "
+            "Use V3 recipient-keyed nullifier for production spends. "
+            "Set ALLOW_LEGACY_V2_KATS=1 to run legacy regression tests."
+        )
     if not isinstance(namespace_id, NamespaceId):
         raise TypeError("namespace_id must be a NamespaceId")
     if isinstance(coin_id, bytearray):
