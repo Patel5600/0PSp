@@ -1,7 +1,7 @@
 # 0PSP Evidence-First RFC Register and NO-GO Dashboard
 
-**Last reviewed:** 2026-10-14  
-**Main baseline:** Consolidated PR #10, PR #30, and PR #32 into `main` (`94d08fd`, 2026-10-14). Passed full test battery across Linux and Windows (650 passed, 1 skipped, 0 failures), zero-dependency C11 native cryptographic engine (`libpsp_native`), differential tests (30 passed), OpenVM v2.0.2 zkVM guest circuit verification, and cycle-accurate hardware RDTSC timing screens ($|t| = 2.7838 < 4.5$).  
+**Last reviewed:** 2026-10-15  
+**Main baseline:** Consolidated PR #10, PR #28, PR #30, PR #31, and PR #32 into `main` (`a59d606`, 2026-10-15). Passed full test battery across Linux and Windows (663 passed, 2 skipped, 0 failures), zero-dependency C11 native cryptographic engine (`libpsp_native`) including Tier 1 mobile edge engine (`native/tier1_mobile.c`) and JNI bridge, differential tests (30 passed), OpenVM v2.0.2 zkVM guest circuit verification, and cycle-accurate hardware RDTSC timing screens ($|t| = 2.7838 < 4.5$).  
 **CHp4.1 CI:** [Functional checks workflow history](https://github.com/Patel5600/0PSp/actions/workflows/ci.yml); these validate workflow commands only and are not a cryptographic proof.  
 **Current release decision:** TESTNET PROTOCOL: **GO** (`v0.1.0-alpha` testnet launch with testnet tokens) / MAINNET REAL-VALUE: **GATED (NO-GO)**  
 **Scope of this document:** engineering RFCs and evidence plan; it is not a cryptographic proof or approval to deploy.

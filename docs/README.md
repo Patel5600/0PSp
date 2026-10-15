@@ -41,7 +41,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 31. [Commitment hiding and binding proof in QROM](theory/commitment-hiding-and-binding-proof.md) — formal computational binding reduction to SHAKE256-384 collision resistance and statistical hiding bound ($\text{Adv}^{\text{hide}} \le 2^{-160}$).
 32. [Composed security games and concrete reduction](security/composed-security-games-and-reduction.md) — formal balance conservation, recipient unlinkability under chosen witness attacks, and double-spend replay prevention games in QROM.
 33. [27-Gate production verification dossier](security/27-gate-verification-dossier.md) — comprehensive binary release audit across all 27 protocol gates.
-34. [Mobile-first prover architecture and memory budget](theory/mobile-first-prover-architecture-and-memory-budget.md) — client resource boundaries (Android LMK $\le 384\text{ MB}$, iOS Jetsam $\le 256\text{ MB}$), the 82% Merkle tree bottleneck analysis, and the 2-Tier Blinded Split-Prover protocol ($< 24\text{ MB}$ RAM, sub-second execution on mobile ARM64).
+34. [Mobile-first prover architecture and memory budget](theory/mobile-first-prover-architecture-and-memory-budget.md) — client resource boundaries (Android LMK $\le 384\text{ MB}$, iOS Jetsam $\le 256\text{ MB}$), analytical resource model projections, implemented C11 native mobile edge cryptographic engine (`libpsp_native`, zero-heap Tier 1 spend package generation), and the 2-Tier Blinded Split-Prover protocol ($< 24\text{ MB}$ RAM, sub-second execution on mobile ARM64; zero-knowledge witness privacy conditionally gated on circuit-level ZK blinding rows under P0 Issue #36).
 
 ## Repository map
 
