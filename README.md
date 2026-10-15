@@ -71,35 +71,169 @@ The cryptographic security of 0PSP is formally proven in the Quantum Random-Orac
 
 Every release gate has an explicit status for **Testnet Launch (`v0.1.0-alpha`)** and **Mainnet Real-Value Transfer**. Detailed technical documentation and evidence are recorded in the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md) and [Binary Production Gate Matrix](docs/security/production-gate-matrix.md).
 
-| # | Gate | Testnet Status | Mainnet Status | Empirical Evidence & Code Reference | Remaining Gate / Obligation for Mainnet |
-|:---:|---|:---:|:---:|---|---|
-| 1 | Namespace V2 Frozen Core | **GO** | **GO (Frozen)** | Fixed KATs; [`src/primitives/namespace.py`](src/primitives/namespace.py), [`native/nullifier_v2.c`](native/nullifier_v2.c) | Preserved for historical compatibility |
-| 2 | Namespace V3 Direct-Hash EVM Codec | **GO** | **Gated** | Direct SHAKE256-384 hashing; [`native/namespace_v3.c`](native/namespace_v3.c), 40 tests passed | Pinned live mainnet contract deployment manifest |
-| 3 | CommitV2 / NullifierV2 Host & Native APIs | **GO** | **Gated** | Zero-dependency C11 constant-time engine; 13 unit tests passed | Full in-circuit spend relation proof binding |
-| 4 | Ethereum Keccak/RLP/MPT Reference Implementation | **GO** | **Gated** | Strict Yellow Paper conformance; 30 differential tests passed (`pycryptodome`, `rlp`, `HexaryTrie`) | Live RPC node proof acquisition |
-| 5 | EIP-1186 Account & Storage Proof Verifier | **GO** | **Gated** | MPT inclusion/exclusion against state roots; [`src/adapters/evm_state_proof.py`](src/adapters/evm_state_proof.py) | Authenticated light-client consensus integration |
-| 6 | Durable SQLite Issue & Spend Transitions | **GO** | **Gated** | Atomic WAL transactions; fault injection & crash recovery tests passing | Multi-node distributed consensus / L1 sequencing |
-| 7 | Canonical TxFieldsV2 / TxDigestV2 Codec | **GO** | **Gated** | Canonical serialization & 48-byte digest; [`src/protocol/transaction_v2.py`](src/protocol/transaction_v2.py) | Proof circuit binding of decoded fields to witness |
-| 8 | Static SHAKE Arithmetization Estimator | **GO** | **Superseded** | 153,600 bit-sliced arithmetic equivalents model; [`scripts/estimate_keccak_zk_cost.py`](scripts/estimate_keccak_zk_cost.py) | Superseded by empirical OpenVM zkVM cycle benchmarks |
-| 9 | Binary-Field Keccak Circuit Model | **GO** | **Superseded** | GF(2) chi-relation constraint model (38,400 rows/perm); [`scripts/estimate_binary_field_keccak.py`](scripts/estimate_binary_field_keccak.py) | Superseded by OpenVM STARK backend |
-| 10 | Durable Replay Protection (Single Node) | **GO** | **Gated** | SQLite primary key constraints & 256-state historical anchor ring (PR #32) | Distributed reorg recovery |
-| 11 | SmallWood Python R1CS Dense Adapter | **NO-GO** | **NO-GO** | Audited in [`CHp4.22`](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md); materializes $\ge 2.082\text{ TiB}$ RAM | Screened out and rejected as infeasible |
-| 12 | Aurora/libiop Binary-Extension Backend | **NO-GO** | **NO-GO** | Audited in [`CHp4.20`](docs/audit/chp4.20-zk-backend-feasibility.md); pristine build failure and PoW gap | Screened out and rejected |
-| 13 | RISC Zero zkVM Zero-Knowledge Guarantee | **NO-GO** | **NO-GO** | Screened out due to maintainer security advisory GHSA-5xgj-pmjj-gw49 | Screened out and rejected |
-| 14 | Proof-Backend Selection (OpenVM v2.0.2) | **GO** | **Gated** | OpenVM v2.0.2 Rust zkVM guest circuit (`spend_v3.rs`); 5 adversarial suites pass | Full-prover trace ZK masking on production target hardware |
-| 15 | ZK Transaction-Digest Binding | **GO** | **Gated** | Host encoding bound inside `spend_v3.rs` to public statement digest | Production prover trace ZK masking |
-| 16 | Commit Opening Inside Proof | **GO** | **Gated** | SHAKE256-384 commitment opening verified over private witness in `spend_v3.rs` | Production prover trace ZK masking |
-| 17 | Same-Witness Nullifier Binding | **GO** | **Gated** | HMAC-SHA3-384 nullifier proven with identical note key $nk$ in `spend_v3.rs` | Production prover trace ZK masking |
-| 18 | Value Conservation & Output Opening | **GO** | **Gated** | $v_{in} = v_{out} + fee$ strictly checked with range safety in `spend_v3.rs` | Production prover trace ZK masking |
-| 19 | Authorization Predicate in Spend Relation | **GO** | **Gated** | Spend authorized via knowledge of note nullifier key $nk$ bound to recipient bundle | Production prover trace ZK masking |
-| 20 | Trusted EVM DepositAuthorization | **GO** | **Gated** | [`src/adapters/evm_deposit_authorizer.py`](src/adapters/evm_deposit_authorizer.py) composes Helios, MPT, and solvency checks | Live Mainnet RPC node proof acquisition |
-| 21 | Contract/Token Custody Semantics | **GO** | **Gated** | Pinned bytecode fingerprint and ERC-20 transfer matching verified | Live Ethereum smart contract audit & deployment |
-| 22 | Coin-ID Reuse & Output Collision Prevention | **GO** | **Gated** | Output identity derived from parent anchor + slot index; collision prevention proven | Live Ethereum smart contract audit & deployment |
-| 23 | Issuer Privacy & Commitment Hiding | **GO** | **Gated** | Formally proven in QROM ($\text{Adv}^{\text{hide}} \le 2^{-160}$, binding reduces to SHAKE256) | Full prover trace ZK masking for Mainnet |
-| 24 | Real Ethereum Mainnet Smoke Test | **GO** | **Gated** | 24 tests in [`tests/unit/test_namespace_mainnet_smoke.py`](tests/unit/test_namespace_mainnet_smoke.py) pass on synthetic data | Live-network proof acquisition & execution |
-| 25 | Whole-Protocol Internally Audited Composition | **GO** | **Gated** | 650 automated tests passing with zero failures across Linux and Windows | Independent third-party audit |
-| 26 | External Cryptographic Audit | **DEFERRED** | **DEFERRED** | Deliberately scheduled post-launch milestone prior to real-value transfer | Third-party external audit completion |
-| 27 | **Complete 0PSP Production Release** | **GO** | **NO-GO** | **v0.1.0-alpha Testnet Launch is GO**; Mainnet live-value transfer is gated | All mandatory external criteria evidenced closed |
+The matrix below is formatted as individual gate entries rather than a six-column Markdown table. This keeps statuses, evidence, and outstanding obligations readable on narrow/mobile screens. The same 27 gate records are retained.
+
+### 1. Namespace V2 Frozen Core
+
+- **Testnet:** **GO** · **Mainnet:** **GO (Frozen)**
+- **Evidence:** Fixed KATs; [`src/primitives/namespace.py`](src/primitives/namespace.py), [`native/nullifier_v2.c`](native/nullifier_v2.c)
+- **Mainnet obligation:** Preserved for historical compatibility
+
+### 2. Namespace V3 Direct-Hash EVM Codec
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Direct SHAKE256-384 hashing; [`native/namespace_v3.c`](native/namespace_v3.c), 40 tests passed
+- **Mainnet obligation:** Pinned live mainnet contract deployment manifest
+
+### 3. CommitV2 / NullifierV2 Host & Native APIs
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Zero-dependency C11 constant-time engine; 13 unit tests passed
+- **Mainnet obligation:** Full in-circuit spend relation proof binding
+
+### 4. Ethereum Keccak/RLP/MPT Reference Implementation
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Strict Yellow Paper conformance; 30 differential tests passed (`pycryptodome`, `rlp`, `HexaryTrie`)
+- **Mainnet obligation:** Live RPC node proof acquisition
+
+### 5. EIP-1186 Account & Storage Proof Verifier
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** MPT inclusion/exclusion against state roots; [`src/adapters/evm_state_proof.py`](src/adapters/evm_state_proof.py)
+- **Mainnet obligation:** Authenticated light-client consensus integration
+
+### 6. Durable SQLite Issue & Spend Transitions
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Atomic WAL transactions; fault injection & crash recovery tests passing
+- **Mainnet obligation:** Multi-node distributed consensus / L1 sequencing
+
+### 7. Canonical TxFieldsV2 / TxDigestV2 Codec
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Canonical serialization & 48-byte digest; [`src/protocol/transaction_v2.py`](src/protocol/transaction_v2.py)
+- **Mainnet obligation:** Proof circuit binding of decoded fields to witness
+
+### 8. Static SHAKE Arithmetization Estimator
+
+- **Testnet:** **GO** · **Mainnet:** **Superseded**
+- **Evidence:** 153,600 bit-sliced arithmetic equivalents model; [`scripts/estimate_keccak_zk_cost.py`](scripts/estimate_keccak_zk_cost.py)
+- **Mainnet obligation:** Superseded by empirical OpenVM zkVM cycle benchmarks
+
+### 9. Binary-Field Keccak Circuit Model
+
+- **Testnet:** **GO** · **Mainnet:** **Superseded**
+- **Evidence:** GF(2) chi-relation constraint model (38,400 rows/perm); [`scripts/estimate_binary_field_keccak.py`](scripts/estimate_binary_field_keccak.py)
+- **Mainnet obligation:** Superseded by OpenVM STARK backend
+
+### 10. Durable Replay Protection (Single Node)
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** SQLite primary key constraints & 256-state historical anchor ring (PR #32)
+- **Mainnet obligation:** Distributed reorg recovery
+
+### 11. SmallWood Python R1CS Dense Adapter
+
+- **Testnet:** **NO-GO** · **Mainnet:** **NO-GO**
+- **Evidence:** Audited in [`CHp4.22`](docs/audit/chp4.22-smallwood-r1cs-adapter-scaling.md); materializes $\ge 2.082\text{ TiB}$ RAM
+- **Mainnet obligation:** Screened out and rejected as infeasible
+
+### 12. Aurora/libiop Binary-Extension Backend
+
+- **Testnet:** **NO-GO** · **Mainnet:** **NO-GO**
+- **Evidence:** Audited in [`CHp4.20`](docs/audit/chp4.20-zk-backend-feasibility.md); pristine build failure and PoW gap
+- **Mainnet obligation:** Screened out and rejected
+
+### 13. RISC Zero zkVM Zero-Knowledge Guarantee
+
+- **Testnet:** **NO-GO** · **Mainnet:** **NO-GO**
+- **Evidence:** Screened out due to maintainer security advisory GHSA-5xgj-pmjj-gw49
+- **Mainnet obligation:** Screened out and rejected
+
+### 14. Proof-Backend Selection (OpenVM v2.0.2)
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** OpenVM v2.0.2 Rust zkVM guest circuit (`spend_v3.rs`); 5 adversarial suites pass
+- **Mainnet obligation:** Full-prover trace ZK masking on production target hardware
+
+### 15. ZK Transaction-Digest Binding
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Host encoding bound inside `spend_v3.rs` to public statement digest
+- **Mainnet obligation:** Production prover trace ZK masking
+
+### 16. Commit Opening Inside Proof
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** SHAKE256-384 commitment opening verified over private witness in `spend_v3.rs`
+- **Mainnet obligation:** Production prover trace ZK masking
+
+### 17. Same-Witness Nullifier Binding
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** HMAC-SHA3-384 nullifier proven with identical note key $nk$ in `spend_v3.rs`
+- **Mainnet obligation:** Production prover trace ZK masking
+
+### 18. Value Conservation & Output Opening
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** $v_{in} = v_{out} + fee$ strictly checked with range safety in `spend_v3.rs`
+- **Mainnet obligation:** Production prover trace ZK masking
+
+### 19. Authorization Predicate in Spend Relation
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Spend authorized via knowledge of note nullifier key $nk$ bound to recipient bundle
+- **Mainnet obligation:** Production prover trace ZK masking
+
+### 20. Trusted EVM DepositAuthorization
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** [`src/adapters/evm_deposit_authorizer.py`](src/adapters/evm_deposit_authorizer.py) composes Helios, MPT, and solvency checks
+- **Mainnet obligation:** Live Mainnet RPC node proof acquisition
+
+### 21. Contract/Token Custody Semantics
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Pinned bytecode fingerprint and ERC-20 transfer matching verified
+- **Mainnet obligation:** Live Ethereum smart contract audit & deployment
+
+### 22. Coin-ID Reuse & Output Collision Prevention
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Output identity derived from parent anchor + slot index; collision prevention proven
+- **Mainnet obligation:** Live Ethereum smart contract audit & deployment
+
+### 23. Issuer Privacy & Commitment Hiding
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** Formally proven in QROM ($\text{Adv}^{\text{hide}} \le 2^{-160}$, binding reduces to SHAKE256)
+- **Mainnet obligation:** Full prover trace ZK masking for Mainnet
+
+### 24. Real Ethereum Mainnet Smoke Test
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** 24 tests in [`tests/unit/test_namespace_mainnet_smoke.py`](tests/unit/test_namespace_mainnet_smoke.py) pass on synthetic data
+- **Mainnet obligation:** Live-network proof acquisition & execution
+
+### 25. Whole-Protocol Internally Audited Composition
+
+- **Testnet:** **GO** · **Mainnet:** **Gated**
+- **Evidence:** 650 automated tests passing with zero failures across Linux and Windows
+- **Mainnet obligation:** Independent third-party audit
+
+### 26. External Cryptographic Audit
+
+- **Testnet:** **DEFERRED** · **Mainnet:** **DEFERRED**
+- **Evidence:** Deliberately scheduled post-launch milestone prior to real-value transfer
+- **Mainnet obligation:** Third-party external audit completion
+
+### 27. **Complete 0PSP Production Release**
+
+- **Testnet:** **GO** · **Mainnet:** **NO-GO**
+- **Evidence:** **v0.1.0-alpha Testnet Launch is GO**; Mainnet live-value transfer is gated
+- **Mainnet obligation:** All mandatory external criteria evidenced closed
 
 ## Increment & Audit Registry
 
