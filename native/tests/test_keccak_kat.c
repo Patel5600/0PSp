@@ -58,8 +58,8 @@ int main(void) {
     /* Test 5: HMAC-SHA3-384 of message with key */
     uint8_t hmac_out[48];
     const uint8_t key[4] = { 0x01, 0x02, 0x03, 0x04 };
-    const uint8_t msg[5] = "hello";
-    psp_hmac_sha3_384(key, 4, msg, 5, hmac_out);
+    const uint8_t msg[] = "hello";
+    psp_hmac_sha3_384(key, sizeof(key), msg, sizeof(msg) - 1, hmac_out);
     printf("HMAC-SHA3-384 ('hello', key=01020304): %02x%02x%02x%02x...\n",
            hmac_out[0], hmac_out[1], hmac_out[2], hmac_out[3]);
 

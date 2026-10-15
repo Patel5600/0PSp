@@ -95,7 +95,12 @@ int psp_merkle_verify_path(
     size_t level;
     int st;
 
-    if (namespace_id == NULL || commitment == NULL || siblings_flat == NULL || expected_root == NULL || depth != PSP_MERKLE_TREE_DEPTH) {
+    if (namespace_id == NULL || commitment == NULL || siblings_flat == NULL || expected_root == NULL ||
+        depth == 0u || depth > PSP_MERKLE_TREE_DEPTH) {
+        return PSP_CRYPTO_ERR_ARGUMENT;
+    }
+
+    if (depth < 64u && leaf_index >= (1ULL << depth)) {
         return PSP_CRYPTO_ERR_ARGUMENT;
     }
 

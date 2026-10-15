@@ -139,6 +139,8 @@ The mobile-first architecture is an active engineering track with the following 
 
 - [x] **Analytical Memory & Resource Model:** Parameterized scaling script implemented and verified ([`scripts/estimate_mobile_prover_budget.py`](../../scripts/estimate_mobile_prover_budget.py)).
 - [x] **Native Cryptographic Engine:** Zero-dependency C11 constant-time engine ([`native/`](../../native)) tested and compatible with Android NDK and iOS Clang.
+- [x] **Tier 1 Mobile Edge Cryptographic Engine:** Zero-heap C11 implementation ([`native/tier1_mobile.c`](../../native/tier1_mobile.c), [`native/include/psp_tier1_mobile.h`](../../native/include/psp_tier1_mobile.h)) enforcing value conservation, NK-possession authorization, deterministic output identity, canonical TxFieldsV3 encoding, and spend package generation.
+- [x] **Mobile Language & Platform Bindings:** Android JNI interface ([`native/psp_jni.c`](../../native/psp_jni.c)), iOS/C-FFI umbrella header ([`native/include/psp_mobile.h`](../../native/include/psp_mobile.h)), and Python ctypes adapter ([`src/adapters/native_mobile_adapter.py`](../../src/adapters/native_mobile_adapter.py)) with 100% differential test coverage.
+- [x] **Subtree Merkle Verification (Depth-32 & Depth-63):** Constant-time on-device path verification for mobile consensus profiles ([`native/merkle_tree_v3.c`](../../native/merkle_tree_v3.c)).
 - [ ] **Tier 1 Guest Spend Circuit (Open Engineering Milestone):** Implement isolated 5-hash private witness circuit in OpenVM / Plonky3 with verified ZK trace blinding.
 - [ ] **Blind Delegation RPC Protocol (Open Engineering Milestone):** Define fail-closed client-relayer JSON-RPC interface with mutual authentication and relay censorship resistance.
-- [ ] **Mobile Language Bindings (Open Engineering Milestone):** Android Kotlin (JNI) and iOS Swift (C-FFI) client libraries.

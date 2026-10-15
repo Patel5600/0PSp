@@ -20,9 +20,10 @@ DISASM := $(BUILD_DIR)/nullifier_native.disasm.txt
 # Zero-Dependency C11 V3 Targets
 TEST_KECCAK_KAT_BIN := $(BUILD_DIR)/test_keccak_kat
 TEST_V3_BIN := $(BUILD_DIR)/test_v3_primitives
+TEST_MOBILE_TIER1_BIN := $(BUILD_DIR)/test_mobile_tier1
 TIMING_V3_BIN := $(BUILD_DIR)/timing_probe_v3_native
 
-NATIVE_V3_SRCS := keccak_f1600.c random.c nullifier_v1.c namespace_v3.c nullifier_v2.c nullifier_v3.c coin_commitment_v2.c coin_commitment_v3.c merkle_tree_v3.c
+NATIVE_V3_SRCS := keccak_f1600.c random.c nullifier_v1.c namespace_v3.c nullifier_v2.c nullifier_v3.c coin_commitment_v2.c coin_commitment_v3.c merkle_tree_v3.c tier1_mobile.c
 
 LDLIBS ?=
 ifeq ($(OS),Windows_NT)
@@ -31,7 +32,7 @@ endif
 
 SANITIZE_CFLAGS ?= -O1 -g -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer
 
-.PHONY: all test test-v3 audit timing timing-probe-build timing-v2 timing-v2-probe-build timing-commitment-v2 timing-commitment-v2-probe-build timing-v3 sanitize-test clean
+.PHONY: all test test-v3 test-mobile audit timing timing-probe-build timing-v2 timing-v2-probe-build timing-commitment-v2 timing-commitment-v2-probe-build timing-v3 sanitize-test clean
 
 all: $(LIB) $(LIB_V3)
 
@@ -49,6 +50,9 @@ $(TEST_KECCAK_KAT_BIN): keccak_f1600.c tests/test_keccak_kat.c $(INCLUDE_DIR)/ps
 
 $(TEST_V3_BIN): $(NATIVE_V3_SRCS) tests/test_v3_primitives.c | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) $(NATIVE_V3_SRCS) tests/test_v3_primitives.c -o $@ $(LDLIBS)
+
+$(TEST_MOBILE_TIER1_BIN): $(NATIVE_V3_SRCS) tests/test_mobile_tier1.c | $(BUILD_DIR)
+	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) $(NATIVE_V3_SRCS) tests/test_mobile_tier1.c -o $@ $(LDLIBS)
 
 $(TEST_BIN): nullifier_v1.c nullifier_v2.c keccak_f1600.c random.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c keccak_f1600.c random.c tests/test_nullifier_v1.c -o $@ $(LDLIBS)
@@ -89,16 +93,21 @@ timing-commitment-v2: $(TIMING_COMMITMENT_V2_BIN)
 timing-v3: $(TIMING_V3_BIN)
 	./$(TIMING_V3_BIN)
 
-test: $(LIB) $(LIB_V3) $(TEST_BIN) $(V2_TEST_BIN) $(NAMESPACE_V3_TEST_BIN) $(TEST_KECCAK_KAT_BIN) $(TEST_V3_BIN)
+test: $(LIB) $(LIB_V3) $(TEST_BIN) $(V2_TEST_BIN) $(NAMESPACE_V3_TEST_BIN) $(TEST_KECCAK_KAT_BIN) $(TEST_V3_BIN) $(TEST_MOBILE_TIER1_BIN)
 	./$(TEST_BIN)
 	./$(V2_TEST_BIN)
 	./$(NAMESPACE_V3_TEST_BIN)
 	./$(TEST_KECCAK_KAT_BIN)
 	./$(TEST_V3_BIN)
+	./$(TEST_MOBILE_TIER1_BIN)
 
-test-v3: $(TEST_KECCAK_KAT_BIN) $(TEST_V3_BIN)
+test-v3: $(TEST_KECCAK_KAT_BIN) $(TEST_V3_BIN) $(TEST_MOBILE_TIER1_BIN)
 	./$(TEST_KECCAK_KAT_BIN)
 	./$(TEST_V3_BIN)
+	./$(TEST_MOBILE_TIER1_BIN)
+
+test-mobile: $(TEST_MOBILE_TIER1_BIN)
+	./$(TEST_MOBILE_TIER1_BIN)
 
 $(SAN_TEST_V1_BIN): nullifier_v1.c nullifier_v2.c coin_commitment_v2.c keccak_f1600.c random.c tests/test_nullifier_v1.c $(INCLUDE_DIR)/psp_nullifier_v1.h $(INCLUDE_DIR)/psp_nullifier_v2.h $(INCLUDE_DIR)/psp_coin_commitment_v2.h | $(BUILD_DIR)
 	$(CC) -std=c11 $(SANITIZE_CFLAGS) $(CPPFLAGS) -I$(INCLUDE_DIR) nullifier_v1.c nullifier_v2.c coin_commitment_v2.c keccak_f1600.c random.c tests/test_nullifier_v1.c -o $@ $(LDLIBS)
