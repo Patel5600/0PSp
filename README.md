@@ -331,3 +331,4 @@ python -m pytest tests/adversarial/test_hidden_tuple_reuse.py -q
 - [RFC-04 Native Memory/Side-Channel Diagnostics](docs/security/rfc-04-side-channel-diagnostics.md)
 - [CHP4 Construction-Readiness Record](docs/security/chp4-construction-readiness.md)
 - [Dependency-Minimization and Construction Roadmap](docs/plan/dependency-minimization-and-construction-roadmap.md)
+- [Mobile-First Prover Architecture and Memory Budget](docs/theory/mobile-first-prover-architecture-and-memory-budget.md)
