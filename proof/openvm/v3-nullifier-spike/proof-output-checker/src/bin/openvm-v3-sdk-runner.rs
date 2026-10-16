@@ -297,6 +297,112 @@ fn prove(
     Ok(())
 }
 
+
+fn prove_single_dynamic(
+    config: &Path,
+    elf_path: &Path,
+    witness_path: &Path,
+    expected_digest_path: &Path,
+    proof_output_path: &Path,
+    app_vk_path: &Path,
+    expected_commit_path: &Path,
+    evidence_dir: &Path,
+) -> Result<()> {
+    fs::create_dir_all(evidence_dir)?;
+    if let Some(parent) = proof_output_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    if let Some(parent) = app_vk_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let sdk = sdk_from_config(config)?;
+    let elf = read_elf(elf_path)?;
+
+    let keygen_started = Instant::now();
+    let (_app_pk, app_vk) = sdk.app_keygen();
+    let keygen_seconds = keygen_started.elapsed().as_secs_f64();
+    if app_vk.num_user_pvs != PUBLIC_VALUE_BYTES {
+        bail!(
+            "SDK verifying key expects {} public values; expected {}",
+            app_vk.num_user_pvs,
+            PUBLIC_VALUE_BYTES
+        );
+    }
+    write_object_to_file(app_vk_path, &app_vk)
+        .with_context(|| format!("writing app verifying key {}", app_vk_path.display()))?;
+
+    let probe = sdk
+        .app_prover(elf.clone())
+        .context("constructing SDK app prover for dynamic ledger executable commitment")?;
+    let app_commit = CommitBytes::from(probe.app_exe_commit());
+    let commit_hex = hex::encode(app_commit.as_slice());
+    fs::write(
+        evidence_dir.join("generated-app-exe-commit.txt"),
+        format!("{commit_hex}\n"),
+    )?;
+    let expected_commit =
+        read_hex_file(expected_commit_path, 32, "pinned app executable commitment")?;
+    if expected_commit.as_slice() != app_commit.as_slice() {
+        bail!(
+            "dynamic ledger proof executable commitment differs from the reviewed pin: generated {}",
+            commit_hex
+        );
+    }
+
+    let fixture_dir = evidence_dir.join("single-proof-fixture");
+    fs::create_dir_all(&fixture_dir)?;
+    fs::copy(witness_path, fixture_dir.join("spend-valid.witness"))
+        .with_context(|| format!("staging dynamic witness {}", witness_path.display()))?;
+    fs::copy(
+        expected_digest_path,
+        fixture_dir.join("expected-spend-public-digest.txt"),
+    )
+    .with_context(|| format!("staging expected public digest {}", expected_digest_path.display()))?;
+
+    let (prove_seconds, verify_seconds) = prove_one(
+        &sdk,
+        &elf,
+        &fixture_dir,
+        &app_vk,
+        app_commit,
+        "spend-valid.witness",
+        "expected-spend-public-digest.txt",
+        "ledger-spend.app.proof",
+    )?;
+    let generated_proof = fixture_dir.join("ledger-spend.app.proof");
+    fs::copy(&generated_proof, proof_output_path).with_context(|| {
+        format!(
+            "copying generated proof to {}",
+            proof_output_path.display()
+        )
+    })?;
+
+    let rss_kib = peak_rss_kib()?;
+    write_metric(
+        &evidence_dir.join("ledger-keygen.metrics"),
+        "V3_SPIKE_LEDGER_KEYGEN_SECONDS",
+        keygen_seconds,
+        rss_kib,
+    )?;
+    write_metric(
+        &evidence_dir.join("ledger-spend-prove.metrics"),
+        "V3_SPIKE_LEDGER_SPEND_PROVE_SECONDS",
+        prove_seconds,
+        rss_kib,
+    )?;
+    write_metric(
+        &evidence_dir.join("ledger-spend-verify.metrics"),
+        "V3_SPIKE_LEDGER_SPEND_VERIFY_SECONDS",
+        verify_seconds,
+        rss_kib,
+    )?;
+    println!("V3_SPIKE_LEDGER_PROOF_BYTES={}", fs::metadata(proof_output_path)?.len());
+    println!("V3_SPIKE_LEDGER_APP_EXE_COMMIT={commit_hex}");
+    println!("V3_SPIKE_LEDGER_PROOF_PATH={}", proof_output_path.display());
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     match args.get(1).map(String::as_str) {
@@ -313,9 +419,19 @@ fn main() -> Result<()> {
             Path::new(&args[6]),
             Path::new(&args[7]),
         ),
+        Some("prove-one") if args.len() == 10 => prove_single_dynamic(
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+            Path::new(&args[5]),
+            Path::new(&args[6]),
+            Path::new(&args[7]),
+            Path::new(&args[8]),
+            Path::new(&args[9]),
+        ),
         _ => {
             bail!(
-                "usage:\n  openvm-v3-sdk-runner run CONFIG ELF WITNESS\n  openvm-v3-sdk-runner prove CONFIG ELF FIXTURE_DIR APP_VK EXPECTED_COMMIT EVIDENCE_DIR"
+                "usage:\n  openvm-v3-sdk-runner run CONFIG ELF WITNESS\n  openvm-v3-sdk-runner prove CONFIG ELF FIXTURE_DIR APP_VK EXPECTED_COMMIT EVIDENCE_DIR\n  openvm-v3-sdk-runner prove-one CONFIG ELF WITNESS EXPECTED_DIGEST_HEX PROOF_OUT APP_VK EXPECTED_COMMIT EVIDENCE_DIR"
             )
         }
     }
