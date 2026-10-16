@@ -4,7 +4,7 @@
 > **Testnet Deployment:** Full functionality enabled with testnet tokens (zero financial risk, testnet assets only).  
 > **Mainnet Real-Value Transfer:** Gated pending independent external third-party cryptographic audits and full-prover trace zero-knowledge masking.
 
-0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization, and post-quantum zero-knowledge proofs over the spend relation. This repository implements the zero-dependency C11 constant-time cryptographic engine (`libpsp_native`), durable SQLite ledger with a 4,096-state historical anchor ring, EVM light-client state verifier, and the OpenVM v2.0.2 zkVM guest circuit.
+0PSP is a research-stage private-spend protocol candidate with namespace-scoped coin identities, replay protection, C11 cryptographic primitives, a single-node SQLite candidate ledger, EVM light-client components, and an OpenVM v2.0.2 guest experiment. Production authorization, authenticated finalized-state composition, complete V3 proof enforcement, and end-to-end zero-knowledge remain gated; the presence of components does not imply a production-ready spend protocol.
 
 ## Current security gate (2026-10-15; Testnet Release Candidate v0.1.0-alpha)
 
@@ -40,18 +40,18 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 
 ### 2. Post-Quantum zkVM Spend Relation (`OpenVM v2.0.2`)
 - **Spend Circuit (`spend_v3.rs`):** Rust guest circuit executing in OpenVM v2.0.2 zkVM.
-- **Complete Predicate Enforcement:**
+- **Candidate predicates checked by the experimental guest (not a complete production protocol):**
   - 63-level namespace-scoped Merkle membership path verification.
   - Recipient nullifier-deriving key (`nk`) commitment opening.
   - Note commitment opening (`CommitV3`).
   - Same-witness nullifier derivation (`NullifierV3` HMAC-SHA3-384).
   - Anchored output identity derivation (binding parent anchor + output slot index) strictly preventing coin-ID reuse.
   - Value conservation ($v_{in} = v_{out} + fee$) with strict range bounds and carry overflow containment.
-- **Tested & Benchmarked:** Passed 5 adversarial test suites covering witness tampering, public statement mutation, and single-output profile enforcement. Proving and verification performance benchmarked in CI (645,001-byte proof; verification in 0.06–0.10s).
+- **Candidate-slice evidence only:** Host/guest tests exercise a one-input/one-output candidate and adversarial mutations. This does not authenticate the root/finality, implement an independently authenticated intended payee, reconstruct semantic withdrawal/relayer fields, or prove end-to-end witness hiding. Any proof size/time metrics are tied to the exact cited CI SHA and must not be generalized to the complete production relation.
 
 ### 3. Durable SQLite Ledger & Historical Anchor Ring
 - **Atomic State Transitions:** SQLite WAL mode with immediate transactions enforcing unique deposit anchors, unique output commitments, and single-use nullifiers.
-- **Historical Anchor Ring (CHp4.26 / PR #32):** Retains a 256-state circular buffer of committed `(commitment_root, ledger_state_head)` anchors. Spends may verify against any valid retained anchor while appending outputs atomically to the latest state.
+- **Historical Anchor Ring (current candidate default):** Retains a configurable window defaulting to 4,096 committed `(commitment_root, ledger_state_head)` anchors. Earlier PR #32 validation used 256 states. This is local single-node history, not consensus finality or rollback protection.
 - **Crash & Fault Injection Resilience:** Tested against uncommitted process aborts, power-loss simulations, concurrent duplicate nullifier races, and direct Merkle node corruption via `audit_integrity()`.
 
 ### 4. EVM Light-Client Deposit Evidence & Authorizer
