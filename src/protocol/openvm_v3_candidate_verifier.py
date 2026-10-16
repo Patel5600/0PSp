@@ -151,7 +151,10 @@ def _stage_pinned_artifact(
                     )
                 view = view[written:]
         os.fsync(target_fd)
-        os.fchmod(target_fd, target_mode)
+        if hasattr(os, "fchmod"):
+            os.fchmod(target_fd, target_mode)
+        else:
+            os.chmod(destination, target_mode)
     except Exception:
         if target_fd is not None:
             os.close(target_fd)
