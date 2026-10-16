@@ -148,7 +148,7 @@ fn node_hash(
     left: &[u8; HASH_BYTES],
     right: &[u8; HASH_BYTES],
 ) -> [u8; HASH_BYTES] {
-    let mut preimage = Vec::with_capacity(NODE_DOMAIN.len() + 1 + 4 + 3 * HASH_BYTES);
+    let mut preimage = Vec::with_capacity(DOM_MERKLE_NODE.len() + 1 + 4 + 3 * HASH_BYTES);
     preimage.extend_from_slice(DOM_MERKLE_NODE);
     preimage.push(MERKLE_NODE_FORMAT_VERSION);
     preimage.extend_from_slice(&(level as u32).to_be_bytes());
@@ -330,7 +330,7 @@ pub const DOM_NK_V3: &[u8] = b"0PSP_NK_DERIVE_V3";
 pub const DOM_OWNER_V3: &[u8] = b"0PSP_OWNER_V3";
 pub const DOM_COMMIT_V3: &[u8] = b"0PSP_COMMIT_V3";
 pub const DOM_NULLIFIER_V3: &[u8] = b"0PSP_NULLIFIER_V3";
-pub // Shared by both candidate paths so leaf/node preimages match the Python/C tree codec.
+// Shared by both candidate paths so leaf/node preimages match the Python/C tree codec.
 const MERKLE_NODE_FORMAT_VERSION: u8 = 0x01;
 pub const DOM_TX_BIND_V3: &[u8] = b"0PSP_TX_STATEMENT_V3";
 pub const DOM_SPEND_AUTH_V3: &[u8] = b"0PSP_SPEND_AUTH_V3";
