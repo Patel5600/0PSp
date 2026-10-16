@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import pytest
+from dataclasses import replace
 
 from src.primitives.coin_commitment_v3 import commit_coin_v3
 from src.primitives.namespace import ScopedCoinId
@@ -417,3 +418,17 @@ def test_spend_relation_v3_tx_context_relayer_tampering_rejection() -> None:
     # The public statement digest MUST be cryptographically distinct, invalidating any proof
     assert tampered_digest != valid_digest
 
+
+def test_depth32_merkle_path_rejects_out_of_range_or_boolean_leaf_index() -> None:
+    """Depth-32 path profiles cannot smuggle high index bits outside the path."""
+    _, witness, _, _, _ = _create_test_fixture()
+
+    with pytest.raises(ValueError, match="depth-32 Merkle path range"):
+        replace(
+            witness,
+            leaf_index=1 << 32,
+            merkle_siblings=tuple(witness.merkle_siblings[:32]),
+        )
+
+    with pytest.raises(ValueError, match="leaf_index must be an integer"):
+        replace(witness, leaf_index=True)
