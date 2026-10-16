@@ -121,8 +121,8 @@ OPENVM_V2_CANDIDATE_PROFILE = ProofBackendProfileV3(
     is_deprecated=False,
 )
 
-# Compatibility aliases for existing internal imports. These names do not indicate
-# mobile readiness or a proved zero-knowledge property.
+# Compatibility alias for older internal imports only. This does not indicate
+# mobile readiness or a zero-knowledge property.
 TIER1_MOBILE_PROFILE = OPENVM_V2_CANDIDATE_PROFILE
 TIER2_SERVER_PROFILE = ProofBackendProfileV3(
     backend_name="Legacy unreviewed candidate profile (deprecated)",
@@ -271,7 +271,7 @@ def verify_production_proof_envelope(
         return False
     # Even after a future gate change, refuse caller-manufactured profile objects or
     # a profile whose declared bound remains below the required target.
-    if profile is not TIER1_MOBILE_PROFILE:
+    if profile is not OPENVM_V2_CANDIDATE_PROFILE:
         return False
     if profile.claimed_security_bits < TARGET_PQ_SOUNDNESS_BITS:
         return False
