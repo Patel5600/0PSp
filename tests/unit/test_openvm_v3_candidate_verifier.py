@@ -65,7 +65,7 @@ def test_candidate_public_digest_matches_fixed_guest_vector() -> None:
     # Independently calculated from the frozen candidate TX_FIELDS/TX_DIGEST
     # domains and the guest's public-statement domain.
     assert v3_spend_public_digest_candidate(statement()).hex() == (
-        "bc065015515112dd8a826a5009441c5148d87ecc2d53ca954df5e5572937167e624de15f69453d6f6400a01c67d84c81f69ccf6477f7f81d709e3b2dfb9ec488"
+        "60483c349772adf7f28927c91fb9c10fc21ee76c0e2a271a0e66d1cc561bd4715a80857cd99df243e70606acee56ea641917b28c6b40678d7da92fbc9b4b13d3"
     )
 
 
@@ -82,7 +82,7 @@ def test_verifier_binds_proof_to_exact_executable_and_transaction_digest(
         assert Path(command[2]).read_bytes() == PROOF_BYTES
         assert Path(command[3]).read_text(encoding="ascii").strip() == APP_COMMITMENT.hex()
         assert Path(command[4]).read_text(encoding="ascii").strip() == (
-            "bc065015515112dd8a826a5009441c5148d87ecc2d53ca954df5e5572937167e624de15f69453d6f6400a01c67d84c81f69ccf6477f7f81d709e3b2dfb9ec488"
+            "60483c349772adf7f28927c91fb9c10fc21ee76c0e2a271a0e66d1cc561bd4715a80857cd99df243e70606acee56ea641917b28c6b40678d7da92fbc9b4b13d3"
         )
         return subprocess.CompletedProcess(command, 0, stdout="verified\n", stderr="")
 

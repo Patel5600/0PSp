@@ -82,7 +82,7 @@ def test_level_specific_node_domain_and_child_order():
 def test_path_shape_and_root_width_are_strict():
     tree = CommitmentTree(NS, [C1], depth=LEGACY_TREE_DEPTH)
     with pytest.raises(CommitmentTreeError, match="exactly 63"):
-        root_from_path(NS, 0, C1, [])
+        root_from_path(NS, 0, C1, [], tree_depth=LEGACY_TREE_DEPTH)
     with pytest.raises(CommitmentTreeError, match="exactly 48 bytes"):
         verify_member(NS, b"bad", 0, C1, tree.membership_path(0), tree_depth=LEGACY_TREE_DEPTH)
     with pytest.raises(CommitmentTreeError, match="exactly 48 bytes"):

@@ -88,6 +88,10 @@ def test_public_statement_zero_entropy_from_private_witness() -> None:
         fee=10,
         output_entropy=output_entropy,
         output_commitments=(output_commitment,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
     tx_bob = TxFieldsV3Candidate(
@@ -101,6 +105,10 @@ def test_public_statement_zero_entropy_from_private_witness() -> None:
         fee=10,
         output_entropy=output_entropy,
         output_commitments=(output_commitment,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
     # Statement encodings and digests must be 100% bit-identical
@@ -158,6 +166,10 @@ def test_transcript_substring_collision_search_for_witness_preimages() -> None:
         fee=5,
         output_entropy=bytes([0x04]) * 32,
         output_commitments=(cm,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
     encoded_statement = tx.encode()
@@ -195,6 +207,10 @@ def test_guest_public_output_boundary_width_check() -> None:
         fee=1,
         output_entropy=bytes([0x05]) * 32,
         output_commitments=(CoinCommitmentV3(bytes([0x06]) * 48),),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
     valid_digest = v3_spend_public_digest_candidate(tx)
@@ -221,6 +237,10 @@ def test_guest_public_output_boundary_width_check() -> None:
                 CoinCommitmentV3(bytes([0x05]) * 48),
                 CoinCommitmentV3(bytes([0x06]) * 48),
             ),
+            chain_id=bytes([0x01]) * 32,
+            recipient_address=bytes([0xA1]) * 20,
+            withdraw_value=0,
+            relayer_address=bytes([0xB2]) * 20,
         )
         v3_spend_public_digest_candidate(invalid_tx)
 

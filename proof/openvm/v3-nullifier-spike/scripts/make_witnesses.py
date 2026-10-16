@@ -351,7 +351,7 @@ def main() -> int:
     valid_spend = encode_spend_witness(ctx)
     write_case(output, "spend-valid", valid_spend)
     spend_digest = expected_spend_digest(tx)
-    expected_spend_digest_kat = "0cdf055499351512e97f57e0c479b7d0be992525ab9283da872fb3ba1e21e02da4f910b79407e6a6fe80f56a4edca146d8eeb55bfa520bc6ad36e87534595cda"
+    expected_spend_digest_kat = "6d4f418ef8298cc19fcc6e4e7fb57e5d4cd742d7c443a52f975656b4e24d91badedb3822c7b22e27c232254ba55da4758dd4127da30de5dfc926ab4d686b7efd"
     if spend_digest.hex() != expected_spend_digest_kat:
         print(f"observed spend public statement digest KAT: {spend_digest.hex()}", file=sys.stderr)
         raise ValueError("spend public statement digest KAT mismatch")
