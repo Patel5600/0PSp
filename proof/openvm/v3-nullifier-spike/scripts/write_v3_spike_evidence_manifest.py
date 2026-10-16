@@ -144,6 +144,121 @@ def build_proof_record(
     }
 
 
+def security_profile_record(evidence_dir: Path, executable_commit: str) -> dict[str, Any]:
+    path = require_file(evidence_dir / "security-profile.json")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"invalid security profile evidence: {exc}")
+    required = {
+        "schema": "0psp.openvm.candidate-security-profile.v1",
+        "backend": "OpenVM",
+        "openvm_git_revision": "59a69b8b0cbee7011ac978e4cc07707ee3681944",
+        "security_parameter_constructor": "app_params_with_100_bits_security",
+        "upstream_declared_soundness_bits": 100,
+        "required_composite_soundness_bits": 128,
+        "security_target_met": False,
+        "profile_status": "NO-GO",
+        "complete_production_spend_relation_established": False,
+        "end_to_end_witness_hiding_established": False,
+        "trusted_finalized_state_established": False,
+        "atomic_issue_spend_reorg_recovery_established": False,
+        "production_acceptance_enabled": False,
+        "application_executable_commitment": executable_commit,
+    }
+    for key, expected in required.items():
+        if value.get(key) != expected:
+            fail(f"security profile evidence field {key!r} is not the required fail-closed value")
+    return {
+        "sha256": sha256_file(path),
+        "schema": value["schema"],
+        "backend": value["backend"],
+        "openvm_git_revision": value["openvm_git_revision"],
+        "security_parameter_constructor": value["security_parameter_constructor"],
+        "upstream_declared_soundness_bits": value["upstream_declared_soundness_bits"],
+        "required_composite_soundness_bits": value["required_composite_soundness_bits"],
+        "security_target_met": value["security_target_met"],
+        "profile_status": value["profile_status"],
+        "complete_production_spend_relation_established": value["complete_production_spend_relation_established"],
+        "end_to_end_witness_hiding_established": value["end_to_end_witness_hiding_established"],
+        "trusted_finalized_state_established": value["trusted_finalized_state_established"],
+        "atomic_issue_spend_reorg_recovery_established": value["atomic_issue_spend_reorg_recovery_established"],
+        "production_acceptance_enabled": value["production_acceptance_enabled"],
+    }
+
+
+def ledger_integration_record(evidence_dir: Path, executable_commit: str) -> dict[str, Any]:
+    path = require_file(evidence_dir / "ledger-integration.json")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"invalid real-proof ledger integration evidence: {exc}")
+    required_true = (
+        "dynamic_statement_proof_generated_and_verified",
+        "mutated_proof_rejected_without_state_change",
+        "valid_proof_accepted_as_atomic_state_transition",
+        "duplicate_nullifier_replay_rejected_without_state_change",
+        "restart_and_integrity_audit_passed",
+    )
+    if value.get("schema_version") != 1 or value.get("status") != "PASS":
+        fail("real-proof ledger integration evidence is not a PASS record")
+    for key in required_true:
+        if value.get(key) is not True:
+            fail(f"real-proof ledger integration is missing successful gate: {key}")
+    if value.get("release_status") != "NO-GO":
+        fail("ledger integration evidence must keep production release at NO-GO")
+    if value.get("production_acceptance_enabled") is not False:
+        fail("ledger integration evidence must keep production acceptance disabled")
+    if value.get("bootstrap_state_evidence_is_synthetic") is not True:
+        fail("ledger integration must label synthetic bootstrap state evidence")
+    if value.get("external_finality_established") is not False:
+        fail("ledger integration cannot claim external finality")
+    if value.get("end_to_end_witness_hiding_established") is not False:
+        fail("ledger integration cannot claim end-to-end witness hiding")
+    if value.get("composite_post_quantum_security_bits") is not None:
+        fail("unknown composite post-quantum security must remain unknown")
+    if value.get("required_composite_post_quantum_security_bits") != 128:
+        fail("ledger integration must record the required 128-bit composite target")
+    proof_size = value.get("proof_size_bytes")
+    if isinstance(proof_size, bool) or not isinstance(proof_size, int) or proof_size <= 0:
+        fail("ledger integration proof size must be a positive integer")
+    proof_sha = value.get("proof_sha256")
+    if not isinstance(proof_sha, str) or not HEX_256_RE.fullmatch(proof_sha):
+        fail("ledger integration proof digest must be SHA-256 hex")
+    if value.get("app_executable_commitment") != executable_commit:
+        fail("ledger proof executable commitment differs from the reviewed pin")
+    if not HEX_256_RE.fullmatch(str(value.get("checker_sha256", ""))):
+        fail("ledger integration checker SHA-256 missing or malformed")
+    if not HEX_256_RE.fullmatch(str(value.get("app_verifying_key_sha256", ""))):
+        fail("ledger integration app verifying-key SHA-256 missing or malformed")
+    if not HEX_256_RE.fullmatch(str(value.get("public_statement_digest", ""))):
+        fail("ledger integration public statement digest must be a 32-byte SHA-256-format field")
+    return {
+        "evidence_sha256": sha256_file(path),
+        "status": value["status"],
+        "scope": value["scope"],
+        "dynamic_statement_proof_generated_and_verified": True,
+        "mutated_proof_rejected_without_state_change": True,
+        "valid_proof_accepted_as_atomic_state_transition": True,
+        "duplicate_nullifier_replay_rejected_without_state_change": True,
+        "restart_and_integrity_audit_passed": True,
+        "proof_size_bytes": proof_size,
+        "proof_sha256": proof_sha,
+        "checker_sha256": value["checker_sha256"],
+        "app_verifying_key_sha256": value["app_verifying_key_sha256"],
+        "app_executable_commitment": value["app_executable_commitment"],
+        "public_statement_digest": value["public_statement_digest"],
+        "state_version_after_accept": value.get("state_version_after_accept"),
+        "bootstrap_state_evidence_is_synthetic": True,
+        "external_finality_established": False,
+        "end_to_end_witness_hiding_established": False,
+        "composite_post_quantum_security_bits": None,
+        "required_composite_post_quantum_security_bits": 128,
+        "production_acceptance_enabled": False,
+        "release_status": "NO-GO",
+    }
+
+
 def build_manifest(fixture_dir: Path, checker_path: Path) -> dict[str, Any]:
     evidence_dir = fixture_dir / "evidence"
     if not evidence_dir.is_dir():
@@ -166,6 +281,8 @@ def build_manifest(fixture_dir: Path, checker_path: Path) -> dict[str, Any]:
     executable_commit = read_digest(
         Path("expected-app-exe-commit.txt"), "OpenVM executable commitment"
     )
+    security_profile = security_profile_record(evidence_dir, executable_commit)
+    ledger_integration = ledger_integration_record(evidence_dir, executable_commit)
     app_public_digest = read_digest(
         fixture_dir / "expected-public-digest.txt", "expected app public digest", expected_bytes=64
     )
@@ -244,6 +361,8 @@ def build_manifest(fixture_dir: Path, checker_path: Path) -> dict[str, Any]:
             "cargo_openvm": command_record(["cargo", f"+{RUST_TOOLCHAIN}", "openvm", "--version"]),
             "riscv_gcc": command_record(["riscv64-unknown-elf-gcc", "--version"]),
         },
+        "security_profile": security_profile,
+        "ledger_integration": ledger_integration,
         "proof_slice": {
             "guest_executable_commitment": executable_commit,
             "app_verification_key_sha256": sha256_file(app_vk),
@@ -265,6 +384,7 @@ def build_manifest(fixture_dir: Path, checker_path: Path) -> dict[str, Any]:
         "validation_scope": {
             "proof_generation_and_verification_steps_passed": True,
             "ledger_facing_proof_output_checker_passed": True,
+            "real_openvm_proof_to_sqlite_atomic_transition_passed": True,
             "cargo_lock_unchanged_check_passed": True,
             "complete_production_relation_established": False,
             "production_authorization_established": False,
