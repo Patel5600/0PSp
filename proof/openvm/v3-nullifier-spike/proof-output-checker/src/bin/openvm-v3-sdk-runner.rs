@@ -8,9 +8,14 @@ use openvm_sdk::{
     DefaultStarkEngine, Sdk, StdIn,
 };
 use openvm_sdk_config::SdkVmConfig;
-use openvm_stark_backend::p3_field::PrimeField32;
+use openvm_stark_backend::{
+    p3_field::PrimeField32,
+    soundness::SoundnessCalculator,
+    SystemParams,
+};
 use openvm_stark_sdk::config::{
-    app_params_with_100_bits_security, MAX_APP_LOG_STACKED_HEIGHT,
+    app_params_with_100_bits_security, base_field_order, challenge_field_bits,
+    MAX_APP_LOG_STACKED_HEIGHT,
 };
 use std::{
     env, fs,
@@ -38,6 +43,165 @@ fn sdk_from_config(path: &Path) -> Result<Sdk> {
         AggregationSystemParams::default(),
     )
     .map_err(Into::into)
+}
+
+
+const BASELINE_RBR_SECURITY_BITS: usize = 100;
+const CANDIDATE_RBR_SECURITY_BITS: usize = 128;
+
+// Conservative App-VM bounds copied from the pinned OpenVM v2.0.1
+// soundness test. The report records these assumptions explicitly; it does
+// not silently claim they were independently measured from every generated AIR.
+const APP_MAX_CONSTRAINTS: usize = 5000;
+const APP_NUM_AIRS: usize = 100;
+const APP_MAX_LOG_HEIGHT: usize = 24;
+const APP_NUM_COLUMNS: usize = 30000;
+const APP_MAX_INTERACTIONS_PER_AIR: usize = 1000;
+
+fn app_params_for_rbr_target(target_bits: usize) -> Result<SystemParams> {
+    if target_bits < BASELINE_RBR_SECURITY_BITS {
+        bail!("target RBR security must be >= {BASELINE_RBR_SECURITY_BITS}");
+    }
+    let base = app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT);
+    let mut logup = base.logup;
+    let extra_pow_bits = target_bits - BASELINE_RBR_SECURITY_BITS;
+    logup.pow_bits = logup
+        .pow_bits
+        .checked_add(extra_pow_bits)
+        .ok_or_else(|| eyre::eyre!("LogUp PoW bit count overflow"))?;
+
+    Ok(SystemParams::new(
+        base.log_blowup,
+        base.l_skip,
+        base.n_stack,
+        base.w_stack,
+        base.whir.log_final_poly_len(base.log_stacked_height()),
+        base.whir.folding_pow_bits,
+        base.whir.mu_pow_bits,
+        base.whir.proximity,
+        target_bits,
+        logup,
+        base.max_constraint_degree,
+        base.whir.query_phase_pow_bits,
+        base.whir.k,
+    ))
+}
+
+fn n_logup_bound(params: &SystemParams) -> usize {
+    // Same upper-bound derivation as the pinned backend's soundness tests.
+    let field_bound =
+        (params.logup.max_interaction_count as f64).log2().ceil() as usize - params.l_skip;
+    let param_bound = (APP_NUM_AIRS as f64).log2().ceil() as usize
+        + (APP_MAX_INTERACTIONS_PER_AIR as f64).log2().ceil() as usize
+        + APP_MAX_LOG_HEIGHT
+        - params.l_skip;
+    field_bound.min(param_bound)
+}
+
+fn soundness_summary(params: &SystemParams) -> serde_json::Value {
+    let soundness = SoundnessCalculator::calculate(
+        params,
+        base_field_order(),
+        challenge_field_bits(),
+        APP_MAX_CONSTRAINTS,
+        APP_NUM_AIRS,
+        params.max_constraint_degree,
+        APP_MAX_LOG_HEIGHT,
+        APP_NUM_COLUMNS,
+        params.w_stack,
+        n_logup_bound(params),
+    );
+    serde_json::json!({
+        "target_rbr_bits_used_to_generate_whir_queries": params.whir.rounds.iter().map(|round| round.num_queries).sum::<usize>(),
+        "log_blowup": params.log_blowup,
+        "l_skip": params.l_skip,
+        "n_stack": params.n_stack,
+        "w_stack": params.w_stack,
+        "whir_k": params.whir.k,
+        "whir_round_query_counts": params.whir.rounds.iter().map(|round| round.num_queries).collect::<Vec<_>>(),
+        "query_phase_pow_bits": params.whir.query_phase_pow_bits,
+        "folding_pow_bits": params.whir.folding_pow_bits,
+        "mu_pow_bits": params.whir.mu_pow_bits,
+        "logup_pow_bits": params.logup.pow_bits,
+        "max_constraint_degree": params.max_constraint_degree,
+        "soundness_calculator": {
+            "logup_bits": soundness.logup_bits,
+            "gkr_sumcheck_bits": soundness.gkr_sumcheck_bits,
+            "gkr_batching_bits": soundness.gkr_batching_bits,
+            "zerocheck_sumcheck_bits": soundness.zerocheck_sumcheck_bits,
+            "constraint_batching_bits": soundness.constraint_batching_bits,
+            "stacked_reduction_bits": soundness.stacked_reduction_bits,
+            "whir_bits": soundness.whir_bits,
+            "total_rbr_bits": soundness.total_bits,
+            "whir_error_source_breakdown_bits": {
+                "query": soundness.whir_details.query_bits,
+                "proximity_gaps": soundness.whir_details.proximity_gaps_bits,
+                "sumcheck": soundness.whir_details.sumcheck_bits,
+                "fold_rbr": soundness.whir_details.fold_rbr_bits,
+                "ood_rbr": soundness.whir_details.ood_rbr_bits,
+                "gamma_batching": soundness.whir_details.gamma_batching_bits,
+                "shift_rbr": soundness.whir_details.shift_rbr_bits,
+                "mu_batching": soundness.whir_details.mu_batching_bits
+            }
+        }
+    })
+}
+
+fn audit_security(_config_path: &Path, report_path: &Path) -> Result<()> {
+    let baseline = app_params_for_rbr_target(BASELINE_RBR_SECURITY_BITS)?;
+    let candidate = app_params_for_rbr_target(CANDIDATE_RBR_SECURITY_BITS)?;
+    let baseline_report = soundness_summary(&baseline);
+    let candidate_report = soundness_summary(&candidate);
+    let baseline_bits = baseline_report["soundness_calculator"]["total_rbr_bits"]
+        .as_f64()
+        .ok_or_else(|| eyre::eyre!("baseline soundness calculator returned no total"))?;
+    let candidate_bits = candidate_report["soundness_calculator"]["total_rbr_bits"]
+        .as_f64()
+        .ok_or_else(|| eyre::eyre!("candidate soundness calculator returned no total"))?;
+    let extra_pow_bits = candidate.logup.pow_bits - baseline.logup.pow_bits;
+    let report = serde_json::json!({
+        "schema": "0psp.openvm-app-rbr-soundness-report.v1",
+        "backend": "OpenVM v2.0.2 app STARK candidate",
+        "upstream_stark_backend": "v2.0.1",
+        "report_only": true,
+        "not_a_post_quantum_security_claim": true,
+        "not_a_zero_knowledge_claim": true,
+        "active_proof_generation_profile": {
+            "preset": "app_params_with_100_bits_security",
+            "configured_rbr_target_bits": BASELINE_RBR_SECURITY_BITS,
+            "soundness": baseline_report,
+            "meets_100_bit_calculator_target": baseline_bits >= BASELINE_RBR_SECURITY_BITS as f64
+        },
+        "128_bit_rbr_candidate_not_used_for_proving": {
+            "configured_rbr_target_bits": CANDIDATE_RBR_SECURITY_BITS,
+            "extra_logup_pow_bits_over_active_profile": extra_pow_bits,
+            "expected_grinding_work_multiplier_from_extra_pow_alone": 2_f64.powi(extra_pow_bits as i32),
+            "soundness": candidate_report,
+            "meets_128_bit_calculator_target_under_declared_bounds": candidate_bits >= CANDIDATE_RBR_SECURITY_BITS as f64
+        },
+        "air_bound_assumptions": {
+            "max_constraints_per_air": APP_MAX_CONSTRAINTS,
+            "max_airs": APP_NUM_AIRS,
+            "max_log_height": APP_MAX_LOG_HEIGHT,
+            "max_unstacked_trace_columns": APP_NUM_COLUMNS,
+            "max_interactions_per_air": APP_MAX_INTERACTIONS_PER_AIR,
+            "validation_status": "copied from upstream soundness test bounds; repository has not independently enumerated every active AIR to prove they hold"
+        },
+        "interpretation": "This is the pinned backend's conditional round-by-round soundness calculation under the explicit AIR bounds above. It is not a QROM/post-quantum composition proof, not witness-hiding evidence, and not a production GO gate. The 128-bit profile is analysis-only; proof generation still uses the upstream 100-bit preset."
+    });
+    if baseline_bits < BASELINE_RBR_SECURITY_BITS as f64 {
+        bail!("active OpenVM profile failed its declared 100-bit RBR calculator target: {baseline_bits:.2}");
+    }
+    if let Some(parent) = report_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(report_path, serde_json::to_vec_pretty(&report)?)
+        .with_context(|| format!("writing soundness report {}", report_path.display()))?;
+    println!(
+        "OPENVM_ACTIVE_PROFILE_RBR_BITS={baseline_bits:.2}; OPENVM_128_RBR_CANDIDATE_BITS={candidate_bits:.2}; EXTRA_LOGUP_POW_BITS={extra_pow_bits}; REPORT={}",
+        report_path.display()
+    );
+    Ok(())
 }
 
 fn read_elf(path: &Path) -> Result<Vec<u8>> {
@@ -305,6 +469,10 @@ fn main() -> Result<()> {
             Path::new(&args[3]),
             Path::new(&args[4]),
         ),
+        Some("audit-security") if args.len() == 4 => audit_security(
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        ),
         Some("prove") if args.len() == 8 => prove(
             Path::new(&args[2]),
             Path::new(&args[3]),
@@ -315,7 +483,7 @@ fn main() -> Result<()> {
         ),
         _ => {
             bail!(
-                "usage:\n  openvm-v3-sdk-runner run CONFIG ELF WITNESS\n  openvm-v3-sdk-runner prove CONFIG ELF FIXTURE_DIR APP_VK EXPECTED_COMMIT EVIDENCE_DIR"
+                "usage:\n  openvm-v3-sdk-runner run CONFIG ELF WITNESS\n  openvm-v3-sdk-runner audit-security CONFIG REPORT_JSON\n  openvm-v3-sdk-runner prove CONFIG ELF FIXTURE_DIR APP_VK EXPECTED_COMMIT EVIDENCE_DIR"
             )
         }
     }
