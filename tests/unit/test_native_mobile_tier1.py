@@ -223,6 +223,8 @@ def test_native_spend_package_adversarial_rejection(native_engine):
             recipient_bundle=bundle_bytes, output_value=900, fee=100,
             output_entropy=b"\x88" * 32, commitment_root=b"\x99" * 48,
             state_head=b"\xaa" * 48, state_context_digest=b"\xbb" * 64,
+            chain_id=bytes([0x01]) * 32, recipient_address=bytes([0xA1]) * 20,
+            withdraw_value=0, relayer_address=bytes([0xB2]) * 20,
         )
 
 
