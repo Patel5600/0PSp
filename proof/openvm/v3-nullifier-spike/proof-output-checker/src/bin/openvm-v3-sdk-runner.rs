@@ -98,7 +98,7 @@ fn n_logup_bound(params: &SystemParams) -> usize {
     field_bound.min(param_bound)
 }
 
-fn soundness_summary(params: &SystemParams) -> serde_json::Value {
+fn soundness_summary(params: &SystemParams, target_rbr_bits: usize) -> serde_json::Value {
     let soundness = SoundnessCalculator::calculate(
         params,
         base_field_order(),
@@ -112,7 +112,8 @@ fn soundness_summary(params: &SystemParams) -> serde_json::Value {
         n_logup_bound(params),
     );
     serde_json::json!({
-        "target_rbr_bits_used_to_generate_whir_queries": params.whir.rounds.iter().map(|round| round.num_queries).sum::<usize>(),
+        "configured_target_rbr_bits": target_rbr_bits,
+        "whir_total_query_count": params.whir.rounds.iter().map(|round| round.num_queries).sum::<usize>(),
         "log_blowup": params.log_blowup,
         "l_skip": params.l_skip,
         "n_stack": params.n_stack,
@@ -150,8 +151,8 @@ fn soundness_summary(params: &SystemParams) -> serde_json::Value {
 fn audit_security(_config_path: &Path, report_path: &Path) -> Result<()> {
     let baseline = app_params_for_rbr_target(BASELINE_RBR_SECURITY_BITS)?;
     let candidate = app_params_for_rbr_target(CANDIDATE_RBR_SECURITY_BITS)?;
-    let baseline_report = soundness_summary(&baseline);
-    let candidate_report = soundness_summary(&candidate);
+    let baseline_report = soundness_summary(&baseline, BASELINE_RBR_SECURITY_BITS);
+    let candidate_report = soundness_summary(&candidate, CANDIDATE_RBR_SECURITY_BITS);
     let baseline_bits = baseline_report["soundness_calculator"]["total_rbr_bits"]
         .as_f64()
         .ok_or_else(|| eyre::eyre!("baseline soundness calculator returned no total"))?;
