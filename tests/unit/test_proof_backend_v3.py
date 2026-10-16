@@ -20,7 +20,9 @@ from src.protocol.proof_backend_v3 import (
     TIER1_MOBILE_PROFILE,
     TIER2_SERVER_PROFILE,
     ZERO_AUTH_TOKEN,
+    PRODUCTION_SPEND_VERIFICATION_ENABLED,
     public_statement_digest_v3,
+    verify_candidate_proof_envelope,
     verify_production_proof_envelope,
     verify_public_statement_digest,
 )
@@ -162,13 +164,41 @@ def create_envelope(
     )
 
 
-def test_production_envelope_rejects_when_real_verifier_is_not_configured() -> None:
+def test_candidate_envelope_rejects_when_verifier_is_not_configured() -> None:
     # Regression for the old critical bug: any non-empty byte string previously
     # returned True when sk_spend was omitted. No verifier means no acceptance.
-    assert verify_production_proof_envelope(
+    assert verify_candidate_proof_envelope(
         create_envelope(),
         spent_commitment=SPENT_COMMITMENT,
     ) is False
+
+
+def test_production_envelope_is_hard_locked_while_security_gates_are_open() -> None:
+    assert PRODUCTION_SPEND_VERIFICATION_ENABLED is False
+    verifier = _TestOnlyProofVerifier(True)
+    # Even a fake adapter that returns literal True cannot cross the release latch.
+    assert verify_production_proof_envelope(
+        create_envelope(),
+        spent_commitment=SPENT_COMMITMENT,
+        proof_verifier=verifier,
+    ) is False
+    assert verifier.calls == []
+
+
+def test_caller_manufactured_high_security_profile_cannot_override_release_latch() -> None:
+    forged_profile = replace(
+        TIER1_MOBILE_PROFILE,
+        backend_name="Caller-Claimed-Production-Backend",
+        proven_security_bits=256.0,
+    )
+    verifier = _TestOnlyProofVerifier(True)
+    assert verify_production_proof_envelope(
+        create_envelope(),
+        spent_commitment=SPENT_COMMITMENT,
+        proof_verifier=verifier,
+        profile=forged_profile,
+    ) is False
+    assert verifier.calls == []
 
 
 def test_envelope_delegates_exact_statement_to_configured_verifier() -> None:
@@ -177,7 +207,7 @@ def test_envelope_delegates_exact_statement_to_configured_verifier() -> None:
     envelope = create_envelope()
     verifier = _TestOnlyProofVerifier(True)
 
-    assert verify_production_proof_envelope(
+    assert verify_candidate_proof_envelope(
         envelope,
         spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
@@ -208,7 +238,7 @@ def test_unbound_or_malformed_envelope_fields_are_rejected(
         return
 
     verifier = _TestOnlyProofVerifier(True)
-    assert verify_production_proof_envelope(
+    assert verify_candidate_proof_envelope(
         create_envelope(**kwargs),
         spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
@@ -223,7 +253,7 @@ def test_legacy_secret_mac_policy_is_not_accepted_as_public_proof_authorization(
     )
     verifier = _TestOnlyProofVerifier(True)
 
-    assert verify_production_proof_envelope(
+    assert verify_candidate_proof_envelope(
         create_envelope(statement=statement),
         spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
@@ -237,7 +267,7 @@ def test_legacy_secret_mac_policy_is_not_accepted_as_public_proof_authorization(
 )
 def test_bad_spent_commitment_fails_closed(bad_spent_commitment: object) -> None:
     verifier = _TestOnlyProofVerifier(True)
-    assert verify_production_proof_envelope(
+    assert verify_candidate_proof_envelope(
         create_envelope(),
         spent_commitment=bad_spent_commitment,  # type: ignore[arg-type]
         proof_verifier=verifier,
@@ -249,7 +279,7 @@ def test_rejects_backend_false_and_non_boolean_truthy_results() -> None:
     envelope = create_envelope()
     for result in (False, None, 1, "verified"):
         verifier = _TestOnlyProofVerifier(result)
-        assert verify_production_proof_envelope(
+        assert verify_candidate_proof_envelope(
             envelope,
             spent_commitment=SPENT_COMMITMENT,
             proof_verifier=verifier,
@@ -261,7 +291,7 @@ def test_backend_exception_fails_closed() -> None:
         def verify_proof(self, *_args: object, **_kwargs: object) -> bool:
             raise RuntimeError("internal verifier diagnostic should not escape")
 
-    assert verify_production_proof_envelope(
+    assert verify_candidate_proof_envelope(
         create_envelope(),
         spent_commitment=SPENT_COMMITMENT,
         proof_verifier=RaisingVerifier(),
@@ -270,7 +300,7 @@ def test_backend_exception_fails_closed() -> None:
 
 def test_deprecated_backend_is_never_used_for_production_envelope() -> None:
     verifier = _TestOnlyProofVerifier(True)
-    assert verify_production_proof_envelope(
+    assert verify_candidate_proof_envelope(
         create_envelope(),
         spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,

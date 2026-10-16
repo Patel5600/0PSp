@@ -10,7 +10,7 @@
 - **Local / synthetic candidate validation:** The latest checked Functional Checks run for proof-verifier hardening commit [`216b85f`](https://github.com/Patel5600/0PSp/commit/216b85f5f9013c4329232d71631db89fb863c54f) reports **730 collected, 729 passed, 1 skipped, 0 failures** ([CI run](https://github.com/Patel5600/0PSp/actions/runs/38905101365)). This is a commit-scoped unit/native/invariant result, not evidence of a live testnet deployment or production protocol readiness. The OpenVM workflow covers an experimental one-input/one-output candidate, not the complete accepted spend protocol.
   - *Allowed scope:* deterministic fixtures, local simulation, and testnet-token experiments after verifying the exact deployed configuration. This README does not claim that a live testnet issuance-to-spend-to-recovery flow has been demonstrated.
 - **Mainnet Release: NO-GO for all live-value transfers.**
-  - The current V3 proof adapter is not a reviewed production verifier; proof-profile metadata and non-empty proof bytes are not cryptographic verification.
+  - `verify_production_proof_envelope()` is hard release-latched off (`PRODUCTION_SPEND_VERIFICATION_ENABLED = False`); the canonical profile declares 0 established composite security bits. Candidate verification helpers are not production acceptance.
   - The complete shared-witness spend relation, production authorization, authenticated root/finality, issuance/custody, reorg/recovery, and end-to-end witness hiding remain mandatory.
   - External audit remains deferred, but that does not waive internal cryptographic and end-to-end evidence.
 

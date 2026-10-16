@@ -45,6 +45,10 @@ DECLARED_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
 # Backwards-compatible legacy name: zero means no composed bound is established.
 # Do not restore a positive value until it is justified for the exact accepted backend.
 PROVEN_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
+# Hard release latch: no accepted verifier currently establishes the complete relation,
+# end-to-end witness hiding, and composed >=128-bit security profile. Do not enable
+# until those gates have reproducible evidence on one exact release commit.
+PRODUCTION_SPEND_VERIFICATION_ENABLED: Final[bool] = False
 MAX_PROOF_BYTES: Final[int] = 2_000_000
 HASH_BYTES: Final[int] = 48
 ZERO_AUTH_TOKEN: Final[bytes] = bytes(HASH_BYTES)
@@ -192,14 +196,18 @@ def verify_public_statement_digest(
     return hmac.compare_digest(expected, claimed_public_digest)
 
 
-def verify_production_proof_envelope(
+def verify_candidate_proof_envelope(
     envelope: TxEnvelopeV3Candidate,
     *,
     spent_commitment: bytes,
     proof_verifier: ProofArtifactVerifier | None = None,
     profile: ProofBackendProfileV3 = TIER1_MOBILE_PROFILE,
 ) -> bool:
-    """Verify a candidate envelope through an explicitly trusted proof adapter.
+    """Verify a *candidate* envelope through an explicitly trusted proof adapter.
+
+    This is an integration helper, not the production acceptance API. Never use its
+    result to authorize a live-value spend. Candidate verifier integration can be
+    tested without falsely implying that the complete production gates are closed.
 
     Fail-closed invariants:
     - absence of a real verifier rejects every envelope;
@@ -247,3 +255,40 @@ def verify_production_proof_envelope(
         # errors must fail closed and must not leak sensitive exception content.
         return False
     return result is True
+
+
+
+def verify_production_proof_envelope(
+    envelope: TxEnvelopeV3Candidate,
+    *,
+    spent_commitment: bytes,
+    proof_verifier: ProofArtifactVerifier | None = None,
+    profile: ProofBackendProfileV3 = TIER1_MOBILE_PROFILE,
+) -> bool:
+    """Production spend acceptance gate; intentionally rejects while proof gates are open.
+
+    The repository currently has candidate proof execution/checking, but it has not
+    established a reviewed verifier for the complete accepted spend relation,
+    end-to-end witness hiding, authenticated finality/authorization composition,
+    and a composed >=128-bit post-quantum bound.
+
+    A supplied callback, fake profile, passing fixture, or non-empty proof is not
+    sufficient to enable production acceptance. The gate is closed in source control
+    by default, and profile metadata cannot override it. Re-enable only in a separate
+    reviewed change that includes exact-backend security evidence and production
+    composition tests on the same release commit.
+    """
+    if not PRODUCTION_SPEND_VERIFICATION_ENABLED:
+        return False
+    # Even after a future gate change, refuse caller-manufactured profile objects or
+    # a profile whose declared bound remains below the required target.
+    if profile is not TIER1_MOBILE_PROFILE:
+        return False
+    if profile.claimed_security_bits < TARGET_PQ_SOUNDNESS_BITS:
+        return False
+    return verify_candidate_proof_envelope(
+        envelope,
+        spent_commitment=spent_commitment,
+        proof_verifier=proof_verifier,
+        profile=profile,
+    )
