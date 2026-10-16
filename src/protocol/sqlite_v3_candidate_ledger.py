@@ -224,7 +224,7 @@ class SQLiteV3CandidateLedger:
 
     The constructor requires an independently verified bootstrap snapshot. Its
     commitment list must reconstruct the verified root exactly. Each accepted spend
-    can use any of the last 256 local root/head snapshots; the chosen anchor is checked
+    can use any retained local root/head snapshot within the configured anchor window (4,096 by default); the chosen anchor is checked
     both before proof verification and again inside the write transaction after the
     proof is verified. This prevents stale-moving-head races while retaining replay
     protection for older proofs.
