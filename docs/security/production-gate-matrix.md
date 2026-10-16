@@ -67,4 +67,4 @@ Every **pre-launch** gate below has a binary production status. The external-aud
 6. **Compose and test state transitions.** Join authenticated finalized deposit/custody verification -> trusted DepositAuthorization -> proof verifier -> durable atomic ledger; exercise replay, duplicate commitments/nullifiers, races, crash, reorg and recovery. Remove injectable test callbacks from the production composition.
 7. **Release remains NO-GO** until all mandatory gates have evidence on one exact release SHA, adversarial checks pass, and an internal threat-model audit closes P0/P1 findings. External audit remains explicitly NOT PERFORMED; no missing implementation or proof obligation is waived.
 
-**Current decision: GO for Testnet Launch (`v0.1.0-alpha`); Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified): GO; Mainnet Stage-1 (Uncapped Institutional TVL): Gated on External Audit (NO-GO).**
+**Current decision: TESTNET / SYNTHETIC TESTING ONLY; ALL MAINNET LIVE-VALUE TRANSFERS: NO-GO. External audit is deferred, not performed; all internal implementation and cryptographic gates remain mandatory.**
