@@ -22,6 +22,8 @@ extern "C" {
 #define PSP_TIER1_DIGEST_BYTES 64u
 #define PSP_TIER1_STATE_HEAD_BYTES 48u
 #define PSP_TIER1_STATE_CONTEXT_BYTES 64u
+#define PSP_TIER1_CHAIN_ID_BYTES 32u
+#define PSP_TIER1_ADDRESS_BYTES 20u
 #define PSP_TIER1_MAX_BUNDLE_BYTES 65535u
 #define PSP_TIER1_MAX_TX_FIELDS_BYTES 4096u
 
@@ -125,6 +127,10 @@ int psp_tx_fields_v3_encode_single(
     const uint8_t *nullifier,
     const uint8_t *state_head,
     const uint8_t *state_context_digest,
+    const uint8_t *chain_id,
+    const uint8_t *recipient_address,
+    uint64_t withdraw_value,
+    const uint8_t *relayer_address,
     const uint8_t *policy_id, size_t policy_id_len,
     uint64_t fee,
     const uint8_t *output_entropy,
@@ -143,11 +149,11 @@ int psp_tx_digest_v3_candidate(
  * Complete Mobile Tier 1 Spend Package Creator.
  *
  * Runs entirely on the mobile device in constant-time with zero heap allocation:
- * 1. Checks value conservation: input_value == output_value + fee (128-bit overflow-safe).
+ * 1. Checks value conservation: input_value == output_value + withdrawal + fee (checked u64 arithmetic). Non-zero external withdrawals are rejected until settlement exists.
  * 2. Checks nullifier key authorization: input_nk opens input_bundle's key commitment.
  * 3. Computes input commitment C_in and nullifier N_V3.
  * 4. Derives output identity (coin_id_out, r_nf_out) and output commitment C_out.
- * 5. Generates canonical TxFieldsV3Candidate and computes tx_digest.
+ * 5. Generates canonical TxFieldsV3Candidate with semantic payout-context digest and computes tx_digest.
  * 6. Returns the complete psp_tier1_spend_package_t.
  */
 int psp_tier1_create_spend_package(
@@ -166,6 +172,10 @@ int psp_tier1_create_spend_package(
     const uint8_t *commitment_root,
     const uint8_t *state_head,
     const uint8_t *state_context_digest,
+    const uint8_t *chain_id,
+    const uint8_t *recipient_address,
+    uint64_t withdraw_value,
+    const uint8_t *relayer_address,
     psp_tier1_spend_package_t *out_pkg);
 
 /*

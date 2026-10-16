@@ -139,6 +139,9 @@ int main(void) {
     uint8_t root[48]; memset(root, 0x12, sizeof(root));
     uint8_t state_head[48]; memset(state_head, 0x34, sizeof(state_head));
     uint8_t state_context[64]; memset(state_context, 0x56, sizeof(state_context));
+    uint8_t chain_id[PSP_TIER1_CHAIN_ID_BYTES]; memset(chain_id, 0x01, sizeof(chain_id));
+    uint8_t recipient_address[PSP_TIER1_ADDRESS_BYTES]; memset(recipient_address, 0xA1, sizeof(recipient_address));
+    uint8_t relayer_address[PSP_TIER1_ADDRESS_BYTES]; memset(relayer_address, 0xB2, sizeof(relayer_address));
 
     psp_tier1_spend_package_t pkg;
     st = psp_tier1_create_spend_package(
@@ -152,6 +155,7 @@ int main(void) {
         100ULL, /* fee */
         entropy,
         root, state_head, state_context,
+        chain_id, recipient_address, 0ULL, relayer_address,
         &pkg
     );
     if (st != PSP_CRYPTO_OK) {
@@ -181,6 +185,7 @@ int main(void) {
         901ULL, /* output: 901 + 100 = 1001 != 1000 */
         100ULL,
         entropy, root, state_head, state_context,
+        chain_id, recipient_address, 0ULL, relayer_address,
         &pkg
     );
     if (st == PSP_CRYPTO_OK) {
@@ -200,6 +205,7 @@ int main(void) {
         0xFFFFFFFFFFFFFFFEULL, /* wraps uint64 */
         100ULL,
         entropy, root, state_head, state_context,
+        chain_id, recipient_address, 0ULL, relayer_address,
         &pkg
     );
     if (st == PSP_CRYPTO_OK) {
@@ -220,6 +226,7 @@ int main(void) {
         bundle_buf, bundle_len,
         900ULL, 100ULL,
         entropy, root, state_head, state_context,
+        chain_id, recipient_address, 0ULL, relayer_address,
         &pkg
     );
     if (st == PSP_CRYPTO_OK) {

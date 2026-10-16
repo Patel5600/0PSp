@@ -3,7 +3,7 @@
 //! Enforces, over one witness:
 //! - canonical TxFieldsV3Candidate and the fixed NK-possession policy ID;
 //! - BundleV3 key-commitment opening, CommitV3 opening, and same-key NullifierV3;
-//! - depth-63 namespace-bound commitment membership against the transaction root;
+//! - depth-32 namespace-bound commitment membership against the transaction root;
 //! - anchor/index-derived output identity and the output's CommitV3 opening;
 //! - exact one-output transaction binding and u64 value conservation.
 //!
@@ -26,19 +26,23 @@ pub const TX_VERSION: u8 = 0x03;
 pub const SPEND_POLICY_NK: &[u8] = b"0PSP-V3-NK-POSSESSION-CANDIDATE-v1";
 pub const PUBLIC_STATEMENT_DOMAIN: &[u8] =
     b"0PSP-OPENVM-V3-SPEND-PUBLIC-STATEMENT-CANDIDATE-v2";
-pub const TREE_DEPTH: usize = 63;
+pub const TREE_DEPTH: usize = MERKLE_DEPTH_32;
 pub const MAX_TX_BYTES: usize = 1_000_000;
 pub const MAX_BUNDLE_BYTES: usize = 65_535;
 pub const MAX_WITNESS_BYTES: usize = 2_000_000;
 
 const EMPTY_LEAF_DOMAIN: &[u8] = b"0PSP-COMMITMENT-EMPTY-LEAF-v1-SHAKE256";
 const LEAF_DOMAIN: &[u8] = b"0PSP-COMMITMENT-LEAF-v1-SHAKE256";
-const NODE_DOMAIN: &[u8] = b"0PSP-COMMITMENT-NODE-v1-SHAKE256";
+const DOM_MERKLE_NODE: &[u8] = b"0PSP-COMMITMENT-NODE-v1-SHAKE256";
 const OUTPUT_COIN_ID_DOMAIN: &[u8] = b"0PSP-OUTPUT-COIN-ID-v3-anchor-index-candidate";
 const OUTPUT_RNF_DOMAIN: &[u8] = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate";
 const OUTPUT_ID_VERSION: u8 = 0x03;
 const OUTPUT_ENTROPY_BYTES: usize = 32;
 const STATE_CONTEXT_BYTES: usize = 64;
+const CHAIN_ID_BYTES: usize = 32;
+const ADDRESS_BYTES: usize = 20;
+const PAYOUT_CONTEXT_BYTES: usize = HASH_BYTES;
+const TX_PAYOUT_CONTEXT_DOMAIN: &[u8] = b"0PSP-TX-PAYOUT-CONTEXT-v3-CANDIDATE-v1-SHAKE256";
 
 #[derive(Clone)]
 struct TxFields {
@@ -48,6 +52,11 @@ struct TxFields {
     nullifier: [u8; HASH_BYTES],
     state_head: [u8; HASH_BYTES],
     state_context_digest: [u8; STATE_CONTEXT_BYTES],
+    chain_id: [u8; CHAIN_ID_BYTES],
+    recipient_address: [u8; ADDRESS_BYTES],
+    withdraw_value: u64,
+    relayer_address: [u8; ADDRESS_BYTES],
+    tx_context_digest: [u8; PAYOUT_CONTEXT_BYTES],
     policy_id: Vec<u8>,
     fee: u64,
     output_entropy: [u8; OUTPUT_ENTROPY_BYTES],
@@ -58,7 +67,8 @@ struct TxFields {
 fn encode_tx(tx: &TxFields) -> Vec<u8> {
     let mut out = Vec::with_capacity(
         TX_FIELDS_DOMAIN.len() + 1 + 2 + tx.params_id.len() + 4 * HASH_BYTES
-            + STATE_CONTEXT_BYTES + 2 + tx.policy_id.len() + 8 + OUTPUT_ENTROPY_BYTES + 4 + HASH_BYTES,
+            + STATE_CONTEXT_BYTES + CHAIN_ID_BYTES + ADDRESS_BYTES + 8 + ADDRESS_BYTES
+            + 2 + tx.policy_id.len() + 8 + OUTPUT_ENTROPY_BYTES + 4 + HASH_BYTES + PAYOUT_CONTEXT_BYTES,
     );
     out.extend_from_slice(TX_FIELDS_DOMAIN);
     out.push(TX_VERSION);
@@ -69,12 +79,17 @@ fn encode_tx(tx: &TxFields) -> Vec<u8> {
     out.extend_from_slice(&tx.nullifier);
     out.extend_from_slice(&tx.state_head);
     out.extend_from_slice(&tx.state_context_digest);
+    out.extend_from_slice(&tx.chain_id);
+    out.extend_from_slice(&tx.recipient_address);
+    out.extend_from_slice(&tx.withdraw_value.to_le_bytes());
+    out.extend_from_slice(&tx.relayer_address);
     out.extend_from_slice(&(tx.policy_id.len() as u16).to_le_bytes());
     out.extend_from_slice(&tx.policy_id);
     out.extend_from_slice(&tx.fee.to_le_bytes());
     out.extend_from_slice(&tx.output_entropy);
     out.extend_from_slice(&1u32.to_le_bytes());
     out.extend_from_slice(&tx.output_commitment);
+    out.extend_from_slice(&tx.tx_context_digest);
     out
 }
 
@@ -95,6 +110,10 @@ fn parse_tx(encoded: &[u8]) -> Result<TxFields, String> {
     let nullifier = r.fixed::<HASH_BYTES>("input_nullifier")?;
     let state_head = r.fixed::<HASH_BYTES>("ledger_state_head")?;
     let state_context_digest = r.fixed::<STATE_CONTEXT_BYTES>("state_context_digest")?;
+    let chain_id = r.fixed::<CHAIN_ID_BYTES>("chain_id")?;
+    let recipient_address = r.fixed::<ADDRESS_BYTES>("recipient_address")?;
+    let withdraw_value = r.u64_le("withdraw_value")?;
+    let relayer_address = r.fixed::<ADDRESS_BYTES>("relayer_address")?;
     let policy_id = r.vec_u16("authorization_policy_id")?;
     let fee = r.u64_le("fee")?;
     let output_entropy = r.fixed::<OUTPUT_ENTROPY_BYTES>("output_entropy")?;
@@ -103,11 +122,16 @@ fn parse_tx(encoded: &[u8]) -> Result<TxFields, String> {
         return Err("this proof profile requires exactly one output".into());
     }
     let output_commitment = r.fixed::<HASH_BYTES>("output commitment")?;
+    let tx_context_digest = r.fixed::<PAYOUT_CONTEXT_BYTES>("tx_context_digest")?;
     r.finish("TxFieldsV3")?;
     let tx = TxFields {
-        params_id, namespace, root, nullifier, state_head, state_context_digest, policy_id, fee,
-        output_entropy, output_commitment, encoded: encoded.to_vec(),
+        params_id, namespace, root, nullifier, state_head, state_context_digest,
+        chain_id, recipient_address, withdraw_value, relayer_address, tx_context_digest,
+        policy_id, fee, output_entropy, output_commitment, encoded: encoded.to_vec(),
     };
+    if !constant_time_eq(&computed_tx_context_digest(&tx), &tx.tx_context_digest) {
+        return Err("TxFieldsV3 payout context digest mismatch".into());
+    }
     if tx.encode() != encoded {
         return Err("TxFieldsV3 is not canonical".into());
     }
@@ -115,6 +139,26 @@ fn parse_tx(encoded: &[u8]) -> Result<TxFields, String> {
         return Err("TxFieldsV3 does not select the exact NK-possession policy".into());
     }
     Ok(tx)
+}
+
+
+fn computed_tx_context_digest(tx: &TxFields) -> [u8; PAYOUT_CONTEXT_BYTES] {
+    let mut preimage = Vec::with_capacity(
+        TX_PAYOUT_CONTEXT_DOMAIN.len() + 1 + CHAIN_ID_BYTES + HASH_BYTES + 2
+            + tx.params_id.len() + ADDRESS_BYTES + 8 + ADDRESS_BYTES + 8 + HASH_BYTES,
+    );
+    preimage.extend_from_slice(TX_PAYOUT_CONTEXT_DOMAIN);
+    preimage.push(TX_VERSION);
+    preimage.extend_from_slice(&tx.chain_id);
+    preimage.extend_from_slice(&tx.namespace);
+    preimage.extend_from_slice(&(tx.params_id.len() as u16).to_le_bytes());
+    preimage.extend_from_slice(&tx.params_id);
+    preimage.extend_from_slice(&tx.recipient_address);
+    preimage.extend_from_slice(&tx.withdraw_value.to_le_bytes());
+    preimage.extend_from_slice(&tx.relayer_address);
+    preimage.extend_from_slice(&tx.fee.to_le_bytes());
+    preimage.extend_from_slice(&tx.output_commitment);
+    shake256_384(&preimage)
 }
 
 impl TxFields {
@@ -148,9 +192,9 @@ fn node_hash(
     left: &[u8; HASH_BYTES],
     right: &[u8; HASH_BYTES],
 ) -> [u8; HASH_BYTES] {
-    let mut preimage = Vec::with_capacity(NODE_DOMAIN.len() + 1 + 4 + 3 * HASH_BYTES);
-    preimage.extend_from_slice(NODE_DOMAIN);
-    preimage.push(0x01);
+    let mut preimage = Vec::with_capacity(DOM_MERKLE_NODE.len() + 1 + 4 + 3 * HASH_BYTES);
+    preimage.extend_from_slice(DOM_MERKLE_NODE);
+    preimage.push(MERKLE_NODE_FORMAT_VERSION);
     preimage.extend_from_slice(&(level as u32).to_be_bytes());
     preimage.extend_from_slice(namespace);
     preimage.extend_from_slice(left);
@@ -254,7 +298,7 @@ pub fn verify_v3_spend_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     let input_r_nf = r.fixed::<R_NF_BYTES>("input r_nf")?;
     let input_rho = r.fixed::<RHO_BYTES>("input rho_C")?;
     let input_nk = r.fixed::<KEY_BYTES>("input nullifier key")?;
-    let leaf_index = r.u64_le("input leaf index")?;
+    let leaf_index = u64::from(r.u32_le("input leaf index")?);
     let mut siblings = Vec::with_capacity(TREE_DEPTH);
     for _ in 0..TREE_DEPTH {
         siblings.push(r.fixed::<HASH_BYTES>("Merkle sibling")?);
@@ -307,9 +351,9 @@ pub fn verify_v3_spend_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     }
 
     // Use u128 arithmetic so an otherwise valid u64 addition cannot wrap.
-    let total_out = u128::from(output_value) + u128::from(tx.fee);
+    let total_out = u128::from(output_value) + u128::from(tx.withdraw_value) + u128::from(tx.fee);
     if u128::from(input_value) != total_out {
-        return Err("V3 spend violates input = output + fee value conservation".into());
+        return Err("V3 spend violates input = output + withdraw + fee value conservation".into());
     }
 
     let tx_digest = tx.digest();
@@ -330,7 +374,8 @@ pub const DOM_NK_V3: &[u8] = b"0PSP_NK_DERIVE_V3";
 pub const DOM_OWNER_V3: &[u8] = b"0PSP_OWNER_V3";
 pub const DOM_COMMIT_V3: &[u8] = b"0PSP_COMMIT_V3";
 pub const DOM_NULLIFIER_V3: &[u8] = b"0PSP_NULLIFIER_V3";
-pub const DOM_MERKLE_NODE: &[u8] = b"0PSP_MERKLE_NODE_V3";
+// Shared by both candidate paths so leaf/node preimages match the Python/C tree codec.
+const MERKLE_NODE_FORMAT_VERSION: u8 = 0x01;
 pub const DOM_TX_BIND_V3: &[u8] = b"0PSP_TX_STATEMENT_V3";
 pub const DOM_SPEND_AUTH_V3: &[u8] = b"0PSP_SPEND_AUTH_V3";
 
@@ -344,14 +389,18 @@ pub struct PublicStatementV3 {
     pub anchor_root: [u8; HASH_BYTES],
     pub nullifier: [u8; HASH_BYTES],
     pub out_commitment: [u8; HASH_BYTES],
-    pub tx_context_digest: [u8; HASH_BYTES], // Binds recipient, relayer, fee, chain_id
+    // Opaque caller-supplied digest. This helper does not reconstruct or authenticate
+    // recipient, relayer, withdrawal amount, or chain ID semantics from payout fields.
+    pub tx_context_digest: [u8; HASH_BYTES],
     pub fee: u64,
     pub withdraw_value: u64,
 }
 
 #[repr(C)]
 pub struct PrivateWitnessV3 {
-    pub sk_spend: [u8; HASH_BYTES], // Master spend secret (Custody Authorization)
+    // Master secret used by this experimental key-derivation helper; this field alone
+    // does not implement an approved signature suite or production custody policy.
+    pub sk_spend: [u8; HASH_BYTES],
     pub value_in: u64,
     pub coin_id_in: [u8; 32],
     pub salt_in: [u8; 32],
@@ -363,13 +412,14 @@ pub struct PrivateWitnessV3 {
     pub salt_out: [u8; 32],
 }
 
-/// Verify the full 2-tier key-separated spend relation with Depth-32 Merkle verification,
-/// same-witness nullifier binding, and value conservation.
+/// Experimental depth-32 reference helper, not the active OpenVM entrypoint or a
+/// production authorization relation. The caller-supplied root/finality and semantic
+/// payout fields are not authenticated here.
 pub fn verify_spend_relation_v3(
     pub_stmt: &PublicStatementV3,
     wit: &PrivateWitnessV3,
 ) -> Result<[u8; HASH_BYTES], String> {
-    // 1. Key Hierarchy Derivation (Eliminates NOAUTH & V2 Sender-Linkability)
+    // 1. Candidate key derivation. This is not, by itself, production spend authorization.
     let mut ak_preimage = Vec::with_capacity(DOM_AK_V3.len() + HASH_BYTES);
     ak_preimage.extend_from_slice(DOM_AK_V3);
     ak_preimage.extend_from_slice(&wit.sk_spend);
@@ -401,8 +451,13 @@ pub fn verify_spend_relation_v3(
     let c_in = shake256_384(&c_in_preimage);
 
     // 3. Same-Witness Recipient-Keyed V3 Nullifier Binding
-    let mut nf_data = Vec::with_capacity(DOM_NULLIFIER_V3.len() + HASH_BYTES + HASH_BYTES);
+    // Bind the protocol version and parameter set explicitly, in addition to the
+    // namespace and commitment. The fixed-width param_id is exactly 32 bytes.
+    let mut nf_data =
+        Vec::with_capacity(DOM_NULLIFIER_V3.len() + 1 + 32 + HASH_BYTES + HASH_BYTES);
     nf_data.extend_from_slice(DOM_NULLIFIER_V3);
+    nf_data.push(TX_VERSION);
+    nf_data.extend_from_slice(&pub_stmt.param_id);
     nf_data.extend_from_slice(&pub_stmt.namespace_id);
     nf_data.extend_from_slice(&c_in);
     let expected_nf = hmac_sha3_384(&nk, &nf_data);
@@ -410,24 +465,18 @@ pub fn verify_spend_relation_v3(
         return Err("ERR_NULLIFIER_MISMATCH".into());
     }
 
-    // 4. Authenticated Merkle Path Verification up to anchor_root (Depth 32)
-    let mut curr = c_in;
-    let mut idx = wit.leaf_index;
-    for level in 0..MERKLE_DEPTH_32 {
-        let sibling = &wit.merkle_path[level];
-        let level_byte = [level as u8];
-        let mut node_preimage = Vec::with_capacity(DOM_MERKLE_NODE.len() + 1 + 2 * HASH_BYTES);
-        node_preimage.extend_from_slice(DOM_MERKLE_NODE);
-        node_preimage.extend_from_slice(&level_byte);
-        if (idx & 1) == 0 {
-            node_preimage.extend_from_slice(&curr);
-            node_preimage.extend_from_slice(sibling);
+    // 4. Merkle inclusion check against the caller-supplied root (Depth 32).
+    // This helper does not authenticate anchor_root or prove consensus finality.
+    // Use the canonical V3 leaf/node encoding. The active guest entrypoint uses
+    // verify_v3_spend_witness and the same depth-32 profile, but has a distinct
+    // bundle-based witness format; this helper remains a reference API, not its caller.
+    let mut curr = leaf_hash(&pub_stmt.namespace_id, u64::from(wit.leaf_index), &c_in);
+    for (level, sibling) in wit.merkle_path.iter().enumerate() {
+        curr = if ((wit.leaf_index >> level) & 1) == 1 {
+            node_hash(&pub_stmt.namespace_id, level, sibling, &curr)
         } else {
-            node_preimage.extend_from_slice(sibling);
-            node_preimage.extend_from_slice(&curr);
-        }
-        curr = shake256_384(&node_preimage);
-        idx >>= 1;
+            node_hash(&pub_stmt.namespace_id, level, &curr, sibling)
+        };
     }
     if !constant_time_eq(&curr, &pub_stmt.anchor_root) {
         return Err("ERR_ANCHOR_ROOT_MISMATCH".into());
@@ -460,7 +509,8 @@ pub fn verify_spend_relation_v3(
         return Err("ERR_OUTPUT_COMMITMENT_MISMATCH".into());
     }
 
-    // 7. Cryptographic Spend Authorization & Statement Digest Binding
+    // 7. Statement digest binding only. Semantic payout-context reconstruction and
+    // authorization-suite verification are not performed by this helper.
     let fee_bytes = pub_stmt.fee.to_le_bytes();
     let withdraw_bytes = pub_stmt.withdraw_value.to_le_bytes();
     let mut stmt_preimage = Vec::with_capacity(
@@ -477,4 +527,148 @@ pub fn verify_spend_relation_v3(
     stmt_preimage.extend_from_slice(&withdraw_bytes);
 
     Ok(shake256_384(&stmt_preimage))
+}
+
+
+#[cfg(test)]
+mod active_guest_profile_tests {
+    use super::*;
+
+    #[test]
+    fn canonical_guest_profile_is_depth32_with_u32_leaf_index() {
+        // verify_v3_spend_witness reads the leaf index as u32 and iterates exactly
+        // TREE_DEPTH siblings, so this constant is a wire-format invariant.
+        assert_eq!(TREE_DEPTH, MERKLE_DEPTH_32);
+        assert_eq!(TREE_DEPTH, 32);
+    }
+}
+
+#[cfg(test)]
+mod depth32_relation_tests {
+    use super::*;
+
+    fn fixture() -> (PublicStatementV3, PrivateWitnessV3) {
+        let param_id = [0x11u8; 32];
+        let namespace_id = [0x22u8; HASH_BYTES];
+        let sk_spend = [0x33u8; HASH_BYTES];
+        let value_in = 100u64;
+        let coin_id_in = [0x44u8; 32];
+        let salt_in = [0x55u8; 32];
+        let leaf_index = 5u32;
+        let pk_owner_out = [0x77u8; HASH_BYTES];
+        let value_out = 85u64;
+        let coin_id_out = [0x88u8; 32];
+        let salt_out = [0x99u8; 32];
+        let fee = 5u64;
+        let withdraw_value = 10u64;
+
+        let mut ak_preimage = Vec::new();
+        ak_preimage.extend_from_slice(DOM_AK_V3);
+        ak_preimage.extend_from_slice(&sk_spend);
+        let ak = shake256_384(&ak_preimage);
+        let mut nk_preimage = Vec::new();
+        nk_preimage.extend_from_slice(DOM_NK_V3);
+        nk_preimage.extend_from_slice(&sk_spend);
+        let nk = shake256_384(&nk_preimage);
+        let mut owner_preimage = Vec::new();
+        owner_preimage.extend_from_slice(DOM_OWNER_V3);
+        owner_preimage.extend_from_slice(&ak);
+        owner_preimage.extend_from_slice(&nk);
+        let pk_owner_in = shake256_384(&owner_preimage);
+
+        let mut c_in_preimage = Vec::new();
+        c_in_preimage.extend_from_slice(DOM_COMMIT_V3);
+        c_in_preimage.extend_from_slice(&param_id);
+        c_in_preimage.extend_from_slice(&namespace_id);
+        c_in_preimage.extend_from_slice(&pk_owner_in);
+        c_in_preimage.extend_from_slice(&value_in.to_le_bytes());
+        c_in_preimage.extend_from_slice(&coin_id_in);
+        c_in_preimage.extend_from_slice(&salt_in);
+        let c_in = shake256_384(&c_in_preimage);
+
+        let mut nf_data = Vec::new();
+        nf_data.extend_from_slice(DOM_NULLIFIER_V3);
+        nf_data.push(TX_VERSION);
+        nf_data.extend_from_slice(&param_id);
+        nf_data.extend_from_slice(&namespace_id);
+        nf_data.extend_from_slice(&c_in);
+        let nullifier = hmac_sha3_384(&nk, &nf_data);
+
+        let merkle_path = [[0x66u8; HASH_BYTES]; MERKLE_DEPTH_32];
+        let mut root = leaf_hash(&namespace_id, u64::from(leaf_index), &c_in);
+        for (level, sibling) in merkle_path.iter().enumerate() {
+            root = if ((leaf_index >> level) & 1) == 1 {
+                node_hash(&namespace_id, level, sibling, &root)
+            } else {
+                node_hash(&namespace_id, level, &root, sibling)
+            };
+        }
+
+        let mut c_out_preimage = Vec::new();
+        c_out_preimage.extend_from_slice(DOM_COMMIT_V3);
+        c_out_preimage.extend_from_slice(&param_id);
+        c_out_preimage.extend_from_slice(&namespace_id);
+        c_out_preimage.extend_from_slice(&pk_owner_out);
+        c_out_preimage.extend_from_slice(&value_out.to_le_bytes());
+        c_out_preimage.extend_from_slice(&coin_id_out);
+        c_out_preimage.extend_from_slice(&salt_out);
+        let out_commitment = shake256_384(&c_out_preimage);
+
+        let statement = PublicStatementV3 {
+            param_id,
+            namespace_id,
+            anchor_root: root,
+            nullifier,
+            out_commitment,
+            tx_context_digest: [0xaau8; HASH_BYTES],
+            fee,
+            withdraw_value,
+        };
+        let witness = PrivateWitnessV3 {
+            sk_spend,
+            value_in,
+            coin_id_in,
+            salt_in,
+            merkle_path,
+            leaf_index,
+            pk_owner_out,
+            value_out,
+            coin_id_out,
+            salt_out,
+        };
+        (statement, witness)
+    }
+
+    #[test]
+    fn depth32_reference_relation_accepts_consistent_witness() {
+        let (statement, witness) = fixture();
+        assert!(verify_spend_relation_v3(&statement, &witness).is_ok());
+    }
+
+    #[test]
+    fn depth32_relation_rejects_parameter_id_mutation() {
+        let (mut statement, witness) = fixture();
+        statement.param_id[0] ^= 1;
+        assert!(verify_spend_relation_v3(&statement, &witness).is_err());
+    }
+
+    #[test]
+    fn depth32_relation_rejects_merkle_index_bit_mutation() {
+        let (statement, mut witness) = fixture();
+        witness.leaf_index ^= 1;
+        assert_eq!(
+            verify_spend_relation_v3(&statement, &witness).unwrap_err(),
+            "ERR_ANCHOR_ROOT_MISMATCH"
+        );
+    }
+
+    #[test]
+    fn depth32_relation_rejects_value_overflow() {
+        let (statement, mut witness) = fixture();
+        witness.value_out = u64::MAX;
+        assert_eq!(
+            verify_spend_relation_v3(&statement, &witness).unwrap_err(),
+            "ERR_VALUE_OVERFLOW"
+        );
+    }
 }

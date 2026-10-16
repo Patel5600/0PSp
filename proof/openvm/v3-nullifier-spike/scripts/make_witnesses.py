@@ -163,7 +163,7 @@ def make_spend_context():
         output_identity.coin_id, output_identity.r_nf,
         SPEND_OUTPUT_RHO, PARAMS_ID,
     )
-    tree = CommitmentTree(namespace, [input_commitment.value])
+    tree = CommitmentTree(namespace, [input_commitment.value], depth=32)
     tx = TxFieldsV3Candidate(
         params_id=PARAMS_ID,
         namespace_id=namespace,
@@ -177,6 +177,10 @@ def make_spend_context():
         fee=SPEND_FEE,
         output_entropy=SPEND_OUTPUT_ENTROPY,
         output_commitments=(output_commitment,),
+        chain_id=(1).to_bytes(32, "big"),
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     return {
         "namespace": namespace,
@@ -226,8 +230,8 @@ def encode_spend_witness(
     output_value = output_value if output_value is not None else ctx["output_value"]
     output_rho = output_rho if output_rho is not None else ctx["output_rho"]
 
-    if len(siblings) != 63:
-        raise ValueError("V3 spend fixture requires exactly 63 Merkle siblings")
+    if len(siblings) != 32:
+        raise ValueError("V3 spend fixture requires exactly 32 Merkle siblings")
     encoded_tx = tx.encode()
     encoded = b"".join(
         (
@@ -241,7 +245,7 @@ def encode_spend_witness(
             input_r_nf,
             input_rho,
             input_key,
-            leaf_index.to_bytes(8, "little"),
+            leaf_index.to_bytes(4, "little"),
             *siblings,
             len(output_bundle).to_bytes(4, "little"),
             output_bundle,
@@ -253,6 +257,27 @@ def encode_spend_witness(
     if len(encoded) > 2_000_000:
         raise ValueError("V3 spend witness exceeds configured guest limit")
     return encoded
+
+
+
+def tamper_spend_tx_field(witness_bytes: bytes, tx: TxFieldsV3Candidate, field: str) -> bytes:
+    """Flip one serialized payout field while retaining the original context digest."""
+    magic_len = len(SPEND_MAGIC)
+    tx_len = int.from_bytes(witness_bytes[magic_len:magic_len + 4], "little")
+    tx_start = magic_len + 4
+    raw_tx = bytearray(witness_bytes[tx_start:tx_start + tx_len])
+    prefix = len(b"0PSP-TX-FIELDS-v3-CANDIDATE-v2-SHAKE256") + 1 + 2 + len(tx.params_id) + 4 * 48 + 64
+    offsets = {
+        "chain_id": prefix,
+        "recipient_address": prefix + 32,
+        "withdraw_value": prefix + 32 + 20,
+        "relayer_address": prefix + 32 + 20 + 8,
+        "fee": prefix + 32 + 20 + 8 + 20 + 2 + len(tx.authorization_policy_id),
+    }
+    if field not in offsets:
+        raise ValueError(f"unsupported context field: {field}")
+    raw_tx[offsets[field]] ^= 1
+    return witness_bytes[:tx_start] + bytes(raw_tx) + witness_bytes[tx_start + tx_len:]
 
 
 def expected_spend_digest(tx: TxFieldsV3Candidate) -> bytes:
@@ -326,8 +351,9 @@ def main() -> int:
     valid_spend = encode_spend_witness(ctx)
     write_case(output, "spend-valid", valid_spend)
     spend_digest = expected_spend_digest(tx)
-    expected_spend_digest_kat = "0cdf055499351512e97f57e0c479b7d0be992525ab9283da872fb3ba1e21e02da4f910b79407e6a6fe80f56a4edca146d8eeb55bfa520bc6ad36e87534595cda"
+    expected_spend_digest_kat = "6d4f418ef8298cc19fcc6e4e7fb57e5d4cd742d7c443a52f975656b4e24d91badedb3822c7b22e27c232254ba55da4758dd4127da30de5dfc926ab4d686b7efd"
     if spend_digest.hex() != expected_spend_digest_kat:
+        print(f"observed spend public statement digest KAT: {spend_digest.hex()}", file=sys.stderr)
         raise ValueError("spend public statement digest KAT mismatch")
     (output / "expected-spend-public-digest.txt").write_text(
         spend_digest.hex() + "\n", encoding="ascii"
@@ -367,6 +393,8 @@ def main() -> int:
     spend_cases["spend-value-conservation"] = encode_spend_witness(
         ctx, tx=replace(tx, fee=SPEND_FEE - 1)
     )
+    for field in ("chain_id", "recipient_address", "relayer_address", "withdraw_value", "fee"):
+        spend_cases[f"spend-context-{field.replace('_', '-')}"] = tamper_spend_tx_field(valid_spend, tx, field)
     for name, payload in spend_cases.items():
         write_case(output, name, payload)
 

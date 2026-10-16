@@ -6,6 +6,7 @@ establish cryptographic spend soundness or trusted external finality.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 import concurrent.futures
 import sqlite3
 import threading
@@ -27,6 +28,7 @@ from src.protocol.trusted_state_v3 import (
 )
 from src.protocol.sqlite_v3_candidate_ledger import (
     SQLiteV3CandidateLedger,
+    SQLiteV3CandidateLedgerError,
     SQLiteV3DuplicateCommitment,
     SQLiteV3DuplicateNullifier,
     SQLiteV3LedgerIntegrityError,
@@ -59,7 +61,7 @@ def make_environment(
     anchor_window: int = 4,
     proof_verifier=None,
 ):
-    tree = CommitmentTree(NAMESPACE, list(commitments))
+    tree = CommitmentTree(NAMESPACE, list(commitments), depth=32)
     evidence = StateAnchorEvidenceV3(
         source_id=SOURCE_ID,
         finalized_anchor=FINALIZED_ANCHOR,
@@ -122,6 +124,10 @@ def statement_for(
         fee=0,
         output_entropy=b"\x71" * 32,
         output_commitments=(CoinCommitmentV3(output),),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
 
@@ -161,7 +167,7 @@ def test_authenticated_bootstrap_and_single_spend_survive_restart(tmp_path) -> N
 
 def test_bad_bootstrap_commitment_list_cannot_claim_authenticated_root(tmp_path) -> None:
     wrong_commitments = (BOOTSTRAP_COMMITMENTS[0],)
-    ledger_root = CommitmentTree(NAMESPACE, list(BOOTSTRAP_COMMITMENTS)).root
+    ledger_root = CommitmentTree(NAMESPACE, list(BOOTSTRAP_COMMITMENTS), depth=32).root
     evidence = StateAnchorEvidenceV3(
         source_id=SOURCE_ID,
         finalized_anchor=FINALIZED_ANCHOR,
@@ -398,3 +404,71 @@ def test_audit_rejects_commitment_source_metadata_substitution(
         match="source metadata disagrees",
     ):
         ledger.audit_integrity()
+
+
+@pytest.mark.parametrize(
+    "field_name,mutated",
+    [
+        ("chain_id", bytes([0x02]) * 32),
+        ("recipient_address", bytes([0xA2]) * 20),
+        ("relayer_address", bytes([0xB3]) * 20),
+        ("fee", 1),
+        ("withdraw_value", 1),
+    ],
+)
+def test_payout_context_mutation_cannot_reuse_original_proof(tmp_path, field_name, mutated):
+    pinned: dict[str, object] = {}
+
+    def verify_only_original(candidate, proof: bytes) -> bool:
+        return candidate == pinned.get("statement") and proof == pinned.get("proof")
+
+    ledger, *_ = make_environment(tmp_path, proof_verifier=verify_only_original)
+    original = statement_for(ledger)
+    original_proof = b"original-payout-bound-proof"
+    pinned["statement"] = original
+    pinned["proof"] = original_proof
+    before = ledger.snapshot()
+    tampered = replace(original, **{field_name: mutated})
+    with pytest.raises((SQLiteV3ProofRejected, SQLiteV3CandidateLedgerError)):
+        ledger.accept_spend(tampered, proof=original_proof)
+    assert ledger.snapshot() == before
+    assert not ledger.is_nullifier_spent(original.input_nullifier.value)
+
+
+def test_nonzero_withdrawal_is_rejected_before_proof_or_state_mutation(tmp_path):
+    proof_calls: list[bytes] = []
+    ledger, *_ = make_environment(
+        tmp_path,
+        proof_verifier=lambda _statement, proof: proof_calls.append(proof) or True,
+    )
+    before = ledger.snapshot()
+    tx = replace(statement_for(ledger), withdraw_value=1)
+
+    with pytest.raises(SQLiteV3CandidateLedgerError, match="non-zero withdrawals are gated"):
+        ledger.accept_spend(tx, proof=VALID_PROOF)
+
+    assert proof_calls == []
+    assert ledger.snapshot() == before
+    assert not ledger.is_nullifier_spent(tx.input_nullifier.value)
+    ledger.audit_integrity()
+
+
+def test_fabricated_anchor_row_is_rejected_before_proof_or_state_mutation(tmp_path):
+    calls: list[bytes] = []
+    ledger, *_ = make_environment(tmp_path, proof_verifier=lambda _statement, proof: calls.append(proof) or True)
+    before = ledger.snapshot()
+    fake_root, fake_head = b"\xE1" * 48, b"\xE2" * 48
+    conn = ledger._connect()
+    try:
+        conn.execute(
+            "INSERT INTO v3_commitment_anchors(state_version,commitment_root,state_head,commitment_count) VALUES(?,?,?,?)",
+            (before.state_version + 1, fake_root, fake_head, before.commitment_count + 1),
+        )
+    finally:
+        conn.close()
+    tampered = statement_for(ledger, root=fake_root, state_head=fake_head)
+    with pytest.raises(SQLiteV3LedgerIntegrityError, match="anchor ring"):
+        ledger.accept_spend(tampered, proof=VALID_PROOF)
+    assert calls == []
+    assert ledger.snapshot() == before
+

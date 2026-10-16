@@ -1,17 +1,32 @@
-"""0PSP Complete V3 Spend Relation and Recipient Privacy Specification (P0 Issue #33).
+"""Host-side reference model for the experimental 0PSP V3 spend relation.
 
-Formalizes and validates the complete single-witness spend relation R_spend_v3:
-1. Authorization Policy: Enforces canonical 0PSP-V3-NK-POSSESSION-CANDIDATE-v1 policy.
-2. Note Commitment Opening: Recomputes input commitment C_in via CommitV3(params, bundle, v, ns, coin_id, r_nf, rho).
-3. Recipient-Keyed Nullifier: Verifies N_V3 = HMAC-SHA3-384(nk, M_nf) using recipient's secret nk,
-   strictly eliminating V2 sender-linkability.
-4. Key Possession Authentication: Proves input_nk opens the nullifier key commitment committed in input_bundle.
-5. Authenticated Membership: Verifies Merkle tree inclusion path against commitment_root.
-6. Anchored Output Identity: Derives (coin_id_out, r_nf_out) deterministically from consumed parent anchor.
-7. Output Commitment Matching: Verifies C_out matches the exact output commitment in the transaction statement.
-8. Strict Value Conservation: Enforces v_in = v_out + fee using non-overflowing 64-bit integer arithmetic.
-9. Statement Digest Binding: Derives and binds the canonical 64-byte public statement digest.
+This module performs deterministic checks over Python objects for unit,
+differential, and adversarial testing. It is NOT an OpenVM guest circuit,
+proof verifier, authenticated-finality verifier, or payout execution path.
+
+The reference model checks a shared input witness for:
+1. The candidate NK-possession policy.
+2. Input commitment opening and same-key NullifierV3 derivation.
+3. Merkle membership against the root supplied by the transaction statement.
+4. Deterministic output identity and output commitment matching.
+5. Non-overflowing uint64 value conservation for output, withdrawal, and fee.
+6. A digest of the canonical candidate transaction statement.
+
+Important limits:
+- Membership against a supplied root does not authenticate that root or its
+  finality. Trusted-state preflight/ledger enforcement is a separate gate.
+- External payout settlement remains outside this host reference. The typed
+  payout context is bound in the candidate codec but this is not a payout executor.
+- This Python reference is not the active OpenVM guest relation and does not
+  demonstrate that all these checks are enforced by the committed proof.
+- Active V3 uses the canonical depth-32 profile. Depth 63 remains only as an
+  explicitly selected legacy profile.
+
+Passing these Python checks is not production authorization or proof of
+end-to-end zero knowledge. Keep P0 release gates open until proof, trusted-state,
+payout, and atomic-ledger composition are demonstrated on the same release SHA.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,7 +45,7 @@ from src.primitives.nullifier_v3 import (
     compute_nullifier_key_commitment_v3,
     compute_nullifier_v3,
 )
-from src.protocol.commitment_tree import leaf_hash, node_hash
+from src.protocol.commitment_tree import V3_TREE_DEPTH, leaf_hash, node_hash
 from src.protocol.note_public_key_bundle_v3 import (
     NotePublicKeyBundleV3,
     decode_note_public_key_bundle_v3,
@@ -72,29 +87,48 @@ class SpendWitnessV3:
     output_rho: bytes
 
     def __post_init__(self) -> None:
-        if not 0 <= self.input_value <= MAX_VALUE_U64:
-            raise ValueError("input_value outside valid u64 range")
-        if not 0 <= self.output_value <= MAX_VALUE_U64:
-            raise ValueError("output_value outside valid u64 range")
-        if len(self.input_rho) != 36:
+        for field_name, value in (
+            ("input_value", self.input_value),
+            ("output_value", self.output_value),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or not 0 <= value <= MAX_VALUE_U64
+            ):
+                raise ValueError(f"{field_name} outside valid u64 range")
+        if not isinstance(self.input_rho, bytes) or len(self.input_rho) != 36:
             raise ValueError("input_rho must be 36 bytes")
-        if len(self.output_rho) != 36:
+        if not isinstance(self.output_rho, bytes) or len(self.output_rho) != 36:
             raise ValueError("output_rho must be 36 bytes")
-        if len(self.merkle_siblings) not in (32, 63):
-            raise ValueError("merkle_siblings length must be 32 or 63")
+        if isinstance(self.leaf_index, bool) or not isinstance(self.leaf_index, int):
+            raise ValueError("leaf_index must be an integer, not bool")
+        if not isinstance(self.merkle_siblings, tuple):
+            raise ValueError("merkle_siblings must be an immutable tuple")
+        # This reference relation must use the same depth as the current V3
+        # commitment tree, C Merkle verifier, SQLite ledger, and active OpenVM
+        # witness entrypoint. Depth-32 is a separate experimental helper, not
+        # an interchangeable path for this depth-63 root/profile.
+        if len(self.merkle_siblings) != V3_TREE_DEPTH:
+            raise ValueError(
+                f"merkle_siblings must contain exactly {V3_TREE_DEPTH} siblings for the active V3 profile"
+            )
+        if any(not isinstance(sibling, bytes) or len(sibling) != 48 for sibling in self.merkle_siblings):
+            raise ValueError("each Merkle sibling must be exactly 48 bytes")
+        if not 0 <= self.leaf_index < (1 << V3_TREE_DEPTH):
+            raise ValueError(
+                f"leaf_index outside valid depth-{V3_TREE_DEPTH} Merkle path range"
+            )
 
 
 def verify_spend_relation_v3_reference(
     statement: TxFieldsV3Candidate,
     witness: SpendWitnessV3,
 ) -> bytes:
-    """Verify all constraints of the 0PSP V3 spend relation over one consistent witness.
+    """Run the host reference predicates over one consistent witness.
 
-    Returns:
-      The 64-byte public statement digest upon successful verification.
-
-    Raises:
-      SpendRelationV3Error if any predicate fails.
+    This function returns a reference statement digest; it does not create or
+    verify a zero-knowledge proof and does not authenticate the supplied root.
     """
     if not isinstance(statement, TxFieldsV3Candidate):
         raise TypeError("statement must be a TxFieldsV3Candidate")
@@ -146,18 +180,18 @@ def verify_spend_relation_v3_reference(
             "input NullifierV3 does not match transaction statement nullifier"
         )
 
-    # 5. Authenticated Merkle Membership Path (Depth 32 or 63)
+    # 5. Membership against the supplied statement root (active profile depth is V3_TREE_DEPTH).
     current_node = leaf_hash(
-        statement.namespace_id, witness.leaf_index, input_commitment.value
+        statement.namespace_id, witness.leaf_index, input_commitment.value, tree_depth=V3_TREE_DEPTH
     )
     for level, sibling in enumerate(witness.merkle_siblings):
         if (witness.leaf_index >> level) & 1:
             current_node = node_hash(
-                statement.namespace_id, level, sibling, current_node
+                statement.namespace_id, level, sibling, current_node, tree_depth=V3_TREE_DEPTH
             )
         else:
             current_node = node_hash(
-                statement.namespace_id, level, current_node, sibling
+                statement.namespace_id, level, current_node, sibling, tree_depth=V3_TREE_DEPTH
             )
     if current_node != statement.commitment_root:
         raise SpendRelationV3Error(
@@ -194,12 +228,12 @@ def verify_spend_relation_v3_reference(
         )
 
     # 8. Strict Value Conservation (No Wraparound)
-    total_out = witness.output_value + statement.fee
+    total_out = witness.output_value + statement.withdraw_value + statement.fee
     if total_out > MAX_VALUE_U64:
-        raise SpendRelationV3Error("total output value overflows u64")
+        raise SpendRelationV3Error("total output, withdrawal, and fee value overflows u64")
     if witness.input_value != total_out:
         raise SpendRelationV3Error(
-            f"value conservation violated: in ({witness.input_value}) != out ({witness.output_value}) + fee ({statement.fee})"
+            f"value conservation violated: in ({witness.input_value}) != out ({witness.output_value}) + withdraw ({statement.withdraw_value}) + fee ({statement.fee})"
         )
 
     # 9. Statement Public Digest

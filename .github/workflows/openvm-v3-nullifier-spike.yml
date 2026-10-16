@@ -71,7 +71,7 @@ jobs:
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
           python3 scripts/make_witnesses.py "$fixture_dir"
           test "$(cat "$fixture_dir/expected-public-digest.txt")" = "82ec02fc6689a4c56038463a780a9d3e75d5075043645cdb754a4d9c73b21df665303861e54f2a07876f811f1fdb38f353f1572367db5fb4a36f27672983b5ee"
-          test "$(cat "$fixture_dir/expected-spend-public-digest.txt")" = "0cdf055499351512e97f57e0c479b7d0be992525ab9283da872fb3ba1e21e02da4f910b79407e6a6fe80f56a4edca146d8eeb55bfa520bc6ad36e87534595cda"
+          test "$(cat "$fixture_dir/expected-spend-public-digest.txt")" = "6d4f418ef8298cc19fcc6e4e7fb57e5d4cd742d7c443a52f975656b4e24d91badedb3822c7b22e27c232254ba55da4758dd4127da30de5dfc926ab4d686b7efd"
 
       - name: Test proof checker and build the custom 64-byte OpenVM SDK runner
         run: |
@@ -117,7 +117,7 @@ jobs:
             exit 1
           fi
           python3 scripts/check_public_output.py "$fixture_dir/spend-valid-run.log" "$fixture_dir/expected-spend-public-digest.txt"
-          for fixture in spend-wrong-key spend-changed-value spend-changed-salt spend-wrong-nullifier spend-bad-bundle spend-trailing-data spend-bad-root spend-bad-path spend-changed-output-entropy spend-unknown-policy spend-value-conservation; do
+          for fixture in spend-wrong-key spend-changed-value spend-changed-salt spend-wrong-nullifier spend-bad-bundle spend-trailing-data spend-bad-root spend-bad-path spend-changed-output-entropy spend-unknown-policy spend-value-conservation spend-context-chain-id spend-context-recipient-address spend-context-relayer-address spend-context-withdraw-value spend-context-fee; do
             if "$runner" run openvm.toml "$elf" "$fixture_dir/$fixture.witness" > "$fixture_dir/$fixture-run.log" 2>&1; then
               echo "OpenVM unexpectedly accepted adversarial spend fixture: $fixture"
               cat "$fixture_dir/$fixture-run.log"

@@ -22,6 +22,8 @@ PSP_TIER1_KEY_BYTES = 48
 PSP_TIER1_COMMITMENT_BYTES = 48
 PSP_TIER1_NULLIFIER_BYTES = 48
 PSP_TIER1_NAMESPACE_BYTES = 48
+PSP_TIER1_ADDRESS_BYTES = 20
+PSP_TIER1_CHAIN_ID_BYTES = 32
 PSP_TIER1_ENTROPY_BYTES = 32
 PSP_TIER1_DIGEST_BYTES = 64
 PSP_TIER1_MAX_TX_FIELDS_BYTES = 4096
@@ -112,6 +114,7 @@ class NativeMobileEngine:
         self._lib.psp_tier1_create_spend_package.argtypes = [
             u8_p, size_t, u8_p, u8_p, size_t, u64, u8_p, u8_p, u8_p, u8_p,
             u8_p, size_t, u64, u64, u8_p, u8_p, u8_p, u8_p,
+            u8_p, u8_p, u64, u8_p,
             ctypes.POINTER(_CTier1SpendPackage),
         ]
         self._lib.psp_tier1_create_spend_package.restype = ctypes.c_int
@@ -251,8 +254,18 @@ class NativeMobileEngine:
         commitment_root: bytes,
         state_head: bytes,
         state_context_digest: bytes,
+        chain_id: bytes,
+        recipient_address: bytes,
+        withdraw_value: int,
+        relayer_address: bytes,
     ) -> NativeTier1SpendPackage:
-        """Execute Tier 1 mobile spend package creation in native constant-time C11."""
+        """Execute the native Tier 1 candidate helper; external withdrawals remain gated."""
+        if len(chain_id) != PSP_TIER1_CHAIN_ID_BYTES:
+            raise ValueError("chain_id must be exactly 32 bytes")
+        if len(recipient_address) != PSP_TIER1_ADDRESS_BYTES or len(relayer_address) != PSP_TIER1_ADDRESS_BYTES:
+            raise ValueError("recipient_address and relayer_address must each be exactly 20 bytes")
+        if isinstance(withdraw_value, bool) or not isinstance(withdraw_value, int) or not 0 <= withdraw_value <= 0xFFFFFFFFFFFFFFFF:
+            raise ValueError("withdraw_value must be an unsigned 64-bit integer")
         pkg = _CTier1SpendPackage()
 
         st = self._lib.psp_tier1_create_spend_package(
@@ -274,6 +287,10 @@ class NativeMobileEngine:
             (ctypes.c_uint8 * len(commitment_root)).from_buffer_copy(commitment_root),
             (ctypes.c_uint8 * len(state_head)).from_buffer_copy(state_head),
             (ctypes.c_uint8 * len(state_context_digest)).from_buffer_copy(state_context_digest),
+            (ctypes.c_uint8 * len(chain_id)).from_buffer_copy(chain_id),
+            (ctypes.c_uint8 * len(recipient_address)).from_buffer_copy(recipient_address),
+            withdraw_value,
+            (ctypes.c_uint8 * len(relayer_address)).from_buffer_copy(relayer_address),
             ctypes.byref(pkg),
         )
         if st != PSP_CRYPTO_OK:

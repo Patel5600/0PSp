@@ -51,19 +51,23 @@ def statement(**overrides: object) -> TxFieldsV3Candidate:
         "output_commitments": (OUTPUT_A, OUTPUT_B),
     }
     fields.update(overrides)
+    fields.setdefault("chain_id", (1).to_bytes(32, "big"))
+    fields.setdefault("recipient_address", bytes([0xA1]) * 20)
+    fields.setdefault("withdraw_value", 0)
+    fields.setdefault("relayer_address", bytes([0xB2]) * 20)
     return TxFieldsV3Candidate(**fields)  # type: ignore[arg-type]
 
 
 def test_v3_candidate_roundtrip_and_digest_known_answer() -> None:
     tx = statement()
     encoded = tx.encode()
-    assert len(encoded) == 474
+    assert len(encoded) == 602
     assert encoded.startswith(TX_FIELDS_V3_CANDIDATE_DOMAIN + b"\x03")
     assert decode_tx_fields_v3_candidate(encoded) == tx
     assert decode_tx_fields_v3_candidate(encoded).encode() == encoded
     expected_digest = (
-        "b4a6e5c09c22194b2e79977f5fc6d8b675bd28fc9d7d6afa80520014ae188f47"
-        "29d1a9074484a6465b6d94d4a9aad95a766552985ba0c4f0939930628a7f6eac"
+        "8beed05b540229c3bcd60ca19d3ebbbcfee733b82087724f74f3a19a4a29543a"
+        "5b9018fd277b33606883294ef5c2c3b0fa3715c4bc771ee1c807255b40efd769"
     )
     assert transaction_digest_v3_candidate(tx).hex() == expected_digest
     assert transaction_digest_v3_candidate(encoded) == transaction_digest_v3_candidate(tx)
@@ -152,9 +156,9 @@ def test_decoder_rejects_trailing_bytes_wrong_version_and_wrong_domain() -> None
 
 def test_decoder_rejects_zero_output_count() -> None:
     encoded = bytearray(statement(output_commitments=(OUTPUT_A,)).encode())
-    # output_count is the final 4-byte integer before the 48-byte output value.
-    encoded[-52:-48] = (0).to_bytes(4, "little")
-    encoded = encoded[:-48]
+    # Output count precedes the output commitment; preserve trailing context digest.
+    encoded[-100:-96] = (0).to_bytes(4, "little")
+    del encoded[-96:-48]
     with pytest.raises(TransactionV3CandidateError, match="output count"):
         decode_tx_fields_v3_candidate(bytes(encoded))
 

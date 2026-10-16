@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import pytest
+from dataclasses import replace
 
 from src.primitives.coin_commitment_v3 import commit_coin_v3
 from src.primitives.namespace import ScopedCoinId
@@ -15,7 +16,7 @@ from src.primitives.nullifier_v3 import (
     compute_nullifier_key_commitment_v3,
     compute_nullifier_v3,
 )
-from src.protocol.commitment_tree import CommitmentTree, TREE_DEPTH
+from src.protocol.commitment_tree import CommitmentTree, V3_TREE_DEPTH
 from src.protocol.note_public_key_bundle_v3 import NotePublicKeyBundleV3
 from src.protocol.output_identity import derive_output_identity_v3_candidate
 from src.protocol.spend_relation_v3 import (
@@ -58,7 +59,7 @@ def _create_test_fixture():
     )
 
     # 2. Build Merkle tree with input commitment at index 0
-    tree = CommitmentTree(NAMESPACE, [input_commitment.value])
+    tree = CommitmentTree(NAMESPACE, [input_commitment.value], depth=V3_TREE_DEPTH)
     commitment_root = tree.root
     merkle_siblings = tuple(tree.membership_path(0))
 
@@ -121,6 +122,10 @@ def _create_test_fixture():
         fee=fee,
         output_entropy=output_entropy,
         output_commitments=(output_commitment,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
     witness = SpendWitnessV3(
@@ -203,6 +208,10 @@ def test_spend_relation_v3_tampered_merkle_root_rejected() -> None:
         fee=statement.fee,
         output_entropy=statement.output_entropy,
         output_commitments=statement.output_commitments,
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     with pytest.raises(SpendRelationV3Error, match="not a valid member of statement commitment_root"):
         verify_spend_relation_v3_reference(fake_statement, witness)
@@ -223,6 +232,10 @@ def test_spend_relation_v3_tampered_nullifier_rejected() -> None:
         fee=statement.fee,
         output_entropy=statement.output_entropy,
         output_commitments=statement.output_commitments,
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     with pytest.raises(SpendRelationV3Error, match="input NullifierV3 does not match"):
         verify_spend_relation_v3_reference(fake_statement, witness)
@@ -361,6 +374,10 @@ def test_spend_relation_v3_nullifier_domain_separation_and_replay_rejection() ->
         fee=statement.fee,
         output_entropy=statement.output_entropy,
         output_commitments=statement.output_commitments,
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     with pytest.raises(SpendRelationV3Error):
         verify_spend_relation_v3_reference(stmt_wrong_ns, witness)
@@ -411,9 +428,46 @@ def test_spend_relation_v3_tx_context_relayer_tampering_rejection() -> None:
         fee=statement.fee,
         output_entropy=statement.output_entropy,
         output_commitments=statement.output_commitments,
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     tampered_digest = verify_spend_relation_v3_reference(tampered_stmt, witness)
 
     # The public statement digest MUST be cryptographically distinct, invalidating any proof
     assert tampered_digest != valid_digest
 
+
+def test_reference_relation_rejects_depth63_paths_and_out_of_range_u32_indices() -> None:
+    """V3 rejects legacy depth-63 witnesses and indices wider than u32."""
+    _, witness, _, _, _ = _create_test_fixture()
+    with pytest.raises(ValueError, match="exactly 32 siblings for the active V3 profile"):
+        replace(witness, merkle_siblings=tuple(witness.merkle_siblings) + (bytes(48),) * 31)
+    with pytest.raises(ValueError, match="leaf_index outside valid depth-32"):
+        replace(witness, leaf_index=1 << 32)
+    with pytest.raises(ValueError, match="leaf_index must be an integer"):
+        replace(witness, leaf_index=True)
+
+
+@pytest.mark.parametrize("field_name", ["input_value", "output_value"])
+@pytest.mark.parametrize("bad_value", [True, -1, 1 << 64, 1.5])
+def test_spend_witness_rejects_non_u64_or_boolean_values(
+    field_name: str, bad_value: object
+) -> None:
+    """Python bool/int coercion must not bypass the witness's u64 type boundary."""
+    _, witness, _, _, _ = _create_test_fixture()
+    with pytest.raises(ValueError, match=f"{field_name} outside valid u64 range"):
+        replace(witness, **{field_name: bad_value})
+
+
+def test_spend_witness_requires_immutable_fixed_width_merkle_siblings() -> None:
+    """Mutable or malformed sibling containers must not enter the frozen witness."""
+    _, witness, _, _, _ = _create_test_fixture()
+    with pytest.raises(ValueError, match="immutable tuple"):
+        replace(witness, merkle_siblings=list(witness.merkle_siblings))
+    with pytest.raises(ValueError, match="exactly 48 bytes"):
+        replace(
+            witness,
+            merkle_siblings=(b"bad",) + witness.merkle_siblings[1:],
+        )

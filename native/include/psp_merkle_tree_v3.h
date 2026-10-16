@@ -21,7 +21,7 @@ int psp_merkle_empty_leaf_hash(const uint8_t *namespace_id, uint8_t *out);
 /*
  * Compute depth-63 active leaf hash:
  *   SHAKE256-384("0PSP-COMMITMENT-LEAF-v1-SHAKE256" || 0x01 || u16le(48) || namespace_id[48] ||
- *                u64le(index) || u16le(48) || commitment[48])
+ *                u64be(index) || u16le(48) || commitment[48])
  */
 int psp_merkle_leaf_hash(
     const uint8_t *namespace_id,
@@ -42,7 +42,8 @@ int psp_merkle_node_hash(
     uint8_t *out);
 
 /*
- * Verify depth-63 Merkle inclusion path in constant time:
+ * Verify variable-depth Merkle inclusion path in constant time (1..63).
+ * Canonical V3 spend uses depth 32; depth 63 is a legacy/reference maximum:
  * Traverses siblings from level 0 to depth-1, checking that reconstructed root == expected_root.
  * Returns 0 on valid inclusion, non-zero on mismatch or invalid argument.
  */
@@ -50,7 +51,7 @@ int psp_merkle_verify_path(
     const uint8_t *namespace_id,
     uint64_t leaf_index,
     const uint8_t *commitment,
-    const uint8_t *siblings_flat, /* depth * 48 bytes */
+    const uint8_t *siblings_flat, /* depth * 48 bytes; canonical V3 spend depth is 32 */
     size_t depth,
     const uint8_t *expected_root);
 
