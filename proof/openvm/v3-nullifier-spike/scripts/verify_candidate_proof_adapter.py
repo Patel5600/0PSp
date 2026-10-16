@@ -24,6 +24,12 @@ from src.protocol.openvm_v3_candidate_verifier import (
     OpenVMV3CandidateVerifierError,
     v3_spend_public_digest_candidate,
 )
+from src.protocol.proof_backend_v3 import (
+    OPENVM_V2_CANDIDATE_PROFILE,
+    verify_candidate_proof_envelope,
+    verify_production_proof_envelope,
+)
+from src.protocol.transaction_v3_candidate import TxEnvelopeV3Candidate
 
 
 def read_lower_hex(path: Path, expected_bytes: int, field: str) -> bytes:
@@ -67,12 +73,38 @@ def main() -> int:
         timeout_seconds=300,
         max_proof_bytes=2_000_000,
     )
-    if not verifier(statement, app_proof.read_bytes()):
+    proof_bytes = app_proof.read_bytes()
+    if not verifier(statement, proof_bytes):
         raise OpenVMV3CandidateVerifierError(
             "candidate adapter rejected the generated OpenVM spend proof"
         )
+
+    envelope = TxEnvelopeV3Candidate(
+        statement=statement,
+        # The active candidate guest does not bind the legacy auth-token field;
+        # any nonzero token is therefore rejected by the envelope adapter.
+        auth_token=bytes(48),
+        proof=proof_bytes,
+    )
+    if not verify_candidate_proof_envelope(
+        envelope,
+        proof_verifier=verifier,
+        profile=OPENVM_V2_CANDIDATE_PROFILE,
+    ):
+        raise OpenVMV3CandidateVerifierError(
+            "candidate-envelope API rejected the generated OpenVM spend proof"
+        )
+    if verify_production_proof_envelope(
+        envelope,
+        proof_verifier=verifier,
+        profile=OPENVM_V2_CANDIDATE_PROFILE,
+    ):
+        raise OpenVMV3CandidateVerifierError(
+            "production API unexpectedly accepted a candidate proof while its release latch is off"
+        )
     print(
-        "PASS: ledger-facing OpenVM adapter verified the exact generated V3 spend proof; "
+        "PASS: generated OpenVM spend proof verified both directly and through "
+        "verify_candidate_proof_envelope; production API correctly remained hard-locked; "
         f"checker_sha256={hashlib.sha256(checker.read_bytes()).hexdigest()} "
         f"app_vk_sha256={hashlib.sha256(app_vk.read_bytes()).hexdigest()} "
         f"public_digest={expected_digest.hex()}"
