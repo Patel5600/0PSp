@@ -117,7 +117,7 @@ jobs:
             exit 1
           fi
           python3 scripts/check_public_output.py "$fixture_dir/spend-valid-run.log" "$fixture_dir/expected-spend-public-digest.txt"
-          for fixture in spend-wrong-key spend-changed-value spend-changed-salt spend-wrong-nullifier spend-bad-bundle spend-trailing-data spend-bad-root spend-bad-path spend-changed-output-entropy spend-unknown-policy spend-value-conservation; do
+          for fixture in spend-wrong-key spend-changed-value spend-changed-salt spend-wrong-nullifier spend-bad-bundle spend-trailing-data spend-bad-root spend-bad-path spend-changed-output-entropy spend-unknown-policy spend-value-conservation spend-context-chain-id spend-context-recipient-address spend-context-relayer-address spend-context-withdraw-value spend-context-fee; do
             if "$runner" run openvm.toml "$elf" "$fixture_dir/$fixture.witness" > "$fixture_dir/$fixture-run.log" 2>&1; then
               echo "OpenVM unexpectedly accepted adversarial spend fixture: $fixture"
               cat "$fixture_dir/$fixture-run.log"

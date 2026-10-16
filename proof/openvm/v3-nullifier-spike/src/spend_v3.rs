@@ -3,7 +3,7 @@
 //! Enforces, over one witness:
 //! - canonical TxFieldsV3Candidate and the fixed NK-possession policy ID;
 //! - BundleV3 key-commitment opening, CommitV3 opening, and same-key NullifierV3;
-//! - depth-63 namespace-bound commitment membership against the transaction root;
+//! - depth-32 namespace-bound commitment membership against the transaction root;
 //! - anchor/index-derived output identity and the output's CommitV3 opening;
 //! - exact one-output transaction binding and u64 value conservation.
 //!
@@ -26,7 +26,7 @@ pub const TX_VERSION: u8 = 0x03;
 pub const SPEND_POLICY_NK: &[u8] = b"0PSP-V3-NK-POSSESSION-CANDIDATE-v1";
 pub const PUBLIC_STATEMENT_DOMAIN: &[u8] =
     b"0PSP-OPENVM-V3-SPEND-PUBLIC-STATEMENT-CANDIDATE-v2";
-pub const TREE_DEPTH: usize = 63;
+pub const TREE_DEPTH: usize = MERKLE_DEPTH_32;
 pub const MAX_TX_BYTES: usize = 1_000_000;
 pub const MAX_BUNDLE_BYTES: usize = 65_535;
 pub const MAX_WITNESS_BYTES: usize = 2_000_000;
@@ -39,6 +39,10 @@ const OUTPUT_RNF_DOMAIN: &[u8] = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate";
 const OUTPUT_ID_VERSION: u8 = 0x03;
 const OUTPUT_ENTROPY_BYTES: usize = 32;
 const STATE_CONTEXT_BYTES: usize = 64;
+const CHAIN_ID_BYTES: usize = 32;
+const ADDRESS_BYTES: usize = 20;
+const PAYOUT_CONTEXT_BYTES: usize = HASH_BYTES;
+const TX_PAYOUT_CONTEXT_DOMAIN: &[u8] = b"0PSP-TX-PAYOUT-CONTEXT-v3-CANDIDATE-v1-SHAKE256";
 
 #[derive(Clone)]
 struct TxFields {
@@ -48,6 +52,11 @@ struct TxFields {
     nullifier: [u8; HASH_BYTES],
     state_head: [u8; HASH_BYTES],
     state_context_digest: [u8; STATE_CONTEXT_BYTES],
+    chain_id: [u8; CHAIN_ID_BYTES],
+    recipient_address: [u8; ADDRESS_BYTES],
+    withdraw_value: u64,
+    relayer_address: [u8; ADDRESS_BYTES],
+    tx_context_digest: [u8; PAYOUT_CONTEXT_BYTES],
     policy_id: Vec<u8>,
     fee: u64,
     output_entropy: [u8; OUTPUT_ENTROPY_BYTES],
@@ -58,7 +67,8 @@ struct TxFields {
 fn encode_tx(tx: &TxFields) -> Vec<u8> {
     let mut out = Vec::with_capacity(
         TX_FIELDS_DOMAIN.len() + 1 + 2 + tx.params_id.len() + 4 * HASH_BYTES
-            + STATE_CONTEXT_BYTES + 2 + tx.policy_id.len() + 8 + OUTPUT_ENTROPY_BYTES + 4 + HASH_BYTES,
+            + STATE_CONTEXT_BYTES + CHAIN_ID_BYTES + ADDRESS_BYTES + 8 + ADDRESS_BYTES
+            + 2 + tx.policy_id.len() + 8 + OUTPUT_ENTROPY_BYTES + 4 + HASH_BYTES + PAYOUT_CONTEXT_BYTES,
     );
     out.extend_from_slice(TX_FIELDS_DOMAIN);
     out.push(TX_VERSION);
@@ -69,12 +79,17 @@ fn encode_tx(tx: &TxFields) -> Vec<u8> {
     out.extend_from_slice(&tx.nullifier);
     out.extend_from_slice(&tx.state_head);
     out.extend_from_slice(&tx.state_context_digest);
+    out.extend_from_slice(&tx.chain_id);
+    out.extend_from_slice(&tx.recipient_address);
+    out.extend_from_slice(&tx.withdraw_value.to_le_bytes());
+    out.extend_from_slice(&tx.relayer_address);
     out.extend_from_slice(&(tx.policy_id.len() as u16).to_le_bytes());
     out.extend_from_slice(&tx.policy_id);
     out.extend_from_slice(&tx.fee.to_le_bytes());
     out.extend_from_slice(&tx.output_entropy);
     out.extend_from_slice(&1u32.to_le_bytes());
     out.extend_from_slice(&tx.output_commitment);
+    out.extend_from_slice(&tx.tx_context_digest);
     out
 }
 
@@ -95,6 +110,10 @@ fn parse_tx(encoded: &[u8]) -> Result<TxFields, String> {
     let nullifier = r.fixed::<HASH_BYTES>("input_nullifier")?;
     let state_head = r.fixed::<HASH_BYTES>("ledger_state_head")?;
     let state_context_digest = r.fixed::<STATE_CONTEXT_BYTES>("state_context_digest")?;
+    let chain_id = r.fixed::<CHAIN_ID_BYTES>("chain_id")?;
+    let recipient_address = r.fixed::<ADDRESS_BYTES>("recipient_address")?;
+    let withdraw_value = r.u64_le("withdraw_value")?;
+    let relayer_address = r.fixed::<ADDRESS_BYTES>("relayer_address")?;
     let policy_id = r.vec_u16("authorization_policy_id")?;
     let fee = r.u64_le("fee")?;
     let output_entropy = r.fixed::<OUTPUT_ENTROPY_BYTES>("output_entropy")?;
@@ -103,11 +122,16 @@ fn parse_tx(encoded: &[u8]) -> Result<TxFields, String> {
         return Err("this proof profile requires exactly one output".into());
     }
     let output_commitment = r.fixed::<HASH_BYTES>("output commitment")?;
+    let tx_context_digest = r.fixed::<PAYOUT_CONTEXT_BYTES>("tx_context_digest")?;
     r.finish("TxFieldsV3")?;
     let tx = TxFields {
-        params_id, namespace, root, nullifier, state_head, state_context_digest, policy_id, fee,
-        output_entropy, output_commitment, encoded: encoded.to_vec(),
+        params_id, namespace, root, nullifier, state_head, state_context_digest,
+        chain_id, recipient_address, withdraw_value, relayer_address, tx_context_digest,
+        policy_id, fee, output_entropy, output_commitment, encoded: encoded.to_vec(),
     };
+    if !constant_time_eq(&computed_tx_context_digest(&tx), &tx.tx_context_digest) {
+        return Err("TxFieldsV3 payout context digest mismatch".into());
+    }
     if tx.encode() != encoded {
         return Err("TxFieldsV3 is not canonical".into());
     }
@@ -115,6 +139,26 @@ fn parse_tx(encoded: &[u8]) -> Result<TxFields, String> {
         return Err("TxFieldsV3 does not select the exact NK-possession policy".into());
     }
     Ok(tx)
+}
+
+
+fn computed_tx_context_digest(tx: &TxFields) -> [u8; PAYOUT_CONTEXT_BYTES] {
+    let mut preimage = Vec::with_capacity(
+        TX_PAYOUT_CONTEXT_DOMAIN.len() + 1 + CHAIN_ID_BYTES + HASH_BYTES + 2
+            + tx.params_id.len() + ADDRESS_BYTES + 8 + ADDRESS_BYTES + 8 + HASH_BYTES,
+    );
+    preimage.extend_from_slice(TX_PAYOUT_CONTEXT_DOMAIN);
+    preimage.push(TX_VERSION);
+    preimage.extend_from_slice(&tx.chain_id);
+    preimage.extend_from_slice(&tx.namespace);
+    preimage.extend_from_slice(&(tx.params_id.len() as u16).to_le_bytes());
+    preimage.extend_from_slice(&tx.params_id);
+    preimage.extend_from_slice(&tx.recipient_address);
+    preimage.extend_from_slice(&tx.withdraw_value.to_le_bytes());
+    preimage.extend_from_slice(&tx.relayer_address);
+    preimage.extend_from_slice(&tx.fee.to_le_bytes());
+    preimage.extend_from_slice(&tx.output_commitment);
+    shake256_384(&preimage)
 }
 
 impl TxFields {
@@ -254,7 +298,7 @@ pub fn verify_v3_spend_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     let input_r_nf = r.fixed::<R_NF_BYTES>("input r_nf")?;
     let input_rho = r.fixed::<RHO_BYTES>("input rho_C")?;
     let input_nk = r.fixed::<KEY_BYTES>("input nullifier key")?;
-    let leaf_index = r.u64_le("input leaf index")?;
+    let leaf_index = u64::from(r.u32_le("input leaf index")?);
     let mut siblings = Vec::with_capacity(TREE_DEPTH);
     for _ in 0..TREE_DEPTH {
         siblings.push(r.fixed::<HASH_BYTES>("Merkle sibling")?);
@@ -307,9 +351,9 @@ pub fn verify_v3_spend_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     }
 
     // Use u128 arithmetic so an otherwise valid u64 addition cannot wrap.
-    let total_out = u128::from(output_value) + u128::from(tx.fee);
+    let total_out = u128::from(output_value) + u128::from(tx.withdraw_value) + u128::from(tx.fee);
     if u128::from(input_value) != total_out {
-        return Err("V3 spend violates input = output + fee value conservation".into());
+        return Err("V3 spend violates input = output + withdraw + fee value conservation".into());
     }
 
     let tx_digest = tx.digest();
