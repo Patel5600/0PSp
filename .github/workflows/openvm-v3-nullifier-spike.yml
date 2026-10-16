@@ -154,6 +154,16 @@ jobs:
             "$evidence_dir/app-verify.metrics" "$evidence_dir/spend-prove.metrics" \
             "$evidence_dir/spend-verify.metrics"
 
+      - name: Generate a proof for the live SQLite anchor and apply the real spend atomically
+        run: |
+          set -euo pipefail
+          fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
+          evidence_dir="$fixture_dir/evidence"
+          runner="proof-output-checker/target/release/openvm-v3-sdk-runner"
+          elf="$(cat "$RUNNER_TEMP/v3-nullifier-guest-elf.path")"
+          checker="proof-output-checker/target/release/psp-openvm-v3-proof-output-checker"
+          python3 scripts/verify_candidate_sqlite_ledger_integration.py "$runner" openvm.toml "$elf" "$checker" expected-app-exe-commit.txt "$evidence_dir"
+
       - name: Ensure guest build did not alter locked dependencies
         run: git diff --exit-code -- proof/openvm/v3-nullifier-spike/Cargo.lock
 
