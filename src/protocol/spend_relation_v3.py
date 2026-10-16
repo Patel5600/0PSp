@@ -72,18 +72,28 @@ class SpendWitnessV3:
     output_rho: bytes
 
     def __post_init__(self) -> None:
-        if not 0 <= self.input_value <= MAX_VALUE_U64:
-            raise ValueError("input_value outside valid u64 range")
-        if not 0 <= self.output_value <= MAX_VALUE_U64:
-            raise ValueError("output_value outside valid u64 range")
-        if len(self.input_rho) != 36:
+        for field_name, value in (
+            ("input_value", self.input_value),
+            ("output_value", self.output_value),
+        ):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or not 0 <= value <= MAX_VALUE_U64
+            ):
+                raise ValueError(f"{field_name} outside valid u64 range")
+        if not isinstance(self.input_rho, bytes) or len(self.input_rho) != 36:
             raise ValueError("input_rho must be 36 bytes")
-        if len(self.output_rho) != 36:
+        if not isinstance(self.output_rho, bytes) or len(self.output_rho) != 36:
             raise ValueError("output_rho must be 36 bytes")
         if isinstance(self.leaf_index, bool) or not isinstance(self.leaf_index, int):
             raise ValueError("leaf_index must be an integer, not bool")
+        if not isinstance(self.merkle_siblings, tuple):
+            raise ValueError("merkle_siblings must be an immutable tuple")
         if len(self.merkle_siblings) not in (32, 63):
             raise ValueError("merkle_siblings length must be 32 or 63")
+        if any(not isinstance(sibling, bytes) or len(sibling) != 48 for sibling in self.merkle_siblings):
+            raise ValueError("each Merkle sibling must be exactly 48 bytes")
         depth = len(self.merkle_siblings)
         if not 0 <= self.leaf_index < (1 << depth):
             raise ValueError(
