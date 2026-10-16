@@ -345,14 +345,18 @@ pub struct PublicStatementV3 {
     pub anchor_root: [u8; HASH_BYTES],
     pub nullifier: [u8; HASH_BYTES],
     pub out_commitment: [u8; HASH_BYTES],
-    pub tx_context_digest: [u8; HASH_BYTES], // Binds recipient, relayer, fee, chain_id
+    // Opaque caller-supplied digest. This helper does not reconstruct or authenticate
+    // recipient, relayer, withdrawal amount, or chain ID semantics from payout fields.
+    pub tx_context_digest: [u8; HASH_BYTES],
     pub fee: u64,
     pub withdraw_value: u64,
 }
 
 #[repr(C)]
 pub struct PrivateWitnessV3 {
-    pub sk_spend: [u8; HASH_BYTES], // Master spend secret (Custody Authorization)
+    // Master secret used by this experimental key-derivation helper; this field alone
+    // does not implement an approved signature suite or production custody policy.
+    pub sk_spend: [u8; HASH_BYTES],
     pub value_in: u64,
     pub coin_id_in: [u8; 32],
     pub salt_in: [u8; 32],
@@ -364,13 +368,14 @@ pub struct PrivateWitnessV3 {
     pub salt_out: [u8; 32],
 }
 
-/// Verify the full 2-tier key-separated spend relation with Depth-32 Merkle verification,
-/// same-witness nullifier binding, and value conservation.
+/// Experimental depth-32 reference helper, not the active OpenVM entrypoint or a
+/// production authorization relation. The caller-supplied root/finality and semantic
+/// payout fields are not authenticated here.
 pub fn verify_spend_relation_v3(
     pub_stmt: &PublicStatementV3,
     wit: &PrivateWitnessV3,
 ) -> Result<[u8; HASH_BYTES], String> {
-    // 1. Key Hierarchy Derivation (Eliminates NOAUTH & V2 Sender-Linkability)
+    // 1. Candidate key derivation. This is not, by itself, production spend authorization.
     let mut ak_preimage = Vec::with_capacity(DOM_AK_V3.len() + HASH_BYTES);
     ak_preimage.extend_from_slice(DOM_AK_V3);
     ak_preimage.extend_from_slice(&wit.sk_spend);
@@ -416,7 +421,8 @@ pub fn verify_spend_relation_v3(
         return Err("ERR_NULLIFIER_MISMATCH".into());
     }
 
-    // 4. Authenticated Merkle Path Verification up to anchor_root (Depth 32)
+    // 4. Merkle inclusion check against the caller-supplied root (Depth 32).
+    // This helper does not authenticate anchor_root or prove consensus finality.
     // Use the exact active Merkle leaf/node encoding. This helper is still a separate
     // depth-32 experimental profile; the active OpenVM entrypoint remains depth 63.
     let mut curr = leaf_hash(&pub_stmt.namespace_id, u64::from(wit.leaf_index), &c_in);
@@ -458,7 +464,8 @@ pub fn verify_spend_relation_v3(
         return Err("ERR_OUTPUT_COMMITMENT_MISMATCH".into());
     }
 
-    // 7. Cryptographic Spend Authorization & Statement Digest Binding
+    // 7. Statement digest binding only. Semantic payout-context reconstruction and
+    // authorization-suite verification are not performed by this helper.
     let fee_bytes = pub_stmt.fee.to_le_bytes();
     let withdraw_bytes = pub_stmt.withdraw_value.to_le_bytes();
     let mut stmt_preimage = Vec::with_capacity(
