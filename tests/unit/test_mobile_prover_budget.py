@@ -213,3 +213,14 @@ def test_evaluate_mobile_prover_boundary_and_invalid_inputs() -> None:
 
     with pytest.raises(ValueError, match="outputs"):
         evaluate_mobile_prover_architectures(outputs=1025)
+
+@pytest.mark.parametrize("bad_depth", [True, 32.5, "32"])
+def test_mobile_budget_rejects_non_integer_tree_depth(bad_depth: object) -> None:
+    with pytest.raises(ValueError, match="tree_depth must be an integer"):
+        evaluate_mobile_prover_architectures(tree_depth=bad_depth)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("bad_outputs", [True, 1.5, "5"])
+def test_mobile_budget_rejects_non_integer_outputs(bad_outputs: object) -> None:
+    with pytest.raises(ValueError, match="outputs must be an integer"):
+        evaluate_mobile_prover_architectures(outputs=bad_outputs)  # type: ignore[arg-type]
