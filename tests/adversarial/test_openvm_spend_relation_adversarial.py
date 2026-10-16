@@ -54,6 +54,10 @@ def valid_statement() -> TxFieldsV3Candidate:
         fee=100,
         output_entropy=OUTPUT_ENTROPY,
         output_commitments=(OUTPUT_COMMITMENT,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
 
@@ -70,6 +74,10 @@ def test_unauthorized_policy_rejection() -> None:
         fee=100,
         output_entropy=OUTPUT_ENTROPY,
         output_commitments=(OUTPUT_COMMITMENT,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     with pytest.raises(TransactionV3CandidateError, match="authorization_policy_id"):
         validate_nk_possession_policy_v3_candidate(unauthorized)
@@ -89,6 +97,10 @@ def test_multi_output_rejection_in_candidate_profile() -> None:
         fee=100,
         output_entropy=OUTPUT_ENTROPY,
         output_commitments=(OUTPUT_COMMITMENT, other_commitment),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     with pytest.raises(OpenVMV3CandidateVerifierError, match="supports exactly one output"):
         v3_spend_public_digest_candidate(multi_out)
@@ -112,6 +124,10 @@ def test_statement_digest_avalanche() -> None:
         fee=101,
         output_entropy=OUTPUT_ENTROPY,
         output_commitments=(OUTPUT_COMMITMENT,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     assert v3_spend_public_digest_candidate(tx_fee) != base_digest
 
@@ -127,6 +143,10 @@ def test_statement_digest_avalanche() -> None:
         fee=100,
         output_entropy=OUTPUT_ENTROPY,
         output_commitments=(OUTPUT_COMMITMENT,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     assert v3_spend_public_digest_candidate(tx_root) != base_digest
 
@@ -142,6 +162,10 @@ def test_statement_digest_avalanche() -> None:
         fee=100,
         output_entropy=OUTPUT_ENTROPY,
         output_commitments=(OUTPUT_COMMITMENT,),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     assert v3_spend_public_digest_candidate(tx_nullifier) != base_digest
 

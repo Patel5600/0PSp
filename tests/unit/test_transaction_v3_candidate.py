@@ -51,13 +51,17 @@ def statement(**overrides: object) -> TxFieldsV3Candidate:
         "output_commitments": (OUTPUT_A, OUTPUT_B),
     }
     fields.update(overrides)
+    fields.setdefault("chain_id", (1).to_bytes(32, "big"))
+    fields.setdefault("recipient_address", bytes([0xA1]) * 20)
+    fields.setdefault("withdraw_value", 0)
+    fields.setdefault("relayer_address", bytes([0xB2]) * 20)
     return TxFieldsV3Candidate(**fields)  # type: ignore[arg-type]
 
 
 def test_v3_candidate_roundtrip_and_digest_known_answer() -> None:
     tx = statement()
     encoded = tx.encode()
-    assert len(encoded) == 474
+    assert len(encoded) == 602
     assert encoded.startswith(TX_FIELDS_V3_CANDIDATE_DOMAIN + b"\x03")
     assert decode_tx_fields_v3_candidate(encoded) == tx
     assert decode_tx_fields_v3_candidate(encoded).encode() == encoded

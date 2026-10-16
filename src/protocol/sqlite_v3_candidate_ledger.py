@@ -34,8 +34,8 @@ from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.primitives.nullifier_v3 import NullifierV3
 from src.protocol.commitment_tree import (
-    MAX_LEAVES,
-    TREE_DEPTH,
+    V3_MAX_LEAVES,
+    V3_TREE_DEPTH,
     CommitmentTree,
     CommitmentTreeError,
     empty_hashes,
@@ -72,7 +72,7 @@ _EVENT_DOMAIN = b"0PSP-V3-CANDIDATE-LEDGER-EVENT-v1-SHAKE256"
 _STATE_DOMAIN = b"0PSP-V3-CANDIDATE-LEDGER-STATE-v1-SHAKE256"
 _SOURCE_DOMAIN = b"0PSP-SQLITE-V3-CANDIDATE-STATE-SOURCE-v1"
 _LOCAL_EVIDENCE_DOMAIN = b"0PSP-SQLITE-V3-CANDIDATE-LOCAL-STATE-EVIDENCE-v1"
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 
 class SQLiteV3CandidateLedgerError(ValueError):
@@ -267,7 +267,7 @@ class SQLiteV3CandidateLedger:
         self._anchor_window = anchor_window
         self._verify_bootstrap_state = verify_bootstrap_state
         self._verify_spend_proof = verify_spend_proof
-        self._defaults = empty_hashes(self._namespace)
+        self._defaults = empty_hashes(self._namespace, depth=V3_TREE_DEPTH)
         self._secure_database_file()
         self._ensure_schema(bootstrap_evidence, bootstrap_commitments)
         self._reauthenticate_bootstrap()
@@ -378,7 +378,7 @@ class SQLiteV3CandidateLedger:
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS v3_merkle_nodes (
-                    level INTEGER NOT NULL CHECK(level>=0 AND level<=63),
+                    level INTEGER NOT NULL CHECK(level>=0 AND level<=32),
                     node_index INTEGER NOT NULL CHECK(node_index>=0),
                     node_hash BLOB NOT NULL CHECK(length(node_hash)=48),
                     PRIMARY KEY(level,node_index)
@@ -423,9 +423,9 @@ class SQLiteV3CandidateLedger:
                 normalized.append(_require_bytes(f"bootstrap commitment {index}", commitment, HASH_BYTES, HASH_BYTES))
             if len(set(normalized)) != len(normalized):
                 raise SQLiteV3DuplicateCommitment("bootstrap snapshot repeats a commitment")
-            if len(normalized) >= MAX_LEAVES:
+            if len(normalized) >= V3_MAX_LEAVES:
                 raise SQLiteV3CandidateLedgerError("bootstrap commitment count exceeds tree capacity")
-            tree = CommitmentTree(self._namespace, normalized)
+            tree = CommitmentTree(self._namespace, normalized, depth=V3_TREE_DEPTH)
             if tree.root != snapshot.commitment_root:
                 raise SQLiteV3LedgerIntegrityError("bootstrap commitment list does not reconstruct the authenticated root")
             ledger_id = secrets.token_bytes(LEDGER_ID_BYTES)
@@ -469,7 +469,7 @@ class SQLiteV3CandidateLedger:
                     # the final leaf must reconstruct the independently authenticated root.
                     if index + 1 == len(normalized) and current_root != snapshot.commitment_root:
                         raise SQLiteV3LedgerIntegrityError("persisted bootstrap Merkle root mismatch")
-                if not normalized and self._defaults[TREE_DEPTH] != snapshot.commitment_root:
+                if not normalized and self._defaults[V3_TREE_DEPTH] != snapshot.commitment_root:
                     raise SQLiteV3LedgerIntegrityError("empty bootstrap root does not match authenticated root")
                 conn.execute(
                     "INSERT INTO v3_commitment_anchors(state_version,commitment_root,state_head,commitment_count) VALUES(0,?,?,?)",
@@ -591,6 +591,7 @@ class SQLiteV3CandidateLedger:
         with closing(self._connect()) as conn:
             ledger_id = self._ledger_id(conn)
             source_id = _state_source_id(ledger_id)
+            self._verify_anchor_ring_provenance(conn)
             if evidence.source_id != source_id:
                 raise TrustedStateRejected("local state evidence belongs to another ledger instance")
             expected_evidence_prefix = _LOCAL_EVIDENCE_DOMAIN + ledger_id
@@ -628,6 +629,67 @@ class SQLiteV3CandidateLedger:
                 ledger_state_head=head,
             )
 
+
+    def _verify_anchor_ring_provenance(self, conn: sqlite3.Connection) -> None:
+        """Require each retained root to derive from the authenticated bootstrap or a verified spend transition."""
+        meta = conn.execute(
+            """SELECT bootstrap_root,bootstrap_head,bootstrap_count,state_version,
+                      state_head,commitment_count,commitment_root
+               FROM v3_ledger_meta WHERE singleton=1"""
+        ).fetchone()
+        if meta is None:
+            raise SQLiteV3LedgerIntegrityError("candidate ledger metadata missing during anchor provenance check")
+        bootstrap_root, bootstrap_head, bootstrap_count = bytes(meta[0]), bytes(meta[1]), int(meta[2])
+        current_version, current_head, current_count, current_root = int(meta[3]), bytes(meta[4]), int(meta[5]), bytes(meta[6])
+        anchors = conn.execute(
+            "SELECT state_version,commitment_root,state_head,commitment_count FROM v3_commitment_anchors ORDER BY state_version"
+        ).fetchall()
+        first_expected = max(0, current_version - self._anchor_window + 1)
+        if [int(row[0]) for row in anchors] != list(range(first_expected, current_version + 1)):
+            raise SQLiteV3LedgerIntegrityError("anchor ring has a missing, extra, non-contiguous, or fabricated version")
+        for version_raw, root_raw, head_raw, count_raw in anchors:
+            version, root, head, count = int(version_raw), bytes(root_raw), bytes(head_raw), int(count_raw)
+            if count != bootstrap_count + version:
+                raise SQLiteV3LedgerIntegrityError("anchor count is not derived from one-output state transitions")
+            if version == 0:
+                if (root, head, count) != (bootstrap_root, bootstrap_head, bootstrap_count):
+                    raise SQLiteV3LedgerIntegrityError("bootstrap anchor differs from the authenticated checkpoint")
+                continue
+            spend = conn.execute(
+                """SELECT namespace_id,nullifier,state_head_before,commit_root_after,state_head_after,
+                          first_output_index,output_commitment
+                   FROM v3_spent_nullifiers WHERE state_version=?""",
+                (version,),
+            ).fetchone()
+            event = conn.execute(
+                "SELECT nullifier,previous_head,new_head FROM v3_ledger_events WHERE state_version=?",
+                (version,),
+            ).fetchone()
+            if spend is None or event is None:
+                raise SQLiteV3LedgerIntegrityError("non-bootstrap anchor lacks a verified spend transition record")
+            ns, nullifier, head_before, root_after, head_after, output_index, output = spend
+            if (
+                bytes(ns) != self._namespace.data
+                or bytes(root_after) != root
+                or bytes(head_after) != head
+                or int(output_index) != count - 1
+                or bytes(event[0]) != bytes(nullifier)
+                or bytes(event[1]) != bytes(head_before)
+                or bytes(event[2]) != head
+            ):
+                raise SQLiteV3LedgerIntegrityError("retained anchor is not backed by its exact recorded transition")
+            commitment = conn.execute(
+                """SELECT 1 FROM v3_commitments WHERE namespace_id=? AND commitment=?
+                   AND commitment_index=? AND source_kind='spend' AND source_id=? AND state_version=?""",
+                (self._namespace.data, bytes(output), int(output_index), bytes(nullifier), version),
+            ).fetchone()
+            if commitment is None:
+                raise SQLiteV3LedgerIntegrityError("anchor transition output is not at its canonical ledger index")
+        if not anchors or (
+            int(anchors[-1][0]), bytes(anchors[-1][1]), bytes(anchors[-1][2]), int(anchors[-1][3])
+        ) != (current_version, current_root, current_head, current_count):
+            raise SQLiteV3LedgerIntegrityError("latest retained anchor disagrees with current ledger state")
+
     def _node(self, conn: sqlite3.Connection, level: int, index: int) -> bytes:
         row = conn.execute(
             "SELECT node_hash FROM v3_merkle_nodes WHERE level=? AND node_index=?",
@@ -645,26 +707,26 @@ class SQLiteV3CandidateLedger:
         source_id: bytes,
     ) -> bytes:
         _require_bytes("commitment", commitment, HASH_BYTES, HASH_BYTES)
-        if index < 0 or index >= MAX_LEAVES or index > SQLITE_INDEX_MAX:
+        if index < 0 or index >= V3_MAX_LEAVES or index > SQLITE_INDEX_MAX:
             raise SQLiteV3CandidateLedgerError("commitment tree index space exhausted")
         conn.execute(
             "INSERT INTO v3_commitments(namespace_id,commitment,commitment_index,source_kind,source_id,state_version) "
             "VALUES(?,?,?,?,?,?)",
             (self._namespace.data, commitment, index, source_kind, source_id, state_version),
         )
-        current = leaf_hash(self._namespace, index, commitment)
+        current = leaf_hash(self._namespace, index, commitment, tree_depth=V3_TREE_DEPTH)
         conn.execute(
             "INSERT INTO v3_merkle_nodes(level,node_index,node_hash) VALUES(0,?,?) "
             "ON CONFLICT(level,node_index) DO UPDATE SET node_hash=excluded.node_hash",
             (index, current),
         )
         cursor = index
-        for level in range(TREE_DEPTH):
+        for level in range(V3_TREE_DEPTH):
             sibling = self._node(conn, level, cursor ^ 1)
             if cursor & 1:
-                current = node_hash(self._namespace, level, sibling, current)
+                current = node_hash(self._namespace, level, sibling, current, tree_depth=V3_TREE_DEPTH)
             else:
-                current = node_hash(self._namespace, level, current, sibling)
+                current = node_hash(self._namespace, level, current, sibling, tree_depth=V3_TREE_DEPTH)
             cursor >>= 1
             conn.execute(
                 "INSERT INTO v3_merkle_nodes(level,node_index,node_hash) VALUES(?,?,?) "
@@ -698,6 +760,10 @@ class SQLiteV3CandidateLedger:
             raise SQLiteV3ConfigurationMismatch("transaction params ID differs from the pinned parameters")
         if len(statement.output_commitments) != 1:
             raise SQLiteV3CandidateLedgerError("this SQLite candidate ledger accepts exactly one output")
+        if statement.withdraw_value != 0:
+            raise SQLiteV3CandidateLedgerError(
+                "non-zero withdrawals are gated until an idempotent external payout settlement adapter is configured"
+            )
         _require_bytes("proof", proof, 1, MAX_PROOF_BYTES)
         try:
             evidence, proof_anchor_version = self._evidence_for_transaction(statement)
@@ -727,6 +793,7 @@ class SQLiteV3CandidateLedger:
         conn = self._connect()
         try:
             conn.execute("BEGIN IMMEDIATE")
+            self._verify_anchor_ring_provenance(conn)
             anchor = conn.execute(
                 "SELECT commitment_root,state_head,commitment_count FROM v3_commitment_anchors WHERE state_version=?",
                 (proof_anchor_version,),
@@ -736,7 +803,7 @@ class SQLiteV3CandidateLedger:
             ):
                 raise SQLiteV3StaleLedgerState("proof anchor expired while the proof was being verified")
             version, previous_head, count, current_root = self._meta(conn)
-            if version >= SQLITE_INDEX_MAX or count >= MAX_LEAVES:
+            if version >= SQLITE_INDEX_MAX or count >= V3_MAX_LEAVES:
                 raise SQLiteV3CandidateLedgerError("candidate ledger state/index space exhausted")
             if conn.execute(
                 "SELECT 1 FROM v3_spent_nullifiers WHERE namespace_id=? AND nullifier=?",
@@ -856,7 +923,7 @@ class SQLiteV3CandidateLedger:
             index = int(row[0])
             siblings: list[bytes] = []
             cursor = index
-            for level in range(TREE_DEPTH):
+            for level in range(V3_TREE_DEPTH):
                 siblings.append(self._node(conn, level, cursor ^ 1))
                 cursor >>= 1
             return index, tuple(siblings)
@@ -903,7 +970,7 @@ class SQLiteV3CandidateLedger:
                 raise SQLiteV3LedgerIntegrityError("bootstrap commitment indices are not canonical")
             if len(bootstrap_commitments) != bootstrap_count:
                 raise SQLiteV3LedgerIntegrityError("bootstrap commitment count mismatches metadata")
-            tree = CommitmentTree(self._namespace, bootstrap_commitments)
+            tree = CommitmentTree(self._namespace, bootstrap_commitments, depth=V3_TREE_DEPTH)
             if tree.root != bootstrap_root:
                 raise SQLiteV3LedgerIntegrityError("bootstrap commitment list does not reconstruct the bootstrap root")
 

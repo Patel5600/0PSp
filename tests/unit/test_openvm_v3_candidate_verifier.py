@@ -36,6 +36,10 @@ def statement() -> TxFieldsV3Candidate:
         fee=7,
         output_entropy=bytes([0x55]) * 32,
         output_commitments=(CoinCommitmentV3(bytes([0x66]) * 48),),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
 
@@ -139,6 +143,10 @@ def test_invalid_policy_is_rejected_before_running_checker(
         fee=tx.fee,
         output_entropy=tx.output_entropy,
         output_commitments=tx.output_commitments,
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
     with pytest.raises(TransactionV3CandidateError, match="does not select"):
         verifier(invalid, PROOF_BYTES)

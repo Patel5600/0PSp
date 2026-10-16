@@ -51,6 +51,10 @@ def transaction(**overrides: object) -> TxFieldsV3Candidate:
         ),
     }
     fields.update(overrides)
+    fields.setdefault("chain_id", (1).to_bytes(32, "big"))
+    fields.setdefault("recipient_address", bytes([0xA1]) * 20)
+    fields.setdefault("withdraw_value", 0)
+    fields.setdefault("relayer_address", bytes([0xB2]) * 20)
     return TxFieldsV3Candidate(**fields)  # type: ignore[arg-type]
 
 
