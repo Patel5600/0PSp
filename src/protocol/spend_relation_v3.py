@@ -1,17 +1,32 @@
-"""0PSP Complete V3 Spend Relation and Recipient Privacy Specification (P0 Issue #33).
+"""Host-side reference model for the experimental 0PSP V3 spend relation.
 
-Formalizes and validates the complete single-witness spend relation R_spend_v3:
-1. Authorization Policy: Enforces canonical 0PSP-V3-NK-POSSESSION-CANDIDATE-v1 policy.
-2. Note Commitment Opening: Recomputes input commitment C_in via CommitV3(params, bundle, v, ns, coin_id, r_nf, rho).
-3. Recipient-Keyed Nullifier: Verifies N_V3 = HMAC-SHA3-384(nk, M_nf) using recipient's secret nk,
-   strictly eliminating V2 sender-linkability.
-4. Key Possession Authentication: Proves input_nk opens the nullifier key commitment committed in input_bundle.
-5. Authenticated Membership: Verifies Merkle tree inclusion path against commitment_root.
-6. Anchored Output Identity: Derives (coin_id_out, r_nf_out) deterministically from consumed parent anchor.
-7. Output Commitment Matching: Verifies C_out matches the exact output commitment in the transaction statement.
-8. Strict Value Conservation: Enforces v_in = v_out + fee using non-overflowing 64-bit integer arithmetic.
-9. Statement Digest Binding: Derives and binds the canonical 64-byte public statement digest.
+This module performs deterministic checks over Python objects for unit,
+differential, and adversarial testing. It is NOT an OpenVM guest circuit,
+proof verifier, authenticated-finality verifier, or payout execution path.
+
+The reference model checks a shared input witness for:
+1. The candidate NK-possession policy.
+2. Input commitment opening and same-key NullifierV3 derivation.
+3. Merkle membership against the root supplied by the transaction statement.
+4. Deterministic output identity and output commitment matching.
+5. Non-overflowing uint64 value conservation for output plus fee.
+6. A digest of the canonical candidate transaction statement.
+
+Important limits:
+- Membership against a supplied root does not authenticate that root or its
+  finality. Trusted-state preflight/ledger enforcement is a separate gate.
+- The candidate transaction schema has no complete semantic payout context
+  (recipient address, withdrawal amount, relayer address, and chain ID).
+- This Python reference is not the active OpenVM guest relation and does not
+  demonstrate that all these checks are enforced by the committed proof.
+- Depth 63 is the currently active candidate profile. A separate depth-32
+  Rust helper is not an interchangeable encoding or an approved profile.
+
+Passing these Python checks is not production authorization or proof of
+end-to-end zero knowledge. Keep P0 release gates open until proof, trusted-state,
+payout, and atomic-ledger composition are demonstrated on the same release SHA.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -110,13 +125,10 @@ def verify_spend_relation_v3_reference(
     statement: TxFieldsV3Candidate,
     witness: SpendWitnessV3,
 ) -> bytes:
-    """Verify all constraints of the 0PSP V3 spend relation over one consistent witness.
+    """Run the host reference predicates over one consistent witness.
 
-    Returns:
-      The 64-byte public statement digest upon successful verification.
-
-    Raises:
-      SpendRelationV3Error if any predicate fails.
+    This function returns a reference statement digest; it does not create or
+    verify a zero-knowledge proof and does not authenticate the supplied root.
     """
     if not isinstance(statement, TxFieldsV3Candidate):
         raise TypeError("statement must be a TxFieldsV3Candidate")
@@ -168,7 +180,7 @@ def verify_spend_relation_v3_reference(
             "input NullifierV3 does not match transaction statement nullifier"
         )
 
-    # 5. Authenticated Merkle Membership Path (Depth 32 or 63)
+    # 5. Membership against the supplied statement root (active profile depth is TREE_DEPTH).
     current_node = leaf_hash(
         statement.namespace_id, witness.leaf_index, input_commitment.value
     )
