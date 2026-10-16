@@ -8,6 +8,7 @@ wiring only; it does not provide external consensus/finality or production appro
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
 import sys
 from dataclasses import replace
@@ -245,6 +246,36 @@ def main() -> int:
         raise RuntimeError("persisted real-proof spend changed after ledger restart")
     reopened.audit_integrity()
 
+    integration_evidence = {
+        "schema_version": 1,
+        "status": "PASS",
+        "scope": "non-production OpenVM candidate proof to local SQLite transition",
+        "dynamic_statement_proof_generated_and_verified": True,
+        "mutated_proof_rejected_without_state_change": True,
+        "valid_proof_accepted_as_atomic_state_transition": True,
+        "duplicate_nullifier_replay_rejected_without_state_change": True,
+        "restart_and_integrity_audit_passed": True,
+        "proof_size_bytes": len(proof_bytes),
+        "proof_sha256": hashlib.sha256(proof_bytes).hexdigest(),
+        "checker_sha256": checker_sha.hex(),
+        "app_verifying_key_sha256": vk_sha.hex(),
+        "app_executable_commitment": expected_exe_commitment.hex(),
+        "public_statement_digest": expected_digest.hex(),
+        "state_version_after_accept": after_accept.state_version,
+        "bootstrap_state_evidence_is_synthetic": True,
+        "external_finality_established": False,
+        "end_to_end_witness_hiding_established": False,
+        "composite_post_quantum_security_bits": None,
+        "required_composite_post_quantum_security_bits": 128,
+        "production_acceptance_enabled": False,
+        "release_status": "NO-GO",
+    }
+    evidence_path = evidence_dir / "ledger-integration.json"
+    evidence_path.write_text(
+        json.dumps(integration_evidence, sort_keys=True, indent=2) + "\\n",
+        encoding="utf-8",
+    )
+    print(f"LEDGER_INTEGRATION_EVIDENCE={evidence_path}")
     print(
         "PASS: SQLite candidate ledger restarted and audited after the real-proof spend; "
         f"checker_sha256={checker_sha.hex()} app_vk_sha256={vk_sha.hex()} "
