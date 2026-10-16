@@ -1,17 +1,22 @@
 """0PSP Production Proof Backend Specification & Verification Engine (V3).
 
-Codifies the 2-Tier Post-Quantum STARK Profile and Soundness Engine:
-1. Proof Backend Selection:
-   - Tier 1 (Client Edge Prover): Native Keccak AIR, 2^17 rows (~110 MB base buffer), zero-heap C11, verified B=39 ZK trace blinding rows.
-   - Tier 2 (Delegated Server Prover): OpenVM v2.0.2 (commit 59a69b8b0cbee7011ac978e4cc07707ee3681944), native Keccak-f1600 chip (24 rows/perm).
+Codifies the Canonical Post-Quantum STARK Profile and Soundness Engine:
+1. Proof Backend Hierarchy:
+   - Primary Canonical Mainnet v1 Prover:
+     Tier 1 (Client Edge Prover): Native Keccak AIR, 2^17 rows (~110 MB base buffer), zero-heap C11,
+     verified B = 80 ZK trace blinding rows across all tables (Main trace, Keccak coprocessor, and LogUp multiplicities).
+     Runs entirely client-side on the user's device, preserving witness privacy with zero server hosting costs.
+   - Tier 2 (Delegated Server Prover - OPTIONAL / DEPRECATED):
+     OpenVM v2.0.2 (commit 59a69b8b0cbee7011ac978e4cc07707ee3681944). Excluded from the Mainnet v1 critical path.
 2. Composite Soundness Budget:
    - Base Field: BabyBear F_p (p = 2^31 - 2^27 + 1 = 2013265921).
    - Extension Field: F_{p^5} (|F_{p^5}| = 2^154.5).
    - FRI Parameters: Blowup factor 16x, N_q = 38 queries, 20-bit PoW grinding.
    - Proven Soundness Error: eps_total <= 2^-130.3 << 2^-128 (130.3 bits PQ security).
 3. Zero-Knowledge Witness Hiding:
-   - B = 39 randomized blinding rows in F_p.
+   - B = 80 randomized blinding rows in F_p (B = 2 * N_q + 4 for N_q = 38 FRI queries).
    - 256-bit salted Merkle leaf commitments (LEAF_SALT_BYTES = 32).
+   - Evaluated strictly over disjoint LDE coset g * H_LDE.
    - Proven statistical indistinguishability (Adv <= 0.05).
 """
 from __future__ import annotations
@@ -22,6 +27,7 @@ from typing import Final
 
 from src.core.zk_trace_blinding import (
     BABYBEAR_P,
+    CANONICAL_ZK_BLINDING_ROWS,
     DEFAULT_ZK_BLINDING_ROWS,
     LEAF_SALT_BYTES,
 )
@@ -36,6 +42,10 @@ from src.protocol.transaction_v3_candidate import (
     transaction_digest_v3_candidate,
     validate_spend_authorization_v3_candidate,
 )
+
+# Canonical Prover Hierarchy & Architecture Identifiers
+CANONICAL_MAINNET_PROVER_NAME: Final[str] = "0PSP-Tier1-Mobile-Edge-AIR"
+SERVER_PROVER_STATUS: Final[str] = "OPTIONAL / DEPRECATED"
 
 # Pinned OpenVM Commit SHA and Backend Identifiers
 PINNED_OPENVM_COMMIT: Final[str] = "59a69b8b0cbee7011ac978e4cc07707ee3681944"
@@ -62,6 +72,7 @@ class ProofBackendProfileV3:
     fri_blowup_factor: int
     pow_grinding_bits: int
     proven_security_bits: float
+    is_deprecated: bool = False
 
     def validate(self) -> None:
         if not self.is_zero_knowledge:
@@ -80,30 +91,35 @@ class ProofBackendProfileV3:
             )
 
 
-# Canonical production profiles
+# Canonical Primary Mainnet Profile: Client-Side C11 Native Keccak AIR (110 MB RAM, 2^17 rows)
 TIER1_MOBILE_PROFILE = ProofBackendProfileV3(
-    backend_name="0PSP-Tier1-Mobile-Edge-AIR",
+    backend_name=CANONICAL_MAINNET_PROVER_NAME,
     is_zero_knowledge=True,
-    blinding_rows=39,
+    blinding_rows=CANONICAL_ZK_BLINDING_ROWS,
     leaf_salt_bytes=32,
     extension_degree=5,
     fri_queries=38,
     fri_blowup_factor=16,
     pow_grinding_bits=20,
     proven_security_bits=PROVEN_COMPOSITE_SOUNDNESS_BITS,
+    is_deprecated=False,
 )
 
+# Delegated Server Prover: Marked OPTIONAL / DEPRECATED for Mainnet v1
 TIER2_SERVER_PROFILE = ProofBackendProfileV3(
-    backend_name="0PSP-Tier2-OpenVM-v2.0.2",
+    backend_name="0PSP-Tier2-OpenVM-v2.0.2 (OPTIONAL / DEPRECATED)",
     is_zero_knowledge=True,
-    blinding_rows=39,
+    blinding_rows=CANONICAL_ZK_BLINDING_ROWS,
     leaf_salt_bytes=32,
     extension_degree=5,
     fri_queries=38,
     fri_blowup_factor=16,
     pow_grinding_bits=20,
     proven_security_bits=PROVEN_COMPOSITE_SOUNDNESS_BITS,
+    is_deprecated=True,
 )
+
+PRIMARY_PROVER_PROFILE: Final[ProofBackendProfileV3] = TIER1_MOBILE_PROFILE
 
 
 def verify_public_statement_digest(

@@ -147,3 +147,153 @@ def test_adversarial_distinguisher_blinded_trace_achieves_zk() -> None:
 
     # Statistical advantage must be bounded by statistical noise (|Adv - 0| <= 0.05)
     assert adv <= 0.05, f"Distinguisher advantage too high: {adv} > 0.05 (failed ZK masking)"
+
+
+def test_logup_zero_sum_dummy_pairs_sum_to_zero() -> None:
+    """Mathematical invariant: LogUp dummy lookup pairs must sum to 0 mod p."""
+    from src.core.zk_trace_blinding import generate_logup_zero_sum_dummy_pairs, babybear_add
+
+    alpha = 0x12345678
+    pairs = generate_logup_zero_sum_dummy_pairs(num_pairs=40, alpha=alpha)
+    assert len(pairs) == 40
+
+    total_sum = 0
+    for p in pairs:
+        pair_sum = babybear_add(p.positive_term, p.negative_term)
+        assert pair_sum == 0, f"Pair failed zero-sum property: {p}"
+        total_sum = babybear_add(total_sum, p.positive_term)
+        total_sum = babybear_add(total_sum, p.negative_term)
+
+    assert total_sum == 0, "Total sum of all dummy pairs must be strictly 0 mod p"
+
+
+def test_logup_running_sum_blinding_preserves_total_and_masks_intermediates() -> None:
+    """Theorem: LogUp running sum phi(X) blinding preserves phi(N) while randomizing intermediates."""
+    from src.core.zk_trace_blinding import blind_logup_running_sum
+
+    active_phi = [0, 1500, 3200, 5000, 8400]
+    expected_final = active_phi[-1]
+
+    blinded_phi_1 = blind_logup_running_sum(active_phi, blinding_rows=80)
+    blinded_phi_2 = blind_logup_running_sum(active_phi, blinding_rows=80)
+
+    # 1. Dimensions check: active rows + 80 blinding rows
+    assert len(blinded_phi_1) == len(active_phi) + 80
+    assert len(blinded_phi_2) == len(active_phi) + 80
+
+    # 2. Conservation check: final running sum must equal active_phi[-1]
+    assert blinded_phi_1[-1] == expected_final
+    assert blinded_phi_2[-1] == expected_final
+
+    # 3. Random walk check: intermediate blinding rows must not be identical across runs
+    intermediates_1 = blinded_phi_1[len(active_phi):-1]
+    intermediates_2 = blinded_phi_2[len(active_phi):-1]
+    assert intermediates_1 != intermediates_2, "Independent blinded running sums must be randomized"
+
+
+def test_multitable_blinded_trace_all_chip_masking() -> None:
+    """Verify all-table blinding across Main trace, Keccak coprocessor, and LogUp multiplicities."""
+    from src.core.zk_trace_blinding import construct_multitable_blinded_trace, CANONICAL_ZK_BLINDING_ROWS
+
+    # Main execution trace (e.g. 10 rows x 4 cols)
+    main_trace = [[r * 10 + c for c in range(4)] for r in range(10)]
+    # Keccak coprocessor trace (e.g. 10 rows x 8 cols)
+    keccak_trace = [[(r ^ c) * 100 for c in range(8)] for r in range(10)]
+    # Multiplicity column (e.g. 10 rows x 1 col)
+    multiplicities = [[r % 3] for r in range(10)]
+    # LogUp running sum (10 rows)
+    running_sum = [0, 10, 25, 45, 70, 100, 135, 175, 220, 270]
+
+    multitable = construct_multitable_blinded_trace(
+        main_trace=main_trace,
+        keccak_trace=keccak_trace,
+        multiplicities=multiplicities,
+        active_logup_running_sum=running_sum,
+        blinding_rows=CANONICAL_ZK_BLINDING_ROWS,
+    )
+
+    expected_total_rows = 10 + CANONICAL_ZK_BLINDING_ROWS
+    assert multitable.main_trace.total_rows == expected_total_rows
+    assert multitable.keccak_coprocessor_trace.total_rows == expected_total_rows
+    assert multitable.lookup_multiplicities.total_rows == expected_total_rows
+    assert len(multitable.logup_running_sum) == expected_total_rows
+    assert len(multitable.leaf_salts) == expected_total_rows
+    assert len(multitable.leaf_commitments) == expected_total_rows
+
+    # All leaf salts must be unique 32-byte buffers
+    assert len(set(multitable.leaf_salts)) == expected_total_rows
+    for salt in multitable.leaf_salts:
+        assert len(salt) == 32
+
+    # Final running sum preserved
+    assert multitable.logup_running_sum[-1] == running_sum[-1]
+
+    # Verify LDE commitments on shifted coset g * H_LDE are present
+    assert len(multitable.lde_salts) == expected_total_rows * 16
+    assert len(multitable.lde_commitments) == expected_total_rows * 16
+
+
+def test_multitable_mismatched_row_counts_raise_value_error() -> None:
+    """Verify fail-closed rejection when trace tables have mismatched row counts."""
+    from src.core.zk_trace_blinding import construct_multitable_blinded_trace
+
+    main_trace = [[1, 2], [3, 4]]
+    keccak_trace = [[1, 2, 3]]  # 1 row vs 2 rows
+    multiplicities = [[0], [1]]
+    running_sum = [0, 10]
+
+    with pytest.raises(ValueError, match="keccak_trace row count .* must match main_trace"):
+        construct_multitable_blinded_trace(
+            main_trace=main_trace,
+            keccak_trace=keccak_trace,
+            multiplicities=multiplicities,
+            active_logup_running_sum=running_sum,
+        )
+
+
+def test_multitable_disjoint_coset_lde_evaluator() -> None:
+    """Verify evaluate_multitable_disjoint_coset_lde evaluates all chips on shifted coset."""
+    from src.core.zk_trace_blinding import (
+        construct_multitable_blinded_trace,
+        evaluate_multitable_disjoint_coset_lde,
+        BABYBEAR_P,
+    )
+
+    main_trace = [[1, 2], [3, 4]]
+    keccak_trace = [[10, 20, 30], [40, 50, 60]]
+    multiplicities = [[1], [2]]
+    running_sum = [0, 5]
+
+    multitable = construct_multitable_blinded_trace(
+        main_trace=main_trace,
+        keccak_trace=keccak_trace,
+        multiplicities=multiplicities,
+        active_logup_running_sum=running_sum,
+        blinding_rows=80,
+        compute_lde=False,
+    )
+
+    lde_rows = evaluate_multitable_disjoint_coset_lde(multitable, blowup_factor=16)
+    expected_len = (2 + 80) * 16
+    assert len(lde_rows) == expected_len
+
+    expected_cols = 2 + 3 + 1 + 1  # 7 columns
+    for eval_row, salt, commit in lde_rows:
+        assert len(eval_row) == expected_cols
+        assert all(0 <= v < BABYBEAR_P for v in eval_row)
+        assert len(salt) == 32
+        assert len(commit) == 32
+
+
+def test_disjoint_coset_lde_evaluation() -> None:
+    """Verify LDE evaluations on shifted coset g * H_LDE with 32-byte salted leaf commitments."""
+    from src.core.zk_trace_blinding import evaluate_disjoint_coset_lde, BABYBEAR_P
+
+    col = [10, 25, 55, 100, 160]
+    lde_rows = evaluate_disjoint_coset_lde(col, blowup_factor=16)
+
+    assert len(lde_rows) == len(col) * 16
+    for val, salt, commit in lde_rows:
+        assert 0 <= val < BABYBEAR_P
+        assert len(salt) == 32
+        assert len(commit) == 32

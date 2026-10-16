@@ -53,8 +53,11 @@ def test_canonical_proof_backend_profiles_are_valid() -> None:
     TIER2_SERVER_PROFILE.validate()
     assert TIER1_MOBILE_PROFILE.proven_security_bits >= 128.0
     assert TIER2_SERVER_PROFILE.proven_security_bits >= 128.0
-    assert TIER1_MOBILE_PROFILE.blinding_rows == 39
+    assert TIER1_MOBILE_PROFILE.blinding_rows == 80
+    assert TIER2_SERVER_PROFILE.blinding_rows == 80
     assert TIER1_MOBILE_PROFILE.leaf_salt_bytes == 32
+    assert TIER1_MOBILE_PROFILE.is_deprecated is False
+    assert TIER2_SERVER_PROFILE.is_deprecated is True
 
 
 def test_invalid_proof_backend_profiles_fail_validation() -> None:
@@ -62,7 +65,7 @@ def test_invalid_proof_backend_profiles_fail_validation() -> None:
     bad_zk = ProofBackendProfileV3(
         backend_name="Non-ZK",
         is_zero_knowledge=False,
-        blinding_rows=39,
+        blinding_rows=80,
         leaf_salt_bytes=32,
         extension_degree=5,
         fri_queries=38,
@@ -73,11 +76,11 @@ def test_invalid_proof_backend_profiles_fail_validation() -> None:
     with pytest.raises(ProofBackendError, match="must enforce zero-knowledge"):
         bad_zk.validate()
 
-    # 2. Insufficient blinding rows rejected
+    # 2. Insufficient blinding rows rejected (< 80)
     bad_blinding = ProofBackendProfileV3(
         backend_name="Weak-Blinding",
         is_zero_knowledge=True,
-        blinding_rows=10,
+        blinding_rows=39,
         leaf_salt_bytes=32,
         extension_degree=5,
         fri_queries=38,
@@ -92,7 +95,7 @@ def test_invalid_proof_backend_profiles_fail_validation() -> None:
     bad_sec = ProofBackendProfileV3(
         backend_name="Low-Security",
         is_zero_knowledge=True,
-        blinding_rows=39,
+        blinding_rows=80,
         leaf_salt_bytes=32,
         extension_degree=5,
         fri_queries=38,

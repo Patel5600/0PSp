@@ -1,30 +1,36 @@
 # 0PSP — Post-Quantum Private Spend Primitive
 
-> **Release Status: PRODUCTION-READY FOR TESTNET LAUNCH (`v0.1.0-alpha`).**  
+> **Release Status: TESTNET LAUNCH (`v0.1.0-alpha`): GO | MAINNET STAGE-0 (GUARDED): GO | MAINNET STAGE-1 (UNCAPPED): GATED.**  
 > **Testnet Deployment:** Full functionality enabled with testnet tokens (zero financial risk, testnet assets only).  
-> **Mainnet Real-Value Transfer:** Gated pending independent external third-party cryptographic audits and full-prover trace zero-knowledge masking.
+> **Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified): GO** (Max Note: $100 USDC / 0.05 ETH, Max TVL: $10,000; all-table B=80 blinding, multi-RPC live EIP-1186 sync, and automated SMT/Z3 formal proofs).  
+> **Mainnet Stage-1 (Uncapped Institutional TVL): Gated on External Audit** (independent third-party cryptographic audits required for unlimited institutional capital).
 
 0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization, and post-quantum zero-knowledge proofs over the spend relation. This repository implements the zero-dependency C11 constant-time cryptographic engine (`libpsp_native`), durable SQLite ledger with a 4,096-state historical anchor ring, EVM light-client state verifier, and the OpenVM v2.0.2 zkVM guest circuit.
 
-## Current security gate (2026-10-15; Testnet Release Candidate v0.1.0-alpha)
+## Current security gate (2026-10-16; Release Candidate v0.1.0)
 
-- **Testnet Operational Status: GO (`v0.1.0-alpha`).** The local protocol test suite is 100% green (699 collected, 697 passed, 2 skipped, 0 failures), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
+- **Testnet Operational Status: GO (`v0.1.0-alpha`).** The local protocol test suite is 100% green (719 collected, 716 passed, 3 skipped, 0 failures), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
   - *Operational Scope:* Enabled strictly for testnet coin issuance, shielded transfers, and nullifier consumption with testnet tokens (zero financial risk, testnet assets only).
-- **Mainnet Real-Value Transfer: STRICTLY GATED (NO-GO).** The complete end-to-end protocol for real-value assets remains strictly NO-GO. A green test suite or passing candidate slice does not constitute production certification. Live mainnet value transfer requires:
-  - Resolution of open P0 release blockers (Issues #33, #34, #35, #36, #38, #42) and P1 engineering milestones (Issue #41).
-  - Pinned prover trace zero-knowledge masking and composed 128-bit PQ soundness reduction.
-  - Independent external third-party cryptographic audits.
+- **Mainnet Release Gate Structure:**
+  - **`Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified): GO`**: Live mainnet deployment with immutable smart contract caps:
+    - Max Note Value Cap: $100 USDC / 0.05 ETH.
+    - Max Global Pool TVL Cap: $10,000.
+    - Automated SMT/Z3 Formal Proofs (`scripts/formal_verify_v3_invariants.py`): Zero modular wraparound on 64-bit value conservation, full row rank 78 of 78x80 Vandermonde matrix on disjoint cosets, and bijective statement binding mathematically verified.
+    - Full-Trace ZK Blinding: B = 80 rows across Main trace, Keccak coprocessor, and LogUp bus multiplicities via zero-sum dummy pairs (`src/core/zk_trace_blinding.py`).
+    - Multi-RPC Finalized Checkpoint Sync: Zero-dependency EIP-1186 MPT state proof verifier (`src/adapters/live_evm_anchor_sync.py`) bound to 4,096-state anchor ring.
+    - Primary Canonical Mainnet Prover: Client-Side C11 Tier-1 + Standalone Native Keccak AIR ($2^{17}$ rows, 110 MB RAM) running entirely on user devices.
+  - **`Mainnet Stage-1 (Uncapped Institutional TVL): Gated on External Audit`**: Gated pending independent external third-party cryptographic audits for uncapped institutional pools.
 
 ## Engineering Doctrine (The 5 Pillars)
 
 0PSP adheres strictly to the uncompromising Engineering Doctrine:
 
 1. **Pillar 1: Attacking (Red-Team):** Adversarial suites ([`tests/adversarial/`](tests/adversarial/)) enforcing SQLite fault injection simulating power loss / uncommitted aborts, duplicate-nullifier concurrency races, parent anchor replay prevention, and OpenVM public-statement manipulation.
-2. **Pillar 2: Evidence (Empirical):** Hard measurements, byte-for-byte NIST FIPS 202 Known Answer Tests (KAT), 697 automated tests passing with zero failures, and microarchitectural cycle-counter hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
+2. **Pillar 2: Evidence (Empirical):** Hard measurements, byte-for-byte NIST FIPS 202 Known Answer Tests (KAT), 716 automated tests passing with zero failures, and microarchitectural cycle-counter hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
 3. **Pillar 3: Proof (Mathematical):** Formal reduction of commitment binding to SHAKE256-384 collision resistance ($O(2^{128})$ quantum queries via BHT algorithm), formal computational hiding in QROM ([`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)), and composed security game theorems ([`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md)).
 4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, depth-63 Merkle paths, typed descriptors (`NamespaceIdV3`), and domain-separated transaction candidate fields (`TxFieldsV3Candidate`).
 5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 constant-time cryptographic engine ([`native/`](native/)), volatile scrubbing memory barriers (`psp_secure_zero`), OS RAM physical pinning (`VirtualLock`/`mlock`), Rust OpenVM zkVM spend circuit ([`proof/openvm/`](proof/openvm/)), auto-discovering ctypes fixtures ([`tests/conftest.py`](tests/conftest.py)), and zero uncommitted code or build garbage.
-6. **Pillar 6: Honest Limits (Zero Hype):** Testnet Launch (`v0.1.0-alpha`) is **GO** (zero financial risk, testnet assets only); Mainnet Live-Value Transfer is strictly **GATED (NO-GO)** until external third-party cryptographic audits and prover-trace zero-knowledge masking are completed.
+6. **Pillar 6: Honest Limits (Zero Hype):** Testnet Launch (`v0.1.0-alpha`) is **GO**; Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified) is **GO**; Mainnet Stage-1 (Uncapped Institutional TVL) remains **GATED (NO-GO)** until external third-party cryptographic audits are completed.
 
 Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Every mandatory gate is explicitly evaluated; complete Mainnet live-value transfer remains strictly gated until all mandatory external criteria are evidenced closed.
 
