@@ -80,8 +80,15 @@ class SpendWitnessV3:
             raise ValueError("input_rho must be 36 bytes")
         if len(self.output_rho) != 36:
             raise ValueError("output_rho must be 36 bytes")
+        if isinstance(self.leaf_index, bool) or not isinstance(self.leaf_index, int):
+            raise ValueError("leaf_index must be an integer, not bool")
         if len(self.merkle_siblings) not in (32, 63):
             raise ValueError("merkle_siblings length must be 32 or 63")
+        depth = len(self.merkle_siblings)
+        if not 0 <= self.leaf_index < (1 << depth):
+            raise ValueError(
+                f"leaf_index outside valid depth-{depth} Merkle path range"
+            )
 
 
 def verify_spend_relation_v3_reference(
