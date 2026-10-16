@@ -30,7 +30,7 @@ from src.primitives.nullifier_v3 import (
     compute_nullifier_key_commitment_v3,
     compute_nullifier_v3,
 )
-from src.protocol.commitment_tree import leaf_hash, node_hash
+from src.protocol.commitment_tree import TREE_DEPTH, leaf_hash, node_hash
 from src.protocol.note_public_key_bundle_v3 import (
     NotePublicKeyBundleV3,
     decode_note_public_key_bundle_v3,
@@ -90,14 +90,19 @@ class SpendWitnessV3:
             raise ValueError("leaf_index must be an integer, not bool")
         if not isinstance(self.merkle_siblings, tuple):
             raise ValueError("merkle_siblings must be an immutable tuple")
-        if len(self.merkle_siblings) not in (32, 63):
-            raise ValueError("merkle_siblings length must be 32 or 63")
+        # This reference relation must use the same depth as the current V3
+        # commitment tree, C Merkle verifier, SQLite ledger, and active OpenVM
+        # witness entrypoint. Depth-32 is a separate experimental helper, not
+        # an interchangeable path for this depth-63 root/profile.
+        if len(self.merkle_siblings) != TREE_DEPTH:
+            raise ValueError(
+                f"merkle_siblings must contain exactly {TREE_DEPTH} siblings for the active V3 profile"
+            )
         if any(not isinstance(sibling, bytes) or len(sibling) != 48 for sibling in self.merkle_siblings):
             raise ValueError("each Merkle sibling must be exactly 48 bytes")
-        depth = len(self.merkle_siblings)
-        if not 0 <= self.leaf_index < (1 << depth):
+        if not 0 <= self.leaf_index < (1 << TREE_DEPTH):
             raise ValueError(
-                f"leaf_index outside valid depth-{depth} Merkle path range"
+                f"leaf_index outside valid depth-{TREE_DEPTH} Merkle path range"
             )
 
 
