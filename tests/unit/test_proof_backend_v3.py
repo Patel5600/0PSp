@@ -61,8 +61,9 @@ def create_statement() -> TxFieldsV3Candidate:
 def test_declared_profile_configuration_is_structurally_valid() -> None:
     TIER1_MOBILE_PROFILE.validate()
     TIER2_SERVER_PROFILE.validate()
-    # These are configuration declarations, not cryptographic security evidence.
-    assert TIER1_MOBILE_PROFILE.claimed_security_bits == 130.3
+    # These are configuration declarations, not cryptographic security evidence. The composed bound remains unestablished.
+    assert TIER1_MOBILE_PROFILE.claimed_security_bits == 0.0
+    assert TIER1_MOBILE_PROFILE.claimed_security_bits < 128.0
     assert TIER1_MOBILE_PROFILE.blinding_rows == 80
     assert TIER1_MOBILE_PROFILE.leaf_salt_bytes == 32
     assert TIER1_MOBILE_PROFILE.is_deprecated is False
