@@ -163,7 +163,7 @@ def test_openvm_adapter_rejects_unbound_nonzero_auth_token_before_checker(
     )
     envelope = TxEnvelopeV3Candidate(
         statement=statement(),
-        auth_token=b"\\x01" * 48,
+        auth_token=bytes([1]) * 48,
         proof=PROOF_BYTES,
     )
 
