@@ -19,6 +19,8 @@ from src.protocol.commitment_tree import CommitmentTree, TREE_DEPTH
 from src.protocol.note_public_key_bundle_v3 import NotePublicKeyBundleV3
 from src.protocol.output_identity import derive_output_identity_v3_candidate
 from src.protocol.spend_relation_v3 import (
+    MultiOutputSpendWitnessV3,
+    OutputWitnessV3,
     SpendRelationV3Error,
     SpendWitnessV3,
     verify_spend_relation_v3_reference,
@@ -416,4 +418,253 @@ def test_spend_relation_v3_tx_context_relayer_tampering_rejection() -> None:
 
     # The public statement digest MUST be cryptographically distinct, invalidating any proof
     assert tampered_digest != valid_digest
+
+
+def test_valid_multi_output_spend_relation_v3_acceptance() -> None:
+    """Proves that a 1-input / 2-output transaction passes all predicates (P0 Issue #42)."""
+    # 1. Setup Input Note (value = 1000)
+    sender_nk = NullifierDerivingKeyV3(b"\x11" * 48)
+    sender_bundle = NotePublicKeyBundleV3(
+        auth_scheme_id=AUTH_SCHEME,
+        auth_public_key=b"\x01" * 48,
+        nullifier_key_commitment=compute_nullifier_key_commitment_v3(sender_nk),
+    ).encode()
+
+    input_coin_id = ScopedCoinId(b"\xaa" * 32)
+    input_r_nf = NullifierSecret(b"\xbb" * 36)
+    input_rho = b"\xcc" * 36
+    input_value = 1000
+
+    input_commitment = commit_coin_v3(
+        namespace_id=NAMESPACE,
+        public_key_bundle=sender_bundle,
+        value=input_value,
+        coin_id=input_coin_id,
+        r_nf=input_r_nf,
+        rho_coin=input_rho,
+        params_id=PARAMS_ID,
+    )
+
+    tree = CommitmentTree(NAMESPACE, [input_commitment.value])
+    commitment_root = tree.root
+    merkle_siblings = tuple(tree.membership_path(0))
+
+    input_nullifier = compute_nullifier_v3(
+        namespace_id=NAMESPACE,
+        params_id=PARAMS_ID,
+        public_key_bundle=sender_bundle,
+        commitment=input_commitment,
+        coin_id=input_coin_id,
+        r_nf=input_r_nf,
+        nullifier_key=sender_nk,
+    )
+
+    # 2. Setup Output 0: Transfer note (value = 600)
+    recipient_nk = NullifierDerivingKeyV3(b"\x22" * 48)
+    recipient_bundle = NotePublicKeyBundleV3(
+        auth_scheme_id=AUTH_SCHEME,
+        auth_public_key=b"\x02" * 48,
+        nullifier_key_commitment=compute_nullifier_key_commitment_v3(recipient_nk),
+    ).encode()
+    output_0_value = 600
+    output_0_rho = b"\xdd" * 36
+    output_entropy = b"\xee" * 32
+
+    id_0 = derive_output_identity_v3_candidate(
+        namespace_id=NAMESPACE,
+        parent_coin_id=input_coin_id,
+        parent_r_nf=input_r_nf,
+        parent_public_key_bundle=sender_bundle,
+        parent_commitment=input_commitment,
+        parent_nullifier_key=sender_nk,
+        recipient_key_bundle=recipient_bundle,
+        transaction_entropy=output_entropy,
+        output_index=0,
+        params_id=PARAMS_ID,
+    )
+    comm_0 = commit_coin_v3(
+        namespace_id=NAMESPACE,
+        public_key_bundle=recipient_bundle,
+        value=output_0_value,
+        coin_id=id_0.coin_id,
+        r_nf=id_0.r_nf,
+        rho_coin=output_0_rho,
+        params_id=PARAMS_ID,
+    )
+
+    # 3. Setup Output 1: Change note back to sender (value = 350)
+    output_1_value = 350
+    output_1_rho = b"\x12" * 36
+    id_1 = derive_output_identity_v3_candidate(
+        namespace_id=NAMESPACE,
+        parent_coin_id=input_coin_id,
+        parent_r_nf=input_r_nf,
+        parent_public_key_bundle=sender_bundle,
+        parent_commitment=input_commitment,
+        parent_nullifier_key=sender_nk,
+        recipient_key_bundle=sender_bundle,  # Return change to sender
+        transaction_entropy=output_entropy,
+        output_index=1,
+        params_id=PARAMS_ID,
+    )
+    comm_1 = commit_coin_v3(
+        namespace_id=NAMESPACE,
+        public_key_bundle=sender_bundle,
+        value=output_1_value,
+        coin_id=id_1.coin_id,
+        r_nf=id_1.r_nf,
+        rho_coin=output_1_rho,
+        params_id=PARAMS_ID,
+    )
+
+    fee = 50  # 600 + 350 + 50 = 1000
+
+    statement = TxFieldsV3Candidate(
+        params_id=PARAMS_ID,
+        namespace_id=NAMESPACE,
+        commitment_root=commitment_root,
+        input_nullifier=input_nullifier,
+        ledger_state_head=b"\x55" * 48,
+        state_context_digest=b"\x66" * 64,
+        authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE,
+        fee=fee,
+        output_entropy=output_entropy,
+        output_commitments=(comm_0, comm_1),
+    )
+
+    multi_witness = MultiOutputSpendWitnessV3(
+        input_bundle=sender_bundle,
+        input_value=input_value,
+        input_coin_id=input_coin_id,
+        input_r_nf=input_r_nf,
+        input_rho=input_rho,
+        input_nk=sender_nk,
+        leaf_index=0,
+        merkle_siblings=merkle_siblings,
+        outputs=(
+            OutputWitnessV3(recipient_bundle, output_0_value, output_0_rho),
+            OutputWitnessV3(sender_bundle, output_1_value, output_1_rho),
+        ),
+    )
+
+    digest = verify_spend_relation_v3_reference(statement, multi_witness)
+    assert len(digest) == 64
+
+
+def test_multi_output_spend_relation_v3_inflation_rejected() -> None:
+    """Proves that multi-output transactions strictly enforce value conservation."""
+    # Attempt to inflate by 1 unit: 601 + 350 + 50 = 1001 != 1000
+    sender_nk = NullifierDerivingKeyV3(b"\x11" * 48)
+    sender_bundle = NotePublicKeyBundleV3(
+        auth_scheme_id=AUTH_SCHEME,
+        auth_public_key=b"\x01" * 48,
+        nullifier_key_commitment=compute_nullifier_key_commitment_v3(sender_nk),
+    ).encode()
+
+    input_coin_id = ScopedCoinId(b"\xaa" * 32)
+    input_r_nf = NullifierSecret(b"\xbb" * 36)
+    input_rho = b"\xcc" * 36
+    input_value = 1000
+
+    input_commitment = commit_coin_v3(
+        namespace_id=NAMESPACE,
+        public_key_bundle=sender_bundle,
+        value=input_value,
+        coin_id=input_coin_id,
+        r_nf=input_r_nf,
+        rho_coin=input_rho,
+        params_id=PARAMS_ID,
+    )
+
+    tree = CommitmentTree(NAMESPACE, [input_commitment.value])
+    commitment_root = tree.root
+    merkle_siblings = tuple(tree.membership_path(0))
+
+    input_nullifier = compute_nullifier_v3(
+        namespace_id=NAMESPACE,
+        params_id=PARAMS_ID,
+        public_key_bundle=sender_bundle,
+        commitment=input_commitment,
+        coin_id=input_coin_id,
+        r_nf=input_r_nf,
+        nullifier_key=sender_nk,
+    )
+
+    output_entropy = b"\xee" * 32
+    id_0 = derive_output_identity_v3_candidate(
+        namespace_id=NAMESPACE,
+        parent_coin_id=input_coin_id,
+        parent_r_nf=input_r_nf,
+        parent_public_key_bundle=sender_bundle,
+        parent_commitment=input_commitment,
+        parent_nullifier_key=sender_nk,
+        recipient_key_bundle=sender_bundle,
+        transaction_entropy=output_entropy,
+        output_index=0,
+        params_id=PARAMS_ID,
+    )
+    # Inflated output commitment: 601
+    comm_0 = commit_coin_v3(
+        namespace_id=NAMESPACE,
+        public_key_bundle=sender_bundle,
+        value=601,
+        coin_id=id_0.coin_id,
+        r_nf=id_0.r_nf,
+        rho_coin=b"\xdd" * 36,
+        params_id=PARAMS_ID,
+    )
+    id_1 = derive_output_identity_v3_candidate(
+        namespace_id=NAMESPACE,
+        parent_coin_id=input_coin_id,
+        parent_r_nf=input_r_nf,
+        parent_public_key_bundle=sender_bundle,
+        parent_commitment=input_commitment,
+        parent_nullifier_key=sender_nk,
+        recipient_key_bundle=sender_bundle,
+        transaction_entropy=output_entropy,
+        output_index=1,
+        params_id=PARAMS_ID,
+    )
+    comm_1 = commit_coin_v3(
+        namespace_id=NAMESPACE,
+        public_key_bundle=sender_bundle,
+        value=350,
+        coin_id=id_1.coin_id,
+        r_nf=id_1.r_nf,
+        rho_coin=b"\x12" * 36,
+        params_id=PARAMS_ID,
+    )
+
+    fee = 50
+    statement = TxFieldsV3Candidate(
+        params_id=PARAMS_ID,
+        namespace_id=NAMESPACE,
+        commitment_root=commitment_root,
+        input_nullifier=input_nullifier,
+        ledger_state_head=b"\x55" * 48,
+        state_context_digest=b"\x66" * 64,
+        authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE,
+        fee=fee,
+        output_entropy=output_entropy,
+        output_commitments=(comm_0, comm_1),
+    )
+
+    inflated_witness = MultiOutputSpendWitnessV3(
+        input_bundle=sender_bundle,
+        input_value=input_value,
+        input_coin_id=input_coin_id,
+        input_r_nf=input_r_nf,
+        input_rho=input_rho,
+        input_nk=sender_nk,
+        leaf_index=0,
+        merkle_siblings=merkle_siblings,
+        outputs=(
+            OutputWitnessV3(sender_bundle, 601, b"\xdd" * 36),
+            OutputWitnessV3(sender_bundle, 350, b"\x12" * 36),
+        ),
+    )
+
+    with pytest.raises(SpendRelationV3Error, match="value conservation violated"):
+        verify_spend_relation_v3_reference(statement, inflated_witness)
+
 

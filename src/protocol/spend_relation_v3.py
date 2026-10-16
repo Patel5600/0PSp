@@ -40,8 +40,10 @@ from src.protocol.transaction_v3_candidate import (
     TX_V3_CANDIDATE_VERSION,
     TxFieldsV3Candidate,
     V3_NK_POSSESSION_POLICY_CANDIDATE,
+    V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE,
     transaction_digest_v3_candidate,
     validate_nk_possession_policy_v3_candidate,
+    validate_spend_auth_policy_v3_candidate,
 )
 
 PUBLIC_STATEMENT_DOMAIN_V3: Final[bytes] = (
@@ -53,6 +55,21 @@ MAX_VALUE_U64: Final[int] = (1 << 64) - 1
 
 class SpendRelationV3Error(ValueError):
     """Raised when a candidate witness fails any constraint of R_spend_v3."""
+
+
+@dataclass(frozen=True, slots=True)
+class OutputWitnessV3:
+    """Private witness for an individual output note in a V3 spend transaction."""
+
+    recipient_bundle: bytes
+    output_value: int
+    output_rho: bytes
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.output_value <= MAX_VALUE_U64:
+            raise ValueError("output_value outside valid u64 range")
+        if len(self.output_rho) != 36:
+            raise ValueError("output_rho must be 36 bytes")
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,11 +101,41 @@ class SpendWitnessV3:
             raise ValueError("merkle_siblings length must be 32 or 63")
 
 
+@dataclass(frozen=True, slots=True)
+class MultiOutputSpendWitnessV3:
+    """Full private witness for a 1-input / m-output V3 spend transaction (P0 Issue #42)."""
+
+    input_bundle: bytes
+    input_value: int
+    input_coin_id: ScopedCoinId
+    input_r_nf: NullifierSecret
+    input_rho: bytes
+    input_nk: NullifierDerivingKeyV3
+    leaf_index: int
+    merkle_siblings: tuple[bytes, ...]
+    outputs: tuple[OutputWitnessV3, ...]
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.input_value <= MAX_VALUE_U64:
+            raise ValueError("input_value outside valid u64 range")
+        if len(self.input_rho) != 36:
+            raise ValueError("input_rho must be 36 bytes")
+        if len(self.merkle_siblings) not in (32, 63):
+            raise ValueError("merkle_siblings length must be 32 or 63")
+        if not isinstance(self.outputs, tuple) or not self.outputs:
+            raise ValueError("outputs must be a non-empty tuple of OutputWitnessV3")
+        for out in self.outputs:
+            if not isinstance(out, OutputWitnessV3):
+                raise ValueError("all elements in outputs must be OutputWitnessV3")
+
+
 def verify_spend_relation_v3_reference(
     statement: TxFieldsV3Candidate,
-    witness: SpendWitnessV3,
+    witness: SpendWitnessV3 | MultiOutputSpendWitnessV3,
 ) -> bytes:
     """Verify all constraints of the 0PSP V3 spend relation over one consistent witness.
+
+    Supports both single-output (SpendWitnessV3) and multi-output (MultiOutputSpendWitnessV3) transactions.
 
     Returns:
       The 64-byte public statement digest upon successful verification.
@@ -98,18 +145,23 @@ def verify_spend_relation_v3_reference(
     """
     if not isinstance(statement, TxFieldsV3Candidate):
         raise TypeError("statement must be a TxFieldsV3Candidate")
-    if not isinstance(witness, SpendWitnessV3):
-        raise TypeError("witness must be a SpendWitnessV3")
+    if not isinstance(witness, (SpendWitnessV3, MultiOutputSpendWitnessV3)):
+        raise TypeError("witness must be a SpendWitnessV3 or MultiOutputSpendWitnessV3")
 
     # 1. Authorization Policy Constraint
     try:
-        validate_nk_possession_policy_v3_candidate(statement)
+        validate_spend_auth_policy_v3_candidate(statement)
     except Exception as exc:
         raise SpendRelationV3Error(f"invalid authorization policy: {exc}") from exc
 
-    if len(statement.output_commitments) != 1:
+    if isinstance(witness, SpendWitnessV3):
+        outputs = (OutputWitnessV3(witness.recipient_bundle, witness.output_value, witness.output_rho),)
+    else:
+        outputs = witness.outputs
+
+    if len(statement.output_commitments) != len(outputs):
         raise SpendRelationV3Error(
-            f"V3 single-spend requires exactly 1 output commitment, got {len(statement.output_commitments)}"
+            f"output commitments count mismatch: statement has {len(statement.output_commitments)}, witness has {len(outputs)}"
         )
 
     # 2. Key Possession Authentication
@@ -164,45 +216,49 @@ def verify_spend_relation_v3_reference(
             "input commitment is not a valid member of statement commitment_root"
         )
 
-    # 6. Anchored Output Identity Derivation
-    derived_output_identity = derive_output_identity_v3_candidate(
-        namespace_id=statement.namespace_id,
-        parent_coin_id=witness.input_coin_id,
-        parent_r_nf=witness.input_r_nf,
-        parent_public_key_bundle=witness.input_bundle,
-        parent_commitment=input_commitment,
-        parent_nullifier_key=witness.input_nk,
-        recipient_key_bundle=witness.recipient_bundle,
-        transaction_entropy=statement.output_entropy,
-        output_index=0,
-        params_id=statement.params_id,
-    )
-
-    # 7. Output Commitment Matching
-    expected_output_commitment = commit_coin_v3(
-        namespace_id=statement.namespace_id,
-        public_key_bundle=witness.recipient_bundle,
-        value=witness.output_value,
-        coin_id=derived_output_identity.coin_id,
-        r_nf=derived_output_identity.r_nf,
-        rho_coin=witness.output_rho,
-        params_id=statement.params_id,
-    )
-    if expected_output_commitment != statement.output_commitments[0]:
-        raise SpendRelationV3Error(
-            "derived output commitment does not match statement output commitment"
+    # 6 & 7. Output Identity Derivation & Commitment Matching for every output
+    for idx, out_w in enumerate(outputs):
+        derived_output_identity = derive_output_identity_v3_candidate(
+            namespace_id=statement.namespace_id,
+            parent_coin_id=witness.input_coin_id,
+            parent_r_nf=witness.input_r_nf,
+            parent_public_key_bundle=witness.input_bundle,
+            parent_commitment=input_commitment,
+            parent_nullifier_key=witness.input_nk,
+            recipient_key_bundle=out_w.recipient_bundle,
+            transaction_entropy=statement.output_entropy,
+            output_index=idx,
+            params_id=statement.params_id,
         )
 
-    # 8. Strict Value Conservation (No Wraparound)
-    total_out = witness.output_value + statement.fee
-    if total_out > MAX_VALUE_U64:
-        raise SpendRelationV3Error("total output value overflows u64")
+        expected_output_commitment = commit_coin_v3(
+            namespace_id=statement.namespace_id,
+            public_key_bundle=out_w.recipient_bundle,
+            value=out_w.output_value,
+            coin_id=derived_output_identity.coin_id,
+            r_nf=derived_output_identity.r_nf,
+            rho_coin=out_w.output_rho,
+            params_id=statement.params_id,
+        )
+        if expected_output_commitment != statement.output_commitments[idx]:
+            raise SpendRelationV3Error(
+                f"derived output commitment does not match statement output commitment (slot {idx})"
+            )
+
+    # 8. Strict Multi-Output Value Conservation (64-Bit Checked Arithmetic, No Wraparound)
+    total_out = statement.fee
+    for idx, out_w in enumerate(outputs):
+        total_out += out_w.output_value
+        if total_out > MAX_VALUE_U64:
+            raise SpendRelationV3Error("total output value overflows u64")
+
     if witness.input_value != total_out:
         raise SpendRelationV3Error(
-            f"value conservation violated: in ({witness.input_value}) != out ({witness.output_value}) + fee ({statement.fee})"
+            f"value conservation violated: in ({witness.input_value}) != sum(out) + fee ({total_out})"
         )
 
     # 9. Statement Public Digest
     tx_digest = transaction_digest_v3_candidate(statement)
     preimage = PUBLIC_STATEMENT_DOMAIN_V3 + TX_V3_CANDIDATE_VERSION + tx_digest
     return hashlib.shake_256(preimage).digest(PUBLIC_DIGEST_BYTES)
+

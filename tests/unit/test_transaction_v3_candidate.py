@@ -13,16 +13,21 @@ from src.primitives.nullifier import Nullifier as NullifierV2
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.primitives.nullifier_v3 import NullifierKeyCommitmentV3, NullifierV3
 from src.protocol.note_public_key_bundle_v3 import NotePublicKeyBundleV3
+from src.primitives.keys_v3 import compute_spend_auth_token_v3
 from src.protocol.transaction_v3_candidate import (
     TX_AUTH_CONTEXT_V3_CANDIDATE,
     TX_FIELDS_V3_CANDIDATE_DOMAIN,
     V3_NK_POSSESSION_POLICY_CANDIDATE,
+    V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE,
     TransactionV3CandidateError,
+    TxEnvelopeV3Candidate,
     TxFieldsV3Candidate,
     authorization_input_v3_candidate,
     decode_tx_fields_v3_candidate,
     transaction_digest_v3_candidate,
     validate_nk_possession_policy_v3_candidate,
+    validate_spend_auth_policy_v3_candidate,
+    validate_spend_authorization_v3_candidate,
 )
 
 PARAMS = b"candidate-v3"
@@ -198,4 +203,56 @@ def test_nk_possession_policy_candidate_requires_exact_policy_id() -> None:
         validate_nk_possession_policy_v3_candidate(
             statement(authorization_policy_id=b"0PSP-V3-UNREVIEWED-POLICY-v1")
         )
+
+
+def test_spend_auth_policy_candidate_accepts_valid_policies() -> None:
+    tx_nk = statement(authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE)
+    assert validate_spend_auth_policy_v3_candidate(tx_nk) == tx_nk
+
+    tx_auth = statement(authorization_policy_id=V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE)
+    assert validate_spend_auth_policy_v3_candidate(tx_auth) == tx_auth
+
+    with pytest.raises(TransactionV3CandidateError, match="does not select an accepted V3"):
+        validate_spend_auth_policy_v3_candidate(statement(authorization_policy_id=b"invalid-policy"))
+
+
+def test_tx_envelope_v3_candidate_validation_and_tamper_rejection() -> None:
+    tx = statement(authorization_policy_id=V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE)
+    sk_spend = bytes([0x55]) * 48
+    spent_commitment = bytes([0x66]) * 48
+    tx_digest = transaction_digest_v3_candidate(tx)
+
+    # 1. Generate legitimate tau_auth spend authorization token
+    auth_token = compute_spend_auth_token_v3(sk_spend, tx_digest, spent_commitment)
+    proof_bytes = b"zk-proof-stark-mock"
+
+    envelope = TxEnvelopeV3Candidate(
+        statement=tx,
+        auth_token=auth_token,
+        proof=proof_bytes,
+    )
+    assert validate_spend_authorization_v3_candidate(envelope, sk_spend, spent_commitment) is True
+
+    # 2. Tampered auth_token is rejected
+    tampered_envelope = TxEnvelopeV3Candidate(
+        statement=tx,
+        auth_token=bytes([0x00]) * 48,
+        proof=proof_bytes,
+    )
+    assert validate_spend_authorization_v3_candidate(tampered_envelope, sk_spend, spent_commitment) is False
+
+    # 3. Wrong sk_spend is rejected
+    wrong_sk = bytes([0x99]) * 48
+    assert validate_spend_authorization_v3_candidate(envelope, wrong_sk, spent_commitment) is False
+
+    # 4. Wrong spent commitment is rejected
+    wrong_commitment = bytes([0x77]) * 48
+    assert validate_spend_authorization_v3_candidate(envelope, sk_spend, wrong_commitment) is False
+
+    # 5. Invalid envelope construction rejected
+    with pytest.raises(TransactionV3CandidateError, match="must be exactly 48 bytes"):
+        TxEnvelopeV3Candidate(statement=tx, auth_token=b"too-short", proof=proof_bytes)
+    with pytest.raises(TransactionV3CandidateError, match="proof must be non-empty"):
+        TxEnvelopeV3Candidate(statement=tx, auth_token=auth_token, proof=b"")
+
 

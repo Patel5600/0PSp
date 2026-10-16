@@ -11,6 +11,7 @@ from src.protocol.trusted_state_v3 import (
     StateAnchorEvidenceV3,
     TrustedStateRejected,
     VerifiedStateSnapshotV3,
+    create_anchor_ring_state_verifier,
     validate_transaction_state_binding_v3,
     verify_v3_candidate_spend_preflight,
 )
@@ -303,4 +304,46 @@ def test_exact_nk_possession_policy_is_preserved_in_bound_transaction() -> None:
         tx, EVIDENCE, verifier_for(snapshot_for(tx))
     )
     assert binding.statement.authorization_policy_id == V3_NK_POSSESSION_POLICY_CANDIDATE
+
+
+def test_anchor_ring_state_verifier_lifecycle_and_tamper_rejection() -> None:
+    tx = transaction()
+    retained_anchors = [(ROOT, STATE_HEAD), (bytes([0xAA]) * 48, bytes([0xBB]) * 48)]
+    verifier = create_anchor_ring_state_verifier(
+        retained_anchors=retained_anchors,
+        source_id=SOURCE,
+        finalized_anchor=ANCHOR,
+        finality_policy_id=FINALITY_POLICY,
+        namespace_id=NS,
+        params_id=PARAMS,
+    )
+
+    # 1. Valid anchor evidence
+    evidence = StateAnchorEvidenceV3(
+        source_id=SOURCE,
+        finalized_anchor=ANCHOR,
+        evidence=ROOT + STATE_HEAD,
+    )
+    binding = validate_transaction_state_binding_v3(tx, evidence, verifier)
+    assert binding.commitment_root == ROOT
+    assert binding.ledger_state_head == STATE_HEAD
+
+    # 2. Unanchored root rejected (not in retained ring)
+    unanchored_evidence = StateAnchorEvidenceV3(
+        source_id=SOURCE,
+        finalized_anchor=ANCHOR,
+        evidence=bytes([0x99]) * 48 + STATE_HEAD,
+    )
+    with pytest.raises(TrustedStateRejected, match="state adapter did not return a verified"):
+        validate_transaction_state_binding_v3(tx, unanchored_evidence, verifier)
+
+    # 3. Mismatched source_id rejected
+    wrong_source_evidence = StateAnchorEvidenceV3(
+        source_id=b"other-source",
+        finalized_anchor=ANCHOR,
+        evidence=ROOT + STATE_HEAD,
+    )
+    with pytest.raises(TrustedStateRejected, match="state adapter did not return a verified"):
+        validate_transaction_state_binding_v3(tx, wrong_source_evidence, verifier)
+
 

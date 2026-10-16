@@ -14,10 +14,12 @@ from typing import Callable
 from src.primitives.namespace_v3 import NamespaceIdV3
 from src.protocol.transaction_v3_candidate import (
     V3_NK_POSSESSION_POLICY_CANDIDATE,
+    V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE,
     TxFieldsV3Candidate,
     decode_tx_fields_v3_candidate,
     transaction_digest_v3_candidate,
     validate_nk_possession_policy_v3_candidate,
+    validate_spend_auth_policy_v3_candidate,
     state_context_digest_v3_candidate,
 )
 
@@ -117,11 +119,11 @@ def _decode_statement(
         )
 
     try:
-        validate_nk_possession_policy_v3_candidate(statement)
+        validate_spend_auth_policy_v3_candidate(statement)
     except (TypeError, ValueError) as exc:
         raise TrustedStateRejected(
             "V3 candidate spend must explicitly select the NK-possession policy "
-            f"{V3_NK_POSSESSION_POLICY_CANDIDATE!r}"
+            f"({V3_NK_POSSESSION_POLICY_CANDIDATE!r}) or spend-auth policy ({V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE!r})"
         ) from exc
     return statement
 
@@ -227,3 +229,50 @@ def verify_v3_candidate_spend_preflight(
     if not proof_ok:
         raise TrustedStateRejected("V3 spend proof rejected")
     return binding
+
+
+def create_anchor_ring_state_verifier(
+    retained_anchors: Sequence[tuple[bytes, bytes]],
+    *,
+    source_id: bytes,
+    finalized_anchor: bytes,
+    finality_policy_id: bytes,
+    namespace_id: NamespaceIdV3,
+    params_id: bytes,
+) -> StateAnchorVerifierV3:
+    """Create a verified state anchor verifier against a retained historical anchor ring.
+
+    Enforces that the requested commitment_root and ledger_state_head exist in the
+    retained ring (up to 4,096 states) and returns the authenticated VerifiedStateSnapshotV3.
+    """
+    _require_bytes("source_id", source_id, 1, MAX_SOURCE_ID_BYTES)
+    _require_bytes("finalized_anchor", finalized_anchor, 1, MAX_FINALIZED_ANCHOR_BYTES)
+    _require_bytes("finality_policy_id", finality_policy_id, 1, 128)
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TrustedStateRejected("namespace_id must be NamespaceIdV3")
+    _require_bytes("params_id", params_id, 1, 0xFFFF)
+
+    valid_anchors = set(retained_anchors)
+
+    def verify_anchor_evidence(evidence: StateAnchorEvidenceV3) -> VerifiedStateSnapshotV3 | None:
+        if evidence.source_id != source_id or evidence.finalized_anchor != finalized_anchor:
+            return None
+        # Evidence encodes (commitment_root || ledger_state_head)
+        if len(evidence.evidence) != 2 * HASH_BYTES:
+            return None
+        root = evidence.evidence[:HASH_BYTES]
+        head = evidence.evidence[HASH_BYTES:]
+        if (root, head) not in valid_anchors:
+            return None
+        return VerifiedStateSnapshotV3(
+            source_id=source_id,
+            finalized_anchor=finalized_anchor,
+            finality_policy_id=finality_policy_id,
+            namespace_id=namespace_id,
+            params_id=params_id,
+            commitment_root=root,
+            ledger_state_head=head,
+        )
+
+    return verify_anchor_evidence
+

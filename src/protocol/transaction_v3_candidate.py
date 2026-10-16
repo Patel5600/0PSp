@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+from src.primitives.keys_v3 import verify_spend_auth_token_v3
 from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.primitives.nullifier_v3 import NullifierV3
@@ -35,6 +36,7 @@ TX_AUTH_CONTEXT_V3_CANDIDATE = b"0PSP-TX-AUTH-v3-CANDIDATE"
 # opening BundleV3.nullifier_key_commitment and using the same nk to derive nu3.
 # This is an API/spec target only; the complete relation and ZK backend must enforce it.
 V3_NK_POSSESSION_POLICY_CANDIDATE = b"0PSP-V3-NK-POSSESSION-CANDIDATE-v1"
+V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE = b"0PSP-V3-SPEND-AUTH-TOKEN-CANDIDATE-v1"
 
 
 class TransactionV3CandidateError(ValueError):
@@ -332,4 +334,67 @@ def validate_nk_possession_policy_v3_candidate(
             "authorization_policy_id does not select the V3 nk-possession candidate"
         )
     return statement
+
+
+def validate_spend_auth_policy_v3_candidate(
+    statement_or_encoded: TxFieldsV3Candidate | bytes,
+) -> TxFieldsV3Candidate:
+    """Validate that statement selects either NK possession or Spend Auth Token policy."""
+    if isinstance(statement_or_encoded, TxFieldsV3Candidate):
+        statement = statement_or_encoded
+    elif isinstance(statement_or_encoded, bytes):
+        statement = decode_tx_fields_v3_candidate(statement_or_encoded)
+    else:
+        raise TransactionV3CandidateError(
+            "input must be TxFieldsV3Candidate or canonical encoded bytes"
+        )
+    if statement.authorization_policy_id not in (
+        V3_NK_POSSESSION_POLICY_CANDIDATE,
+        V3_SPEND_AUTH_TOKEN_POLICY_CANDIDATE,
+    ):
+        raise TransactionV3CandidateError(
+            "authorization_policy_id does not select an accepted V3 authorization policy"
+        )
+    return statement
+
+
+@dataclass(frozen=True, slots=True)
+class TxEnvelopeV3Candidate:
+    """Outer transaction submission envelope binding statement, authorization token, and proof.
+
+    Binds:
+      1. Canonical TxFieldsV3Candidate statement.
+      2. 48-byte tau_auth spend authorization token computed under sk_spend.
+      3. Zero-knowledge proof bytes.
+    """
+
+    statement: TxFieldsV3Candidate
+    auth_token: bytes
+    proof: bytes
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.statement, TxFieldsV3Candidate):
+            raise TransactionV3CandidateError("statement must be TxFieldsV3Candidate")
+        if not isinstance(self.auth_token, bytes) or len(self.auth_token) != 48:
+            raise TransactionV3CandidateError("auth_token must be exactly 48 bytes")
+        if not isinstance(self.proof, bytes) or not self.proof:
+            raise TransactionV3CandidateError("proof must be non-empty bytes")
+
+
+def validate_spend_authorization_v3_candidate(
+    envelope: TxEnvelopeV3Candidate,
+    sk_spend: bytes,
+    spent_commitment: bytes,
+) -> bool:
+    """Verify in constant time that auth_token matches tau_auth for the spent commitment and statement digest."""
+    if not isinstance(envelope, TxEnvelopeV3Candidate):
+        raise TransactionV3CandidateError("envelope must be TxEnvelopeV3Candidate")
+    tx_digest = transaction_digest_v3_candidate(envelope.statement)
+    return verify_spend_auth_token_v3(
+        sk_spend=sk_spend,
+        tx_digest=tx_digest,
+        commitment=spent_commitment,
+        auth_token=envelope.auth_token,
+    )
+
 
