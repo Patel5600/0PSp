@@ -83,6 +83,16 @@ jobs:
           cat proof-output-checker/Cargo.lock
           echo "V3_SPIKE_PROOF_CHECKER_CARGO_LOCK_END"
 
+      - name: Calculate pinned OpenVM RBR soundness profiles (report only)
+        run: |
+          set -euo pipefail
+          fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
+          evidence_dir="$fixture_dir/evidence"
+          mkdir -p "$evidence_dir"
+          runner="proof-output-checker/target/release/openvm-v3-sdk-runner"
+          "$runner" audit-security openvm.toml "$evidence_dir/openvm-soundness-profile.json"
+          cat "$evidence_dir/openvm-soundness-profile.json"
+
       - name: Execute valid and adversarial nullifier fixtures in OpenVM SDK memory profile
         run: |
           set -euo pipefail
@@ -188,6 +198,8 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: 0psp-openvm-v3-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/v3-nullifier-witnesses/evidence/manifest.json
+          path: |
+            ${{ runner.temp }}/v3-nullifier-witnesses/evidence/manifest.json
+            ${{ runner.temp }}/v3-nullifier-witnesses/evidence/openvm-soundness-profile.json
           if-no-files-found: error
           retention-days: 90
