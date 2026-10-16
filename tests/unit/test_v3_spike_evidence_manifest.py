@@ -52,6 +52,53 @@ def _fixture_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path
     _write(evidence / "app-verify.metrics", "V3_SPIKE_APP_VERIFY_SECONDS=0.15 MAX_RSS_KIB=1024\n")
     _write(evidence / "spend-prove.metrics", "V3_SPIKE_SPEND_PROVE_SECONDS=3.50 MAX_RSS_KIB=8192\n")
     _write(evidence / "spend-verify.metrics", "V3_SPIKE_SPEND_VERIFY_SECONDS=0.20 MAX_RSS_KIB=1024\n")
+    _write(
+        evidence / "security-profile.json",
+        json.dumps({
+            "schema": "0psp.openvm.candidate-security-profile.v1",
+            "backend": "OpenVM",
+            "openvm_git_revision": "59a69b8b0cbee7011ac978e4cc07707ee3681944",
+            "security_parameter_constructor": "app_params_with_100_bits_security",
+            "upstream_declared_soundness_bits": 100,
+            "required_composite_soundness_bits": 128,
+            "security_target_met": False,
+            "profile_status": "NO-GO",
+            "complete_production_spend_relation_established": False,
+            "end_to_end_witness_hiding_established": False,
+            "trusted_finalized_state_established": False,
+            "atomic_issue_spend_reorg_recovery_established": False,
+            "production_acceptance_enabled": False,
+            "application_executable_commitment": "a" * 64,
+            "interpretation": "metadata only",
+        }),
+    )
+    _write(
+        evidence / "ledger-integration.json",
+        json.dumps({
+            "schema_version": 1,
+            "status": "PASS",
+            "scope": "non-production OpenVM candidate proof to local SQLite transition",
+            "dynamic_statement_proof_generated_and_verified": True,
+            "mutated_proof_rejected_without_state_change": True,
+            "valid_proof_accepted_as_atomic_state_transition": True,
+            "duplicate_nullifier_replay_rejected_without_state_change": True,
+            "restart_and_integrity_audit_passed": True,
+            "proof_size_bytes": 123456,
+            "proof_sha256": "d" * 64,
+            "checker_sha256": "e" * 64,
+            "app_verifying_key_sha256": "f" * 64,
+            "app_executable_commitment": "a" * 64,
+            "public_statement_digest": "c" * 128,
+            "state_version_after_accept": 1,
+            "bootstrap_state_evidence_is_synthetic": True,
+            "external_finality_established": False,
+            "end_to_end_witness_hiding_established": False,
+            "composite_post_quantum_security_bits": None,
+            "required_composite_post_quantum_security_bits": 128,
+            "production_acceptance_enabled": False,
+            "release_status": "NO-GO",
+        }),
+    )
 
     monkeypatch.chdir(workspace)
     monkeypatch.setenv("CANDIDATE_HEAD_SHA", "1" * 40)
@@ -94,6 +141,16 @@ def test_manifest_records_hashes_metrics_provenance_and_limits(
         "max_rss_kib": 1024,
         "rss_scope": "combined SDK runner high-water mark shared across stage timings; not a per-stage measurement",
     }
+    assert manifest["security_profile"]["profile_status"] == "NO-GO"
+    assert manifest["security_profile"]["upstream_declared_soundness_bits"] == 100
+    assert manifest["security_profile"]["required_composite_soundness_bits"] == 128
+    assert manifest["security_profile"]["security_target_met"] is False
+    assert manifest["ledger_integration"]["status"] == "PASS"
+    assert manifest["ledger_integration"]["proof_size_bytes"] == 123456
+    assert manifest["ledger_integration"]["valid_proof_accepted_as_atomic_state_transition"] is True
+    assert manifest["ledger_integration"]["duplicate_nullifier_replay_rejected_without_state_change"] is True
+    assert manifest["ledger_integration"]["external_finality_established"] is False
+    assert manifest["ledger_integration"]["production_acceptance_enabled"] is False
     assert manifest["validation_scope"]["complete_production_relation_established"] is False
     assert manifest["validation_scope"]["zero_knowledge_guarantee_independently_established"] is False
     assert manifest["validation_scope"]["raw_proof_bytes_uploaded"] is False
