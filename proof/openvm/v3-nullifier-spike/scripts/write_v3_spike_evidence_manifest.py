@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 HEX_256_RE = re.compile(r"^[0-9a-f]{64}$")
+HEX_512_RE = re.compile(r"^[0-9a-f]{128}$")
 HEX_160_RE = re.compile(r"^[0-9a-f]{40}$")
 METRIC_RE = re.compile(
     r"(?P<key>[A-Z0-9_]+)=([0-9]+(?:\.[0-9]+)?)\s+MAX_RSS_KIB=(\d+)"
@@ -231,8 +232,8 @@ def ledger_integration_record(evidence_dir: Path, executable_commit: str) -> dic
         fail("ledger integration checker SHA-256 missing or malformed")
     if not HEX_256_RE.fullmatch(str(value.get("app_verifying_key_sha256", ""))):
         fail("ledger integration app verifying-key SHA-256 missing or malformed")
-    if not HEX_256_RE.fullmatch(str(value.get("public_statement_digest", ""))):
-        fail("ledger integration public statement digest must be a 32-byte SHA-256-format field")
+    if not HEX_512_RE.fullmatch(str(value.get("public_statement_digest", ""))):
+        fail("ledger integration public statement digest must be exactly 64 bytes of lowercase hex")
     return {
         "evidence_sha256": sha256_file(path),
         "status": value["status"],
