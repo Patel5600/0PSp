@@ -419,16 +419,15 @@ def test_spend_relation_v3_tx_context_relayer_tampering_rejection() -> None:
     assert tampered_digest != valid_digest
 
 
-def test_depth32_merkle_path_rejects_out_of_range_or_boolean_leaf_index() -> None:
-    """Depth-32 path profiles cannot smuggle high index bits outside the path."""
+def test_reference_relation_rejects_unprofiled_depth32_merkle_paths() -> None:
+    """A depth-32 path must not be accepted against the active depth-63 profile."""
     _, witness, _, _, _ = _create_test_fixture()
 
-    with pytest.raises(ValueError, match="depth-32 Merkle path range"):
-        replace(
-            witness,
-            leaf_index=1 << 32,
-            merkle_siblings=tuple(witness.merkle_siblings[:32]),
-        )
+    with pytest.raises(ValueError, match="exactly 63 siblings for the active V3 profile"):
+        replace(witness, merkle_siblings=tuple(witness.merkle_siblings[:32]))
+
+    with pytest.raises(ValueError, match="leaf_index outside valid depth-63"):
+        replace(witness, leaf_index=1 << 63)
 
     with pytest.raises(ValueError, match="leaf_index must be an integer"):
         replace(witness, leaf_index=True)
