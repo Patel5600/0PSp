@@ -24,7 +24,6 @@ from src.protocol.transaction_v3_candidate import (
 )
 from src.protocol.trusted_state_v3 import (
     StateAnchorEvidenceV3,
-    TrustedStateRejected,
     VerifiedStateSnapshotV3,
 )
 from src.protocol.sqlite_v3_candidate_ledger import (
@@ -450,7 +449,7 @@ def test_fabricated_anchor_row_is_rejected_before_proof_or_state_mutation(tmp_pa
     finally:
         conn.close()
     tampered = statement_for(ledger, root=fake_root, state_head=fake_head)
-    with pytest.raises(TrustedStateRejected):
+    with pytest.raises(SQLiteV3LedgerIntegrityError, match="anchor ring"):
         ledger.accept_spend(tampered, proof=VALID_PROOF)
     assert calls == []
     assert ledger.snapshot() == before
