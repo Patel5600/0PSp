@@ -13,6 +13,12 @@ CI sends an application proof produced by the pinned OpenVM SDK through the Pyth
 
 The state-evidence verifier in this integration test is deliberately synthetic fixture code. The test proves cross-language wiring and statement/proof binding for this candidate; it does **not** authenticate an external chain, test a production finality source, execute the durable SQLite transition, prove end-to-end zero knowledge, or establish the required composed soundness bound. The per-run artifact hashes are also not a substitute for published deployment release pins.
 
+## Security-parameter reality check
+
+The pinned runner uses upstream `app_params_with_100_bits_security`. The backend's own `SystemParams::new` documentation warns that a requested security target does not guarantee the overall protocol's security. This candidate therefore emits `security-profile.json` with the upstream 100-bit RBR target, required 128-bit composite PQ target, explicit `NO-GO`, and false values for end-to-end witness hiding and production acceptance. The manifest is reproducibility/claim-control metadata, not a proof.
+
+The former `scripts/verify_composite_soundness.py` invented a degree-5 field model and unsupported per-query error terms that were not derived from the pinned backend. It has been replaced with a fail-closed evidence report: composed PQ security is recorded as **UNKNOWN**, not an estimated bit count, and the command exits nonzero. See [the security-claim correction record](../../docs/audit/chp4.23-openvm-security-claim-correction.md) for upstream source references and the release gate.
+
 ## What this establishes
 
 CI runs valid and adversarial fixtures through the OpenVM guest, generates and verifies real application-level proofs, and checks the Python-to-Rust verifier/preflight integration against the exact spend statement. This is evidence for the checked-in one-input/one-output predicate slice, not a complete 0PSP release. The dependency graph and cargo-openvm v2.0.2 binary are pinned/locked for this experiment.
