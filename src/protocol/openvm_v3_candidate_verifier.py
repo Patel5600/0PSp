@@ -107,6 +107,7 @@ def _stage_pinned_artifact(
     target_mode = 0o700 if executable else 0o600
     target_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     target_fd: int | None = None
+    target_created = False
     digest = hashlib.sha256()
     total = 0
     try:
@@ -127,6 +128,7 @@ def _stage_pinned_artifact(
             )
         try:
             target_fd = os.open(destination, target_flags, target_mode)
+            target_created = True
         except OSError as exc:
             raise OpenVMV3CandidateVerifierError(
                 f"cannot create private staged verifier artifact: {destination.name}"
@@ -159,7 +161,8 @@ def _stage_pinned_artifact(
         if target_fd is not None:
             os.close(target_fd)
             target_fd = None
-        destination.unlink(missing_ok=True)
+        if target_created:
+            destination.unlink(missing_ok=True)
         raise
     finally:
         os.close(source_fd)
