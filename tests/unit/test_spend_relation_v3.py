@@ -432,3 +432,26 @@ def test_depth32_merkle_path_rejects_out_of_range_or_boolean_leaf_index() -> Non
 
     with pytest.raises(ValueError, match="leaf_index must be an integer"):
         replace(witness, leaf_index=True)
+
+
+@pytest.mark.parametrize("field_name", ["input_value", "output_value"])
+@pytest.mark.parametrize("bad_value", [True, -1, 1 << 64, 1.5])
+def test_spend_witness_rejects_non_u64_or_boolean_values(
+    field_name: str, bad_value: object
+) -> None:
+    """Python bool/int coercion must not bypass the witness's u64 type boundary."""
+    _, witness, _, _, _ = _create_test_fixture()
+    with pytest.raises(ValueError, match=f"{field_name} outside valid u64 range"):
+        replace(witness, **{field_name: bad_value})
+
+
+def test_spend_witness_requires_immutable_fixed_width_merkle_siblings() -> None:
+    """Mutable or malformed sibling containers must not enter the frozen witness."""
+    _, witness, _, _, _ = _create_test_fixture()
+    with pytest.raises(ValueError, match="immutable tuple"):
+        replace(witness, merkle_siblings=list(witness.merkle_siblings))
+    with pytest.raises(ValueError, match="exactly 48 bytes"):
+        replace(
+            witness,
+            merkle_siblings=(b"bad",) + witness.merkle_siblings[1:],
+        )
