@@ -357,3 +357,32 @@ fn main() -> Result<()> {
         }
     }
 }
+
+
+#[cfg(test)]
+mod security_profile_manifest_tests {
+    use super::*;
+
+    #[test]
+    fn manifest_never_claims_the_128_bit_target_is_met() {
+        let root = std::env::temp_dir().join(format!(
+            "0psp-openvm-profile-test-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("create test evidence directory");
+        let result = write_security_profile_manifest(&root, &"ab".repeat(32));
+        assert!(result.is_ok(), "manifest write must succeed");
+        let bytes = fs::read(root.join("security-profile.json")).expect("read manifest");
+        let value: serde_json::Value =
+            serde_json::from_slice(&bytes).expect("manifest must be valid JSON");
+        assert_eq!(value["openvm_git_revision"], PINNED_OPENVM_REV);
+        assert_eq!(value["security_parameter_constructor"], "app_params_with_100_bits_security");
+        assert_eq!(value["upstream_declared_soundness_bits"], 100);
+        assert_eq!(value["required_composite_soundness_bits"], 128);
+        assert_eq!(value["security_target_met"], false);
+        assert_eq!(value["profile_status"], "NO-GO");
+        assert_eq!(value["end_to_end_witness_hiding_established"], false);
+        assert_eq!(value["production_acceptance_enabled"], false);
+        fs::remove_dir_all(root).expect("remove test evidence directory");
+    }
+}
