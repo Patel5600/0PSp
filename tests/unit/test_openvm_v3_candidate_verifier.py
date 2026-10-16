@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -84,7 +85,8 @@ def test_verifier_binds_proof_to_exact_executable_and_transaction_digest(
         assert staged_vk != app_vk
         assert staged_checker.read_bytes() == original_checker
         assert staged_vk.read_bytes() == original_vk
-        assert staged_checker.stat().st_mode & 0o111
+        if sys.platform != "win32":
+            assert staged_checker.stat().st_mode & 0o111
         assert Path(command[2]).read_bytes() == PROOF_BYTES
         assert Path(command[3]).read_text(encoding="ascii").strip() == APP_COMMITMENT.hex()
         assert Path(command[4]).read_text(encoding="ascii").strip() == (
