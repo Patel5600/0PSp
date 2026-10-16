@@ -7,8 +7,8 @@
 
 ## Current security gate (2026-10-16; Release Candidate v0.1.0)
 
-- **Testnet Operational Status: GO (`v0.1.0-alpha`).** The local protocol test suite is 100% green (719 collected, 716 passed, 3 skipped, 0 failures), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
-  - *Operational Scope:* Enabled strictly for testnet coin issuance, shielded transfers, and nullifier consumption with testnet tokens (zero financial risk, testnet assets only).
+- **Local / synthetic candidate validation:** The latest checked Functional Checks run for proof-verifier hardening commit [`216b85f`](https://github.com/Patel5600/0PSp/commit/216b85f5f9013c4329232d71631db89fb863c54f) reports **730 collected, 729 passed, 1 skipped, 0 failures** ([CI run](https://github.com/Patel5600/0PSp/actions/runs/38905101365)). This is a commit-scoped unit/native/invariant result, not evidence of a live testnet deployment or production protocol readiness. The OpenVM workflow covers an experimental one-input/one-output candidate, not the complete accepted spend protocol.
+  - *Allowed scope:* deterministic fixtures, local simulation, and testnet-token experiments after verifying the exact deployed configuration. This README does not claim that a live testnet issuance-to-spend-to-recovery flow has been demonstrated.
 - **Mainnet Release: NO-GO for all live-value transfers.**
   - The current V3 proof adapter is not a reviewed production verifier; proof-profile metadata and non-empty proof bytes are not cryptographic verification.
   - The complete shared-witness spend relation, production authorization, authenticated root/finality, issuance/custody, reorg/recovery, and end-to-end witness hiding remain mandatory.
@@ -19,10 +19,10 @@
 0PSP adheres strictly to the uncompromising Engineering Doctrine:
 
 1. **Pillar 1: Attacking (Red-Team):** Adversarial suites ([`tests/adversarial/`](tests/adversarial/)) enforcing SQLite fault injection simulating power loss / uncommitted aborts, duplicate-nullifier concurrency races, parent anchor replay prevention, and OpenVM public-statement manipulation.
-2. **Pillar 2: Evidence (Empirical):** Hard measurements, byte-for-byte NIST FIPS 202 Known Answer Tests (KAT), 716 automated tests passing with zero failures, and microarchitectural cycle-counter hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
-3. **Pillar 3: Proof (Mathematical):** Formal reduction of commitment binding to SHAKE256-384 collision resistance ($O(2^{128})$ quantum queries via BHT algorithm), formal computational hiding in QROM ([`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)), and composed security game theorems ([`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md)).
+2. **Pillar 2: Evidence (Empirical):** Fixed cryptographic known-answer tests, differential primitive tests, adversarial/unit suites, and hardware timing diagnostics. Exact counts are commit-specific: the cited proof-verifier hardening CI head reports 729 passed and 1 skipped. A timing screen is a diagnostic, not a constant-time proof.
+3. **Pillar 3: Proof (Mathematical):** Theory documents describe conditional primitive reductions and security-game models ([`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md), [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md)). They do not prove that the current guest, verifier, state adapter, and ledger composition satisfies those assumptions. The composed production soundness bound and end-to-end zero-knowledge guarantee remain unestablished.
 4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, a depth-63/u64 active host-and-OpenVM candidate Merkle profile, typed descriptors (`NamespaceIdV3`), and domain-separated transaction candidate fields (`TxFieldsV3Candidate`). The separate depth-32 Rust helper is experimental and is not the active guest entrypoint.
-5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 constant-time cryptographic engine ([`native/`](native/)), volatile scrubbing memory barriers (`psp_secure_zero`), OS RAM physical pinning (`VirtualLock`/`mlock`), Rust OpenVM zkVM spend circuit ([`proof/openvm/`](proof/openvm/)), auto-discovering ctypes fixtures ([`tests/conftest.py`](tests/conftest.py)), and zero uncommitted code or build garbage.
+5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 cryptographic implementation ([`native/`](native/)), explicit memory-cleansing calls (`psp_secure_zero`), optional OS page-locking APIs (`VirtualLock`/`mlock`), an experimental OpenVM guest ([`proof/openvm/`](proof/openvm/)), and native/API fixtures ([`tests/conftest.py`](tests/conftest.py)). These mechanisms do not prove whole-process zeroization, constant-time behavior, or end-to-end protocol security; see open internal gate [#40](https://github.com/Patel5600/0PSp/issues/40).
 6. **Pillar 6: Honest Limits (Zero Hype):** Testnet/synthetic testing may proceed within its stated limits. All Mainnet live-value transfers, both capped and uncapped, remain **NO-GO** until implementation, proof, authorization, custody, state, recovery, and integration gates pass on one exact release commit. External audit is deferred separately and is not a substitute for these internal gates.
 
 Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Mainnet remains NO-GO until all internal mandatory criteria are evidenced closed on one exact release commit. External audit is deferred and not claimed.
@@ -32,9 +32,9 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 0PSP currently contains the following research-stage components; their presence does not imply a production-ready end-to-end protocol:
 
 ### 1. Zero-Dependency C11 Cryptographic Engine (`libpsp_native`)
-- **NIST FIPS 202 Compliant:** Native C11 branchless Keccak-f[1600] permutation core with SHAKE256-384 XOF and HMAC-SHA3-384 implementations without external libraries (OpenSSL completely removed).
-- **Constant-Time Execution:** Zero secret-dependent branching or data-dependent memory lookups. Certified with microarchitectural cycle-counter hardware RDTSC timing screens (`|t| = 2.7838 < 4.5` over 20,000 runs).
-- **Defense-in-Depth Memory Scrubbing:** Volatile compiler memory barrier scrubbing (`psp_secure_zero`) and OS RAM physical page pinning (`VirtualLock` on Windows, `mlock` on POSIX) preventing sensitive key material from being paged to swap disk.
+- **Primitive implementation:** Native C11 Keccak-f[1600], SHAKE256-384 and HMAC-SHA3-384 with known-answer and differential tests; claim the exact tested primitives and vectors, not whole-protocol security.
+- **Side-channel posture:** The implementation is intended to avoid secret-dependent branches and data-dependent lookups. The RDTSC timing screen is a noisy diagnostic and does not certify constant-time behavior; the broader evidence task remains open in [#40](https://github.com/Patel5600/0PSp/issues/40).
+- **Memory handling:** `psp_secure_zero` and platform page-locking calls are present. They do not establish that every secret copy is erased or that all operating-system paging/crash-dump paths are prevented.
 - **Cross-Platform:** Compiles cleanly with GCC, Clang, and MSVC across Linux, macOS, and Windows.
 
 ### 2. Experimental OpenVM Spend Candidate (`OpenVM v2.0.2`)
@@ -56,8 +56,8 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 
 The theory documents contain conditional reductions and security-game models for selected primitives. These do not establish that the current OpenVM candidate or whole deployed protocol satisfies the assumptions, soundness target, authorization policy, or end-to-end zero-knowledge property:
 
-- **Formal Commitment Binding (QROM):** Reduced directly to the collision resistance of SHAKE256-384. Under the Brassard-Høyer-Tapp (BHT) algorithm, finding a collision requires $\Omega(2^{128})$ quantum queries (see [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)).
-- **Formal Statistical Hiding (QROM):** Theorem 1 in [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md) proves that given 256-bit entropy in $(coin\_id, r\_nf, salt)$, an adversary's hiding advantage is bounded by $\text{Adv}^{\text{hide}} \le 2^{-160}$.
+- **Commitment-binding theory model:** The cited reduction relates SHAKE256-384 binding to collision resistance under the document's quantum-adversary assumptions. It is a conditional primitive argument, not a proof that the current deployed protocol satisfies a composed post-quantum security target.
+- **Statistical-hiding theory model:** The cited document states a bound under its formal assumptions and entropy model. That bound has not been established for the active OpenVM proof transcript, verifier, and production state/authorization composition.
 - **Composed Security-Game Models:** Defined in [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md). The model claims need to be matched to an accepted implementation and complete proof relation before being treated as production guarantees:
   - **Balance Conservation Game:** Proves no polynomial-time adversary can inflate protocol supply without violating either MPT inclusion, hash collision resistance, or range-bound arithmetic.
   - **Recipient Unlinkability Game (Anonymity):** Formalizes indistinguishability under chosen-witness attacks, ensuring note spends cannot be linked to the recipient or creator.
@@ -204,7 +204,7 @@ The matrix below is formatted as individual gate entries rather than a six-colum
 ### 23. Issuer Privacy & Commitment Hiding
 
 - **Testnet:** **GO** · **Mainnet:** **Gated**
-- **Evidence:** Formally proven in QROM ($\text{Adv}^{\text{hide}} \le 2^{-160}$, binding reduces to SHAKE256)
+- **Evidence:** Conditional primitive/theory model only; end-to-end witness hiding for the active proof path remains NO-GO until backend-level trace/quotient and transcript evidence is provided.
 - **Mainnet obligation:** Full prover trace ZK masking for Mainnet
 
 ### 24. Real Ethereum Mainnet Smoke Test
