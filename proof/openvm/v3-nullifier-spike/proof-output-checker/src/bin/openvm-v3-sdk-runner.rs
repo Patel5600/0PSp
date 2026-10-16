@@ -19,6 +19,9 @@ use std::{
 };
 
 const PUBLIC_VALUE_BYTES: usize = 64;
+const PINNED_OPENVM_REV: &str = "59a69b8b0cbee7011ac978e4cc07707ee3681944";
+const DECLARED_UPSTREAM_SOUNDNESS_BITS: u32 = 100;
+const REQUIRED_COMPOSITE_SOUNDNESS_BITS: u32 = 128;
 
 fn sdk_from_config(path: &Path) -> Result<Sdk> {
     let toml = fs::read_to_string(path)
@@ -197,6 +200,39 @@ fn prove_one(
     Ok((prove_seconds, verify_seconds))
 }
 
+fn write_security_profile_manifest(
+    evidence_dir: &Path,
+    app_commit_hex: &str,
+) -> Result<()> {
+    // This is a reproducibility/claim-control artifact, not a cryptographic proof.
+    // The pinned upstream SDK exposes the 100-bit profile used below; do not relabel
+    // it as meeting the project's 128-bit composed target.
+    let manifest = serde_json::json!({
+        "schema": "0psp.openvm.candidate-security-profile.v1",
+        "backend": "OpenVM",
+        "openvm_git_revision": PINNED_OPENVM_REV,
+        "security_parameter_constructor": "app_params_with_100_bits_security",
+        "upstream_declared_soundness_bits": DECLARED_UPSTREAM_SOUNDNESS_BITS,
+        "required_composite_soundness_bits": REQUIRED_COMPOSITE_SOUNDNESS_BITS,
+        "security_target_met": false,
+        "profile_status": "NO-GO",
+        "relation_scope": "experimental one-input/one-output V3 candidate",
+        "complete_production_spend_relation_established": false,
+        "end_to_end_witness_hiding_established": false,
+        "trusted_finalized_state_established": false,
+        "atomic_issue_spend_reorg_recovery_established": false,
+        "production_acceptance_enabled": false,
+        "application_executable_commitment": app_commit_hex,
+        "interpretation": "Reproducibility metadata only; not a soundness derivation or zero-knowledge proof."
+    });
+    let path = evidence_dir.join("security-profile.json");
+    fs::write(&path, serde_json::to_vec_pretty(&manifest)?)
+        .with_context(|| format!("writing security profile manifest {}", path.display()))?;
+    println!("V3_SPIKE_SECURITY_PROFILE_MANIFEST={}", path.display());
+    println!("V3_SPIKE_SECURITY_PROFILE_STATUS=NO-GO (100-bit upstream profile; 128-bit composite target unmet)");
+    Ok(())
+}
+
 fn prove(
     config: &Path,
     elf_path: &Path,
@@ -228,6 +264,7 @@ fn prove(
     let app_commit = CommitBytes::from(probe.app_exe_commit());
     let commit_hex = hex::encode(app_commit.as_slice());
     fs::write(evidence_dir.join("generated-app-exe-commit.txt"), format!("{commit_hex}\n"))?;
+    write_security_profile_manifest(evidence_dir, &commit_hex)?;
     println!("V3_SPIKE_GENERATED_APP_EXE_COMMIT={commit_hex}");
     let expected_commit = read_hex_file(expected_commit_path, 32, "pinned app executable commitment")?;
     if expected_commit.as_slice() != app_commit.as_slice() {
