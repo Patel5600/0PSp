@@ -10,6 +10,7 @@ verifying key, executable commitment, and toolchain as reviewed release inputs.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import os
 import stat
 import subprocess
@@ -17,8 +18,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+from src.protocol.proof_backend_v3 import (
+    OPENVM_V2_CANDIDATE_PROFILE,
+    ProofBackendProfileV3,
+)
 from src.protocol.transaction_v3_candidate import (
     TX_V3_CANDIDATE_VERSION,
+    TxEnvelopeV3Candidate,
     TxFieldsV3Candidate,
     transaction_digest_v3_candidate,
     validate_nk_possession_policy_v3_candidate,
@@ -338,6 +344,41 @@ class OpenVMV3CandidateProofVerifier:
             # digest as verification. Only the pinned verifier's zero exit status
             # after proof/VK/executable/public-output checking is accepted.
             return result.returncode == 0
+
+
+    def verify_proof(
+        self,
+        envelope: TxEnvelopeV3Candidate,
+        *,
+        expected_public_digest: bytes,
+        profile: ProofBackendProfileV3,
+    ) -> bool:
+        """Implement the candidate-envelope verifier contract using the pinned OpenVM checker.
+
+        The active guest exposes only the canonical transaction digest. The envelope's
+        legacy auth_token is therefore required to be all-zero; a nonzero token is not
+        part of this guest's public statement and is not silently treated as verified
+        authorization. This method validates candidate proof plumbing only, not
+        production readiness or witness hiding.
+        """
+        if not isinstance(envelope, TxEnvelopeV3Candidate):
+            return False
+        if profile is not OPENVM_V2_CANDIDATE_PROFILE:
+            return False
+        if envelope.auth_token != bytes(48):
+            return False
+        if not isinstance(expected_public_digest, bytes) or len(expected_public_digest) != PUBLIC_DIGEST_BYTES:
+            return False
+        try:
+            canonical_digest = v3_spend_public_digest_candidate(envelope.statement)
+        except (TypeError, ValueError, OverflowError):
+            return False
+        if not hmac.compare_digest(canonical_digest, expected_public_digest):
+            return False
+        try:
+            return self(envelope.statement, envelope.proof) is True
+        except Exception:
+            return False
 
 
 __all__ = [
