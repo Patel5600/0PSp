@@ -27,6 +27,10 @@ HASH_BYTES = 48
 OUTPUT_ENTROPY_BYTES = 32
 MAX_OUTPUTS_V3_CANDIDATE = 1024
 MAX_TX_FIELDS_V3_CANDIDATE_BYTES = 1_000_000
+TX_PAYOUT_CONTEXT_V3_CANDIDATE_DOMAIN = b"0PSP-TX-PAYOUT-CONTEXT-v3-CANDIDATE-v1-SHAKE256"
+PAYOUT_CONTEXT_BYTES = 48
+CHAIN_ID_BYTES = 32
+ADDRESS_BYTES = 20
 # Prefix for a candidate ML-DSA-style context. The canonical auth_scheme_id is
 # appended with a uint16 little-endian length; the final context must be <=255 B.
 # This is candidate-only and is not an approved V3 suite.
@@ -67,6 +71,44 @@ def state_context_digest_v3_candidate(source_id: bytes, finalized_anchor: bytes,
     return hashlib.shake_256(preimage).digest(STATE_CONTEXT_BYTES)
 
 
+
+@dataclass(frozen=True, slots=True)
+class TxPayoutContextV3Candidate:
+    """Canonical semantic payout context. No pre-hashed digest is accepted."""
+    chain_id: bytes
+    namespace_id: NamespaceIdV3
+    params_id: bytes
+    recipient_address: bytes
+    withdraw_value: int
+    relayer_address: bytes
+    fee: int
+    out_commitment: bytes
+
+    def __post_init__(self) -> None:
+        _require_bytes(self.chain_id, "chain_id", min_len=CHAIN_ID_BYTES, max_len=CHAIN_ID_BYTES)
+        if not isinstance(self.namespace_id, NamespaceIdV3):
+            raise TransactionV3CandidateError("payout namespace_id must be NamespaceIdV3")
+        _require_bytes(self.params_id, "payout params_id", min_len=1, max_len=0xFFFF)
+        _require_bytes(self.recipient_address, "recipient_address", min_len=ADDRESS_BYTES, max_len=ADDRESS_BYTES)
+        _require_bytes(self.relayer_address, "relayer_address", min_len=ADDRESS_BYTES, max_len=ADDRESS_BYTES)
+        _require_hash(self.out_commitment, "payout out_commitment")
+        for name, value in (("withdraw_value", self.withdraw_value), ("fee", self.fee)):
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0xFFFFFFFFFFFFFFFF:
+                raise TransactionV3CandidateError(f"{name} must be an unsigned 64-bit integer")
+
+    def encode(self) -> bytes:
+        return b"".join((
+            TX_PAYOUT_CONTEXT_V3_CANDIDATE_DOMAIN, TX_V3_CANDIDATE_VERSION,
+            self.chain_id, self.namespace_id.data,
+            len(self.params_id).to_bytes(2, "little"), self.params_id,
+            self.recipient_address, self.withdraw_value.to_bytes(8, "little"),
+            self.relayer_address, self.fee.to_bytes(8, "little"), self.out_commitment,
+        ))
+
+    def digest(self) -> bytes:
+        return hashlib.shake_256(self.encode()).digest(PAYOUT_CONTEXT_BYTES)
+
+
 @dataclass(frozen=True, slots=True)
 class TxFieldsV3Candidate:
     """Single-input candidate statement; output tuple order defines global slots.
@@ -88,6 +130,23 @@ class TxFieldsV3Candidate:
     fee: int
     output_entropy: bytes
     output_commitments: tuple[CoinCommitmentV3, ...]
+    chain_id: bytes
+    recipient_address: bytes
+    withdraw_value: int
+    relayer_address: bytes
+
+    @property
+    def payout_context(self) -> TxPayoutContextV3Candidate:
+        return TxPayoutContextV3Candidate(
+            chain_id=self.chain_id, namespace_id=self.namespace_id, params_id=self.params_id,
+            recipient_address=self.recipient_address, withdraw_value=self.withdraw_value,
+            relayer_address=self.relayer_address, fee=self.fee,
+            out_commitment=self.output_commitments[0].value,
+        )
+
+    @property
+    def tx_context_digest(self) -> bytes:
+        return self.payout_context.digest()
 
     def __post_init__(self) -> None:
         _require_bytes(self.params_id, "params_id", min_len=1, max_len=0xFFFF)
@@ -98,6 +157,11 @@ class TxFieldsV3Candidate:
             raise TransactionV3CandidateError("input_nullifier must be NullifierV3")
         _require_hash(self.ledger_state_head, "ledger_state_head")
         _require_bytes(self.state_context_digest, "state_context_digest", min_len=STATE_CONTEXT_BYTES, max_len=STATE_CONTEXT_BYTES)
+        _require_bytes(self.chain_id, "chain_id", min_len=CHAIN_ID_BYTES, max_len=CHAIN_ID_BYTES)
+        _require_bytes(self.recipient_address, "recipient_address", min_len=ADDRESS_BYTES, max_len=ADDRESS_BYTES)
+        _require_bytes(self.relayer_address, "relayer_address", min_len=ADDRESS_BYTES, max_len=ADDRESS_BYTES)
+        if isinstance(self.withdraw_value, bool) or not isinstance(self.withdraw_value, int) or not 0 <= self.withdraw_value <= 0xFFFFFFFFFFFFFFFF:
+            raise TransactionV3CandidateError("withdraw_value must be an unsigned 64-bit integer")
         _require_bytes(
             self.authorization_policy_id,
             "authorization_policy_id",
@@ -144,12 +208,17 @@ class TxFieldsV3Candidate:
                 self.input_nullifier.value,
                 self.ledger_state_head,
                 self.state_context_digest,
+                self.chain_id,
+                self.recipient_address,
+                self.withdraw_value.to_bytes(8, "little"),
+                self.relayer_address,
                 len(self.authorization_policy_id).to_bytes(2, "little"),
                 self.authorization_policy_id,
                 self.fee.to_bytes(8, "little"),
                 self.output_entropy,
                 len(self.output_commitments).to_bytes(4, "little"),
                 *(output.value for output in self.output_commitments),
+                self.tx_context_digest,
             )
         )
         if len(fields) > MAX_TX_FIELDS_V3_CANDIDATE_BYTES:
@@ -204,6 +273,10 @@ def decode_tx_fields_v3_candidate(encoded: bytes) -> TxFieldsV3Candidate:
     input_nullifier = NullifierV3(reader.take(HASH_BYTES, "input_nullifier"))
     ledger_state_head = reader.take(HASH_BYTES, "ledger_state_head")
     state_context_digest = reader.take(STATE_CONTEXT_BYTES, "state_context_digest")
+    chain_id = reader.take(CHAIN_ID_BYTES, "chain_id")
+    recipient_address = reader.take(ADDRESS_BYTES, "recipient_address")
+    withdraw_value = reader.u64_le("withdraw_value")
+    relayer_address = reader.take(ADDRESS_BYTES, "relayer_address")
     policy_len = reader.u16_le("authorization_policy_id length")
     if not 1 <= policy_len <= 0xFFFF:
         raise TransactionV3CandidateError(
@@ -221,6 +294,7 @@ def decode_tx_fields_v3_candidate(encoded: bytes) -> TxFieldsV3Candidate:
         CoinCommitmentV3(reader.take(HASH_BYTES, f"output commitment {index}"))
         for index in range(output_count)
     )
+    encoded_tx_context_digest = reader.take(PAYOUT_CONTEXT_BYTES, "tx_context_digest")
     reader.finish()
     statement = TxFieldsV3Candidate(
         params_id=params_id,
@@ -233,10 +307,30 @@ def decode_tx_fields_v3_candidate(encoded: bytes) -> TxFieldsV3Candidate:
         fee=fee,
         output_entropy=output_entropy,
         output_commitments=outputs,
+        chain_id=chain_id,
+        recipient_address=recipient_address,
+        withdraw_value=withdraw_value,
+        relayer_address=relayer_address,
     )
+    if statement.tx_context_digest != encoded_tx_context_digest:
+        raise TransactionV3CandidateError("V3 candidate payout context digest mismatch")
     if statement.encode() != encoded:
         raise TransactionV3CandidateError("V3 candidate transaction is not canonical")
     return statement
+
+
+
+def payout_context_digest_v3_candidate(statement_or_encoded: TxFieldsV3Candidate | bytes) -> bytes:
+    """Recompute the context digest only from typed canonical fields."""
+    if isinstance(statement_or_encoded, TxFieldsV3Candidate):
+        statement = statement_or_encoded
+    elif isinstance(statement_or_encoded, bytes):
+        statement = decode_tx_fields_v3_candidate(statement_or_encoded)
+    else:
+        raise TransactionV3CandidateError("input must be TxFieldsV3Candidate or canonical encoded bytes")
+    if len(statement.output_commitments) != 1:
+        raise TransactionV3CandidateError("payout context requires exactly one output commitment")
+    return statement.payout_context.digest()
 
 
 def transaction_digest_v3_candidate(

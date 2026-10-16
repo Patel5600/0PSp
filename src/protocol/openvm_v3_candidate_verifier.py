@@ -21,6 +21,7 @@ from src.protocol.transaction_v3_candidate import (
     TX_V3_CANDIDATE_VERSION,
     TxFieldsV3Candidate,
     transaction_digest_v3_candidate,
+    payout_context_digest_v3_candidate,
     validate_nk_possession_policy_v3_candidate,
 )
 
@@ -74,6 +75,10 @@ def v3_spend_public_digest_candidate(statement: TxFieldsV3Candidate) -> bytes:
         raise OpenVMV3CandidateVerifierError(
             "the pinned OpenVM guest supports exactly one output"
         )
+    try:
+        payout_context_digest_v3_candidate(statement)
+    except (TypeError, ValueError) as exc:
+        raise OpenVMV3CandidateVerifierError("semantic payout context is not canonical") from exc
     tx_digest = transaction_digest_v3_candidate(statement)
     preimage = (
         PUBLIC_STATEMENT_DOMAIN_V3_SPEND_CANDIDATE

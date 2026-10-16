@@ -45,7 +45,7 @@ from src.primitives.nullifier_v3 import (
     compute_nullifier_key_commitment_v3,
     compute_nullifier_v3,
 )
-from src.protocol.commitment_tree import TREE_DEPTH, leaf_hash, node_hash
+from src.protocol.commitment_tree import V3_TREE_DEPTH, leaf_hash, node_hash
 from src.protocol.note_public_key_bundle_v3 import (
     NotePublicKeyBundleV3,
     decode_note_public_key_bundle_v3,
@@ -109,15 +109,15 @@ class SpendWitnessV3:
         # commitment tree, C Merkle verifier, SQLite ledger, and active OpenVM
         # witness entrypoint. Depth-32 is a separate experimental helper, not
         # an interchangeable path for this depth-63 root/profile.
-        if len(self.merkle_siblings) != TREE_DEPTH:
+        if len(self.merkle_siblings) != V3_TREE_DEPTH:
             raise ValueError(
-                f"merkle_siblings must contain exactly {TREE_DEPTH} siblings for the active V3 profile"
+                f"merkle_siblings must contain exactly {V3_TREE_DEPTH} siblings for the active V3 profile"
             )
         if any(not isinstance(sibling, bytes) or len(sibling) != 48 for sibling in self.merkle_siblings):
             raise ValueError("each Merkle sibling must be exactly 48 bytes")
-        if not 0 <= self.leaf_index < (1 << TREE_DEPTH):
+        if not 0 <= self.leaf_index < (1 << V3_TREE_DEPTH):
             raise ValueError(
-                f"leaf_index outside valid depth-{TREE_DEPTH} Merkle path range"
+                f"leaf_index outside valid depth-{V3_TREE_DEPTH} Merkle path range"
             )
 
 
@@ -180,18 +180,18 @@ def verify_spend_relation_v3_reference(
             "input NullifierV3 does not match transaction statement nullifier"
         )
 
-    # 5. Membership against the supplied statement root (active profile depth is TREE_DEPTH).
+    # 5. Membership against the supplied statement root (active profile depth is V3_TREE_DEPTH).
     current_node = leaf_hash(
-        statement.namespace_id, witness.leaf_index, input_commitment.value
+        statement.namespace_id, witness.leaf_index, input_commitment.value, tree_depth=V3_TREE_DEPTH
     )
     for level, sibling in enumerate(witness.merkle_siblings):
         if (witness.leaf_index >> level) & 1:
             current_node = node_hash(
-                statement.namespace_id, level, sibling, current_node
+                statement.namespace_id, level, sibling, current_node, tree_depth=V3_TREE_DEPTH
             )
         else:
             current_node = node_hash(
-                statement.namespace_id, level, current_node, sibling
+                statement.namespace_id, level, current_node, sibling, tree_depth=V3_TREE_DEPTH
             )
     if current_node != statement.commitment_root:
         raise SpendRelationV3Error(
