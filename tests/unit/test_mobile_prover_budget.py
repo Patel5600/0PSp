@@ -96,7 +96,7 @@ def test_evaluate_mobile_prover_architectures_defaults() -> None:
     assert air.device_support_percent == 85.0
     assert air.witness_privacy_proven is False
     assert air.witness_privacy_status == "GATED_END_TO_END_ZK"
-    assert "not wired" in air.witness_privacy_rationale
+    assert "no selected" in air.witness_privacy_rationale
 
     # 4. 2-Tier Blinded Split-Prover
     split = res["profiles"][3]
