@@ -23,9 +23,9 @@
 3. **Pillar 3: Proof (Mathematical):** Formal reduction of commitment binding to SHAKE256-384 collision resistance ($O(2^{128})$ quantum queries via BHT algorithm), formal computational hiding in QROM ([`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)), and composed security game theorems ([`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md)).
 4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, depth-32 V3 candidate Merkle paths, typed descriptors (`NamespaceIdV3`), and domain-separated transaction candidate fields (`TxFieldsV3Candidate`).
 5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 constant-time cryptographic engine ([`native/`](native/)), volatile scrubbing memory barriers (`psp_secure_zero`), OS RAM physical pinning (`VirtualLock`/`mlock`), Rust OpenVM zkVM spend circuit ([`proof/openvm/`](proof/openvm/)), auto-discovering ctypes fixtures ([`tests/conftest.py`](tests/conftest.py)), and zero uncommitted code or build garbage.
-6. **Pillar 6: Honest Limits (Zero Hype):** Testnet Launch (`v0.1.0-alpha`) is **GO**; Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified) is **NO-GO**; Mainnet Stage-1 (Uncapped Institutional TVL) remains **GATED (NO-GO)** until external third-party cryptographic audits are completed.
+6. **Pillar 6: Honest Limits (Zero Hype):** Testnet/synthetic testing may proceed within its stated limits. All Mainnet live-value transfers, both capped and uncapped, remain **NO-GO** until implementation, proof, authorization, custody, state, recovery, and integration gates pass on one exact release commit. External audit is deferred separately and is not a substitute for these internal gates.
 
-Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Every mandatory gate is explicitly evaluated; complete Mainnet live-value transfer remains strictly gated until all mandatory external criteria are evidenced closed.
+Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Mainnet remains NO-GO until all internal mandatory criteria are evidenced closed on one exact release commit. External audit is deferred and not claimed.
 
 ## Architecture and Core Subsystems
 
@@ -54,11 +54,11 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 
 ## Mathematical Reductions & Formal Security
 
-The cryptographic security of 0PSP is formally proven in the Quantum Random-Oracle Model (QROM) and verified through composed security games:
+The theory documents contain conditional reductions and security-game models for selected primitives. These do not establish that the current OpenVM candidate or whole deployed protocol satisfies the assumptions, soundness target, authorization policy, or end-to-end zero-knowledge property:
 
 - **Formal Commitment Binding (QROM):** Reduced directly to the collision resistance of SHAKE256-384. Under the Brassard-Høyer-Tapp (BHT) algorithm, finding a collision requires $\Omega(2^{128})$ quantum queries (see [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)).
 - **Formal Statistical Hiding (QROM):** Theorem 1 in [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md) proves that given 256-bit entropy in $(coin\_id, r\_nf, salt)$, an adversary's hiding advantage is bounded by $\text{Adv}^{\text{hide}} \le 2^{-160}$.
-- **Composed Security Games:** Fully formalized in [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md):
+- **Composed Security-Game Models:** Defined in [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md). The model claims need to be matched to an accepted implementation and complete proof relation before being treated as production guarantees:
   - **Balance Conservation Game:** Proves no polynomial-time adversary can inflate protocol supply without violating either MPT inclusion, hash collision resistance, or range-bound arithmetic.
   - **Recipient Unlinkability Game (Anonymity):** Formalizes indistinguishability under chosen-witness attacks, ensuring note spends cannot be linked to the recipient or creator.
   - **Double-Spend Replay Prevention Game:** Proves that an accepted spend transition irrevocably consumes the nullifier, preventing any subsequent spend of the same coin.
