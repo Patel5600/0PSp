@@ -1,32 +1,23 @@
-"""0PSP Production Proof Backend Specification & Verification Engine (V3).
+"""Candidate V3 proof-backend profiles and fail-closed proof verification.
 
-Codifies the Canonical Post-Quantum STARK Profile and Soundness Engine:
-1. Proof Backend Hierarchy:
-   - Primary Canonical Mainnet v1 Prover:
-     Tier 1 (Client Edge Prover): Native Keccak AIR, 2^17 rows (~110 MB base buffer), zero-heap C11,
-     verified B = 80 ZK trace blinding rows across all tables (Main trace, Keccak coprocessor, and LogUp multiplicities).
-     Runs entirely client-side on the user's device, preserving witness privacy with zero server hosting costs.
-   - Tier 2 (Delegated Server Prover - OPTIONAL / DEPRECATED):
-     OpenVM v2.0.2 (commit 59a69b8b0cbee7011ac978e4cc07707ee3681944). Excluded from the Mainnet v1 critical path.
-2. Composite Soundness Budget:
-   - Base Field: BabyBear F_p (p = 2^31 - 2^27 + 1 = 2013265921).
-   - Extension Field: F_{p^5} (|F_{p^5}| = 2^154.5).
-   - FRI Parameters: Blowup factor 16x, N_q = 38 queries, 20-bit PoW grinding.
-   - Proven Soundness Error: eps_total <= 2^-130.3 << 2^-128 (130.3 bits PQ security).
-3. Zero-Knowledge Witness Hiding:
-   - B = 80 randomized blinding rows in F_p (B = 2 * N_q + 4 for N_q = 38 FRI queries).
-   - 256-bit salted Merkle leaf commitments (LEAF_SALT_BYTES = 32).
-   - Evaluated strictly over disjoint LDE coset g * H_LDE.
-   - Proven statistical indistinguishability (Adv <= 0.05).
+This module does not implement a STARK/zkVM verifier. Profile metadata and Python
+trace-blinding experiments are not proof of zero knowledge or a soundness bound.
+No envelope is accepted unless an explicitly configured, trusted backend adapter
+cryptographically verifies the proof against the exact canonical statement digest.
+
+Trust boundary: the caller must construct `proof_verifier` from a reviewed,
+pinned backend implementation and immutable verification parameters. Never supply
+a test double, a host predicate, or a boolean callback in a production composition.
 """
 from __future__ import annotations
 
 import hashlib
+import math
+import hmac
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Protocol
 
 from src.core.zk_trace_blinding import (
-    BABYBEAR_P,
     CANONICAL_ZK_BLINDING_ROWS,
     DEFAULT_ZK_BLINDING_ROWS,
     LEAF_SALT_BYTES,
@@ -39,29 +30,33 @@ from src.protocol.spend_relation_v3 import (
 from src.protocol.transaction_v3_candidate import (
     TxEnvelopeV3Candidate,
     TxFieldsV3Candidate,
+    V3_NK_POSSESSION_POLICY_CANDIDATE,
     transaction_digest_v3_candidate,
-    validate_spend_authorization_v3_candidate,
 )
 
-# Canonical Prover Hierarchy & Architecture Identifiers
+# These values describe a proposed configuration, not a proved security result.
 CANONICAL_MAINNET_PROVER_NAME: Final[str] = "0PSP-Tier1-Mobile-Edge-AIR"
 SERVER_PROVER_STATUS: Final[str] = "OPTIONAL / DEPRECATED"
-
-# Pinned OpenVM Commit SHA and Backend Identifiers
 PINNED_OPENVM_COMMIT: Final[str] = "59a69b8b0cbee7011ac978e4cc07707ee3681944"
-TIER1_NATIVE_AIR_ROWS: Final[int] = 1 << 17  # 131,072 rows (~110 MB)
-TIER2_OPENVM_MAX_ROWS: Final[int] = 1 << 24  # 16,777,216 rows (~1,950 MB)
+TIER1_NATIVE_AIR_ROWS: Final[int] = 1 << 17
+TIER2_OPENVM_MAX_ROWS: Final[int] = 1 << 24
 TARGET_PQ_SOUNDNESS_BITS: Final[float] = 128.0
-PROVEN_COMPOSITE_SOUNDNESS_BITS: Final[float] = 130.3
+DECLARED_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
+# Backwards-compatible legacy name: zero means no composed bound is established.
+# Do not restore a positive value until it is justified for the exact accepted backend.
+PROVEN_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
+MAX_PROOF_BYTES: Final[int] = 2_000_000
+HASH_BYTES: Final[int] = 48
+ZERO_AUTH_TOKEN: Final[bytes] = bytes(HASH_BYTES)
 
 
 class ProofBackendError(ValueError):
-    """Raised when a proof artifact fails backend verification or soundness bounds."""
+    """Raised when candidate backend configuration is malformed."""
 
 
 @dataclass(frozen=True, slots=True)
 class ProofBackendProfileV3:
-    """Rigid cryptographic profile for 0PSP V3 STARK verification."""
+    """Declared backend parameters. These fields alone cannot certify security."""
 
     backend_name: str
     is_zero_knowledge: bool
@@ -74,24 +69,50 @@ class ProofBackendProfileV3:
     proven_security_bits: float
     is_deprecated: bool = False
 
+    @property
+    def claimed_security_bits(self) -> float:
+        """Alias clarifying that the stored number is a claim, not a proof."""
+        return self.proven_security_bits
+
     def validate(self) -> None:
+        """Validate declared parameter shape only; this does not prove soundness/ZK."""
+        if not isinstance(self.backend_name, str) or not self.backend_name.strip():
+            raise ProofBackendError("backend_name must be a non-empty string")
+        if not isinstance(self.is_zero_knowledge, bool):
+            raise ProofBackendError("is_zero_knowledge must be a boolean declaration")
+        if not isinstance(self.is_deprecated, bool):
+            raise ProofBackendError("is_deprecated must be a boolean")
+        integer_fields = {
+            "blinding_rows": self.blinding_rows,
+            "leaf_salt_bytes": self.leaf_salt_bytes,
+            "extension_degree": self.extension_degree,
+            "fri_queries": self.fri_queries,
+            "fri_blowup_factor": self.fri_blowup_factor,
+            "pow_grinding_bits": self.pow_grinding_bits,
+        }
+        for name, value in integer_fields.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ProofBackendError(f"{name} must be a non-negative integer")
         if not self.is_zero_knowledge:
-            raise ProofBackendError("production profile must enforce zero-knowledge witness hiding")
+            raise ProofBackendError("candidate profile declares no zero-knowledge witness hiding")
         if self.blinding_rows < DEFAULT_ZK_BLINDING_ROWS:
             raise ProofBackendError(
-                f"blinding rows ({self.blinding_rows}) below required minimum ({DEFAULT_ZK_BLINDING_ROWS})"
+                f"blinding rows ({self.blinding_rows}) below declared minimum ({DEFAULT_ZK_BLINDING_ROWS})"
             )
         if self.leaf_salt_bytes < LEAF_SALT_BYTES:
             raise ProofBackendError(
-                f"leaf salt width ({self.leaf_salt_bytes}) below required minimum ({LEAF_SALT_BYTES})"
+                f"leaf salt width ({self.leaf_salt_bytes}) below declared minimum ({LEAF_SALT_BYTES})"
             )
-        if self.proven_security_bits < TARGET_PQ_SOUNDNESS_BITS:
-            raise ProofBackendError(
-                f"security level ({self.proven_security_bits} bits) below target ({TARGET_PQ_SOUNDNESS_BITS} bits)"
-            )
+        if self.extension_degree < 1 or self.fri_queries < 1 or self.fri_blowup_factor < 2:
+            raise ProofBackendError("extension degree, FRI query count, and blowup factor are invalid")
+        if not isinstance(self.proven_security_bits, (int, float)) or isinstance(self.proven_security_bits, bool):
+            raise ProofBackendError("security-bit declaration must be numeric")
+        if not math.isfinite(float(self.proven_security_bits)) or self.proven_security_bits < 0:
+            raise ProofBackendError("security-bit declaration must be finite and non-negative")
+        # Deliberately do not treat claimed security bits as an acceptance criterion.
+        # Only a real verifier for an exact, reviewed parameter set can establish that.
 
 
-# Canonical Primary Mainnet Profile: Client-Side C11 Native Keccak AIR (110 MB RAM, 2^17 rows)
 TIER1_MOBILE_PROFILE = ProofBackendProfileV3(
     backend_name=CANONICAL_MAINNET_PROVER_NAME,
     is_zero_knowledge=True,
@@ -101,11 +122,10 @@ TIER1_MOBILE_PROFILE = ProofBackendProfileV3(
     fri_queries=38,
     fri_blowup_factor=16,
     pow_grinding_bits=20,
-    proven_security_bits=PROVEN_COMPOSITE_SOUNDNESS_BITS,
+    proven_security_bits=DECLARED_COMPOSITE_SOUNDNESS_BITS,
     is_deprecated=False,
 )
 
-# Delegated Server Prover: Marked OPTIONAL / DEPRECATED for Mainnet v1
 TIER2_SERVER_PROFILE = ProofBackendProfileV3(
     backend_name="0PSP-Tier2-OpenVM-v2.0.2 (OPTIONAL / DEPRECATED)",
     is_zero_knowledge=True,
@@ -115,47 +135,115 @@ TIER2_SERVER_PROFILE = ProofBackendProfileV3(
     fri_queries=38,
     fri_blowup_factor=16,
     pow_grinding_bits=20,
-    proven_security_bits=PROVEN_COMPOSITE_SOUNDNESS_BITS,
+    proven_security_bits=DECLARED_COMPOSITE_SOUNDNESS_BITS,
     is_deprecated=True,
 )
 
 PRIMARY_PROVER_PROFILE: Final[ProofBackendProfileV3] = TIER1_MOBILE_PROFILE
 
 
+class ProofArtifactVerifier(Protocol):
+    """Trusted adapter contract for a *real* proof-system verifier.
+
+    A production implementation must verify the cryptographic proof, pin and
+    validate its backend/verifying key/executable configuration, enforce the
+    complete accepted spend relation, and compare the proof's actual public output
+    with `expected_public_digest`. It must not implement this contract by checking
+    a host predicate or by returning a constant. The current repository does not
+    provide a reviewed Tier-1 implementation satisfying this contract.
+    """
+
+    def verify_proof(
+        self,
+        envelope: TxEnvelopeV3Candidate,
+        *,
+        expected_public_digest: bytes,
+        spent_commitment: bytes,
+        profile: ProofBackendProfileV3,
+    ) -> bool:
+        """Cryptographically verify this proof and all statement/policy bindings."""
+        ...
+
+
+def public_statement_digest_v3(statement: TxFieldsV3Candidate) -> bytes:
+    """Compute the canonical public statement digest expected from the proof."""
+    if not isinstance(statement, TxFieldsV3Candidate):
+        raise TypeError("statement must be TxFieldsV3Candidate")
+    tx_digest = transaction_digest_v3_candidate(statement)
+    preimage = PUBLIC_STATEMENT_DOMAIN_V3 + TX_V3_CANDIDATE_VERSION + tx_digest
+    return hashlib.shake_256(preimage).digest(PUBLIC_DIGEST_BYTES)
+
+
 def verify_public_statement_digest(
     statement: TxFieldsV3Candidate,
     claimed_public_digest: bytes,
 ) -> bool:
-    """Verify that claimed_public_digest matches the canonical public statement digest."""
-    if len(claimed_public_digest) != PUBLIC_DIGEST_BYTES:
+    """Compare a public digest with the canonical statement digest.
+
+    This checks byte binding only. It does not verify a proof or establish a
+    zero-knowledge/soundness guarantee.
+    """
+    if not isinstance(claimed_public_digest, bytes) or len(claimed_public_digest) != PUBLIC_DIGEST_BYTES:
         return False
-    tx_digest = transaction_digest_v3_candidate(statement)
-    preimage = PUBLIC_STATEMENT_DOMAIN_V3 + TX_V3_CANDIDATE_VERSION + tx_digest
-    expected = hashlib.shake_256(preimage).digest(PUBLIC_DIGEST_BYTES)
-    return expected == claimed_public_digest
+    try:
+        expected = public_statement_digest_v3(statement)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return hmac.compare_digest(expected, claimed_public_digest)
 
 
 def verify_production_proof_envelope(
     envelope: TxEnvelopeV3Candidate,
     *,
     spent_commitment: bytes,
-    sk_spend: bytes | None = None,
+    proof_verifier: ProofArtifactVerifier | None = None,
     profile: ProofBackendProfileV3 = TIER1_MOBILE_PROFILE,
 ) -> bool:
-    """Verify a production transaction envelope: profile bounds, spend auth, and statement binding."""
+    """Verify a candidate envelope through an explicitly trusted proof adapter.
+
+    Fail-closed invariants:
+    - absence of a real verifier rejects every envelope;
+    - deprecated server profile and unsupported authorization policies reject;
+    - nonzero auth_token is rejected because it is not part of the current V3
+      public statement or the active candidate guest's public digest;
+    - the adapter receives the exact statement digest and is responsible for
+      actual proof verification under the pinned backend configuration;
+    - adapter errors and non-boolean/truthy values are rejection, not success.
+
+    This function is not evidence that the current repository has a production
+    verifier. No reviewed Tier-1 proof adapter is currently integrated.
+    """
     if not isinstance(envelope, TxEnvelopeV3Candidate):
-        raise TypeError("envelope must be TxEnvelopeV3Candidate")
-
-    # 1. Validate profile parameters (soundness, blinding, FRI queries)
-    profile.validate()
-
-    # 2. If master spend key is provided, verify tau_auth authorization token
-    if sk_spend is not None:
-        if not validate_spend_authorization_v3_candidate(envelope, sk_spend, spent_commitment):
-            return False
-
-    # 3. Verify that envelope proof is present and matches the profile bounds
-    if not envelope.proof or len(envelope.proof) > 2_000_000:
+        return False
+    if proof_verifier is None or not callable(getattr(proof_verifier, "verify_proof", None)):
+        return False
+    if not isinstance(profile, ProofBackendProfileV3) or profile.is_deprecated:
+        return False
+    try:
+        profile.validate()
+    except (TypeError, ValueError, OverflowError):
         return False
 
-    return True
+    if envelope.statement.authorization_policy_id != V3_NK_POSSESSION_POLICY_CANDIDATE:
+        return False
+    if envelope.auth_token != ZERO_AUTH_TOKEN:
+        # Legacy MAC token is not bound by the candidate proof's public statement.
+        return False
+    if not isinstance(spent_commitment, bytes) or len(spent_commitment) != HASH_BYTES:
+        return False
+    if not isinstance(envelope.proof, bytes) or not 1 <= len(envelope.proof) <= MAX_PROOF_BYTES:
+        return False
+
+    try:
+        expected_digest = public_statement_digest_v3(envelope.statement)
+        result = proof_verifier.verify_proof(
+            envelope,
+            expected_public_digest=expected_digest,
+            spent_commitment=spent_commitment,
+            profile=profile,
+        )
+    except Exception:
+        # Verification is an untrusted boundary: parser, subprocess, or adapter
+        # errors must fail closed and must not leak sensitive exception content.
+        return False
+    return result is True

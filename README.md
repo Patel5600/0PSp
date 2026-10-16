@@ -1,25 +1,18 @@
 # 0PSP — Post-Quantum Private Spend Primitive
 
-> **Release Status: TESTNET LAUNCH (`v0.1.0-alpha`): GO | MAINNET STAGE-0 (GUARDED): GO | MAINNET STAGE-1 (UNCAPPED): GATED.**  
-> **Testnet Deployment:** Full functionality enabled with testnet tokens (zero financial risk, testnet assets only).  
-> **Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified): GO** (Max Note: $100 USDC / 0.05 ETH, Max TVL: $10,000; all-table B=80 blinding, multi-RPC live EIP-1186 sync, and automated SMT/Z3 formal proofs).  
-> **Mainnet Stage-1 (Uncapped Institutional TVL): Gated on External Audit** (independent third-party cryptographic audits required for unlimited institutional capital).
-
-0PSP targets private coin spends with namespace-scoped coin identities, deterministic replay protection, threshold authorization, and post-quantum zero-knowledge proofs over the spend relation. This repository implements the zero-dependency C11 constant-time cryptographic engine (`libpsp_native`), durable SQLite ledger with a 4,096-state historical anchor ring, EVM light-client state verifier, and the OpenVM v2.0.2 zkVM guest circuit.
+> **Release Status: TESTNET / SYNTHETIC TESTING ONLY. MAINNET LIVE-VALUE TRANSFERS: NO-GO.**
+> Testnet readiness and green unit tests do not establish production proof soundness, authorization, zero knowledge, custody, finalized state, or recovery readiness.
+> External audit is deferred as a separate milestone; internal implementation and cryptographic gates remain mandatory.
+0PSP is a research-stage private-spend protocol candidate. It contains C11 cryptographic primitives, a single-node SQLite candidate ledger, EVM proof components, and an experimental OpenVM guest. These components are not yet composed into a complete production spend verifier with proven authorization, trusted finalized state, end-to-end zero knowledge, custody, and recovery.
 
 ## Current security gate (2026-10-16; Release Candidate v0.1.0)
 
 - **Testnet Operational Status: GO (`v0.1.0-alpha`).** The local protocol test suite is 100% green (719 collected, 716 passed, 3 skipped, 0 failures), with zero-dependency C11 native cryptographic engine (`libpsp_native`), 30 differential tests passing against independent reference implementations (`pycryptodome`, `rlp`, `HexaryTrie`), Rust OpenVM v2.0.2 zkVM guest circuit verification passing, and cycle-accurate hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
   - *Operational Scope:* Enabled strictly for testnet coin issuance, shielded transfers, and nullifier consumption with testnet tokens (zero financial risk, testnet assets only).
-- **Mainnet Release Gate Structure:**
-  - **`Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified): GO`**: Live mainnet deployment with immutable smart contract caps:
-    - Max Note Value Cap: $100 USDC / 0.05 ETH.
-    - Max Global Pool TVL Cap: $10,000.
-    - Automated SMT/Z3 Formal Proofs (`scripts/formal_verify_v3_invariants.py`): Zero modular wraparound on 64-bit value conservation, full row rank 78 of 78x80 Vandermonde matrix on disjoint cosets, and bijective statement binding mathematically verified.
-    - Full-Trace ZK Blinding: B = 80 rows across Main trace, Keccak coprocessor, and LogUp bus multiplicities via zero-sum dummy pairs (`src/core/zk_trace_blinding.py`).
-    - Multi-RPC Finalized Checkpoint Sync: Zero-dependency EIP-1186 MPT state proof verifier (`src/adapters/live_evm_anchor_sync.py`) bound to 4,096-state anchor ring.
-    - Primary Canonical Mainnet Prover: Client-Side C11 Tier-1 + Standalone Native Keccak AIR ($2^{17}$ rows, 110 MB RAM) running entirely on user devices.
-  - **`Mainnet Stage-1 (Uncapped Institutional TVL): Gated on External Audit`**: Gated pending independent external third-party cryptographic audits for uncapped institutional pools.
+- **Mainnet Release: NO-GO for all live-value transfers.**
+  - The current V3 proof adapter is not a reviewed production verifier; proof-profile metadata and non-empty proof bytes are not cryptographic verification.
+  - The complete shared-witness spend relation, production authorization, authenticated root/finality, issuance/custody, reorg/recovery, and end-to-end witness hiding remain mandatory.
+  - External audit remains deferred, but that does not waive internal cryptographic and end-to-end evidence.
 
 ## Engineering Doctrine (The 5 Pillars)
 
@@ -28,15 +21,15 @@
 1. **Pillar 1: Attacking (Red-Team):** Adversarial suites ([`tests/adversarial/`](tests/adversarial/)) enforcing SQLite fault injection simulating power loss / uncommitted aborts, duplicate-nullifier concurrency races, parent anchor replay prevention, and OpenVM public-statement manipulation.
 2. **Pillar 2: Evidence (Empirical):** Hard measurements, byte-for-byte NIST FIPS 202 Known Answer Tests (KAT), 716 automated tests passing with zero failures, and microarchitectural cycle-counter hardware RDTSC timing screens (`|t| = 2.7838 < 4.5`).
 3. **Pillar 3: Proof (Mathematical):** Formal reduction of commitment binding to SHAKE256-384 collision resistance ($O(2^{128})$ quantum queries via BHT algorithm), formal computational hiding in QROM ([`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)), and composed security game theorems ([`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md)).
-4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, depth-63 Merkle paths, typed descriptors (`NamespaceIdV3`), and domain-separated transaction candidate fields (`TxFieldsV3Candidate`).
+4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, depth-32 V3 candidate Merkle paths, typed descriptors (`NamespaceIdV3`), and domain-separated transaction candidate fields (`TxFieldsV3Candidate`).
 5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 constant-time cryptographic engine ([`native/`](native/)), volatile scrubbing memory barriers (`psp_secure_zero`), OS RAM physical pinning (`VirtualLock`/`mlock`), Rust OpenVM zkVM spend circuit ([`proof/openvm/`](proof/openvm/)), auto-discovering ctypes fixtures ([`tests/conftest.py`](tests/conftest.py)), and zero uncommitted code or build garbage.
-6. **Pillar 6: Honest Limits (Zero Hype):** Testnet Launch (`v0.1.0-alpha`) is **GO**; Mainnet Stage-0 (Guarded / TVL-Capped + Z3 Verified) is **GO**; Mainnet Stage-1 (Uncapped Institutional TVL) remains **GATED (NO-GO)** until external third-party cryptographic audits are completed.
+6. **Pillar 6: Honest Limits (Zero Hype):** Testnet/synthetic testing may proceed within its stated limits. All Mainnet live-value transfers, both capped and uncapped, remain **NO-GO** until implementation, proof, authorization, custody, state, recovery, and integration gates pass on one exact release commit. External audit is deferred separately and is not a substitute for these internal gates.
 
-Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Every mandatory gate is explicitly evaluated; complete Mainnet live-value transfer remains strictly gated until all mandatory external criteria are evidenced closed.
+Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Mainnet remains NO-GO until all internal mandatory criteria are evidenced closed on one exact release commit. External audit is deferred and not claimed.
 
 ## Architecture and Core Subsystems
 
-0PSP comprises four integrated, production-grade subsystems:
+0PSP currently contains the following research-stage components; their presence does not imply a production-ready end-to-end protocol:
 
 ### 1. Zero-Dependency C11 Cryptographic Engine (`libpsp_native`)
 - **NIST FIPS 202 Compliant:** Native C11 branchless Keccak-f[1600] permutation core with SHAKE256-384 XOF and HMAC-SHA3-384 implementations without external libraries (OpenSSL completely removed).
@@ -44,20 +37,14 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 - **Defense-in-Depth Memory Scrubbing:** Volatile compiler memory barrier scrubbing (`psp_secure_zero`) and OS RAM physical page pinning (`VirtualLock` on Windows, `mlock` on POSIX) preventing sensitive key material from being paged to swap disk.
 - **Cross-Platform:** Compiles cleanly with GCC, Clang, and MSVC across Linux, macOS, and Windows.
 
-### 2. Post-Quantum zkVM Spend Relation (`OpenVM v2.0.2`)
-- **Spend Circuit (`spend_v3.rs`):** Rust guest circuit executing in OpenVM v2.0.2 zkVM.
-- **Complete Predicate Enforcement:**
-  - 63-level namespace-scoped Merkle membership path verification.
-  - Recipient nullifier-deriving key (`nk`) commitment opening.
-  - Note commitment opening (`CommitV3`).
-  - Same-witness nullifier derivation (`NullifierV3` HMAC-SHA3-384).
-  - Anchored output identity derivation (binding parent anchor + output slot index) strictly preventing coin-ID reuse.
-  - Value conservation ($v_{in} = v_{out} + fee$) with strict range bounds and carry overflow containment.
-- **Tested & Benchmarked:** Passed 5 adversarial test suites covering witness tampering, public statement mutation, and single-output profile enforcement. Proving and verification performance benchmarked in CI (645,001-byte proof; verification in 0.06–0.10s).
-
+### 2. Experimental OpenVM Spend Candidate (`OpenVM v2.0.2`)
+- **Status:** non-production candidate only; the active guest uses a depth-32 Merkle path and u32 leaf index.
+- Candidate fixtures exercise a one-input/one-output predicate, but this is not evidence for complete authorization, authenticated finalized state, issuance/custody, atomic spend composition, or end-to-end zero knowledge.
+- Historical proof-size and verification-time measurements apply only to the exact cited experimental guest/configuration; they are not target-device or complete-relation benchmarks.
+- **Production requirement:** a pinned real proof verifier must enforce the full accepted relation and be integrated with trusted state and atomic ledger transitions before any live-value release.
 ### 3. Durable SQLite Ledger & Historical Anchor Ring
 - **Atomic State Transitions:** SQLite WAL mode with immediate transactions enforcing unique deposit anchors, unique output commitments, and single-use nullifiers.
-- **Historical Anchor Ring (CHp4.26 / PR #32):** Retains a 256-state circular buffer of committed `(commitment_root, ledger_state_head)` anchors. Spends may verify against any valid retained anchor while appending outputs atomically to the latest state.
+- **Historical Anchor Ring:** The current candidate configuration defaults to 4,096 local root/head snapshots; earlier PR #32 evidence used 256. This is local history, not distributed consensus, finalized-state authentication, or external rollback protection.
 - **Crash & Fault Injection Resilience:** Tested against uncommitted process aborts, power-loss simulations, concurrent duplicate nullifier races, and direct Merkle node corruption via `audit_integrity()`.
 
 ### 4. EVM Light-Client Deposit Evidence & Authorizer
@@ -67,11 +54,11 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 
 ## Mathematical Reductions & Formal Security
 
-The cryptographic security of 0PSP is formally proven in the Quantum Random-Oracle Model (QROM) and verified through composed security games:
+The theory documents contain conditional reductions and security-game models for selected primitives. These do not establish that the current OpenVM candidate or whole deployed protocol satisfies the assumptions, soundness target, authorization policy, or end-to-end zero-knowledge property:
 
 - **Formal Commitment Binding (QROM):** Reduced directly to the collision resistance of SHAKE256-384. Under the Brassard-Høyer-Tapp (BHT) algorithm, finding a collision requires $\Omega(2^{128})$ quantum queries (see [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md)).
 - **Formal Statistical Hiding (QROM):** Theorem 1 in [`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md) proves that given 256-bit entropy in $(coin\_id, r\_nf, salt)$, an adversary's hiding advantage is bounded by $\text{Adv}^{\text{hide}} \le 2^{-160}$.
-- **Composed Security Games:** Fully formalized in [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md):
+- **Composed Security-Game Models:** Defined in [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md). The model claims need to be matched to an accepted implementation and complete proof relation before being treated as production guarantees:
   - **Balance Conservation Game:** Proves no polynomial-time adversary can inflate protocol supply without violating either MPT inclusion, hash collision resistance, or range-bound arithmetic.
   - **Recipient Unlinkability Game (Anonymity):** Formalizes indistinguishability under chosen-witness attacks, ensuring note spends cannot be linked to the recipient or creator.
   - **Double-Spend Replay Prevention Game:** Proves that an accepted spend transition irrevocably consumes the nullifier, preventing any subsequent spend of the same coin.
