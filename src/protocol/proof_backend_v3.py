@@ -17,11 +17,6 @@ import hmac
 from dataclasses import dataclass
 from typing import Final, Protocol
 
-from src.core.zk_trace_blinding import (
-    CANONICAL_ZK_BLINDING_ROWS,
-    DEFAULT_ZK_BLINDING_ROWS,
-    LEAF_SALT_BYTES,
-)
 from src.protocol.spend_relation_v3 import (
     PUBLIC_DIGEST_BYTES,
     PUBLIC_STATEMENT_DOMAIN_V3,
@@ -34,12 +29,8 @@ from src.protocol.transaction_v3_candidate import (
     transaction_digest_v3_candidate,
 )
 
-# These values describe a proposed configuration, not a proved security result.
-CANONICAL_MAINNET_PROVER_NAME: Final[str] = "0PSP-Tier1-Mobile-Edge-AIR"
-SERVER_PROVER_STATUS: Final[str] = "OPTIONAL / DEPRECATED"
-PINNED_OPENVM_COMMIT: Final[str] = "59a69b8b0cbee7011ac978e4cc07707ee3681944"
-TIER1_NATIVE_AIR_ROWS: Final[int] = 1 << 17
-TIER2_OPENVM_MAX_ROWS: Final[int] = 1 << 24
+# These values describe the active candidate integration, not a production security claim.
+OPENVM_V2_COMMIT: Final[str] = "59a69b8b0cbee7011ac978e4cc07707ee3681944"
 TARGET_PQ_SOUNDNESS_BITS: Final[float] = 128.0
 DECLARED_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
 # Backwards-compatible legacy name: zero means no composed bound is established.
@@ -60,7 +51,13 @@ class ProofBackendError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class ProofBackendProfileV3:
-    """Declared backend parameters. These fields alone cannot certify security."""
+    """Non-authoritative metadata for the candidate verifier boundary.
+
+    Zero values for backend-specific scalar fields mean "not represented or not
+    established by this Python adapter", not that the upstream backend uses zero.
+    The exact OpenVM parameters are constructed and checked by the pinned Rust SDK
+    runner. This record is deliberately not a security certificate.
+    """
 
     backend_name: str
     is_zero_knowledge: bool
@@ -97,18 +94,12 @@ class ProofBackendProfileV3:
         for name, value in integer_fields.items():
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ProofBackendError(f"{name} must be a non-negative integer")
-        if not self.is_zero_knowledge:
-            raise ProofBackendError("candidate profile declares no zero-knowledge witness hiding")
-        if self.blinding_rows < DEFAULT_ZK_BLINDING_ROWS:
-            raise ProofBackendError(
-                f"blinding rows ({self.blinding_rows}) below declared minimum ({DEFAULT_ZK_BLINDING_ROWS})"
-            )
-        if self.leaf_salt_bytes < LEAF_SALT_BYTES:
-            raise ProofBackendError(
-                f"leaf salt width ({self.leaf_salt_bytes}) below declared minimum ({LEAF_SALT_BYTES})"
-            )
-        if self.extension_degree < 1 or self.fri_queries < 1 or self.fri_blowup_factor < 2:
-            raise ProofBackendError("extension degree, FRI query count, and blowup factor are invalid")
+        # A false ZK flag is a valid and expected status for an unproven backend.
+        # No positive blinding-row/leaf-salt metadata can turn it into a ZK proof.
+        if self.extension_degree < 1 or self.fri_blowup_factor < 2:
+            raise ProofBackendError("extension degree or blowup factor is invalid")
+        # fri_queries and pow_grinding_bits are zero when this scalar profile does
+        # not faithfully encode OpenVM's per-round query schedule and multiple PoW terms.
         if not isinstance(self.proven_security_bits, (int, float)) or isinstance(self.proven_security_bits, bool):
             raise ProofBackendError("security-bit declaration must be numeric")
         if not math.isfinite(float(self.proven_security_bits)) or self.proven_security_bits < 0:
@@ -117,33 +108,35 @@ class ProofBackendProfileV3:
         # Only a real verifier for an exact, reviewed parameter set can establish that.
 
 
-TIER1_MOBILE_PROFILE = ProofBackendProfileV3(
-    backend_name=CANONICAL_MAINNET_PROVER_NAME,
-    is_zero_knowledge=True,
-    blinding_rows=CANONICAL_ZK_BLINDING_ROWS,
-    leaf_salt_bytes=32,
-    extension_degree=5,
-    fri_queries=38,
-    fri_blowup_factor=16,
-    pow_grinding_bits=20,
+OPENVM_V2_CANDIDATE_PROFILE = ProofBackendProfileV3(
+    backend_name="OpenVM v2.0.2 App STARK candidate (100-bit RBR preset)",
+    is_zero_knowledge=False,  # end-to-end ZK has not been established
+    blinding_rows=0,          # no backend-level trace-masking evidence is integrated
+    leaf_salt_bytes=0,        # not an OpenVM App STARK parameter
+    extension_degree=4,       # upstream config uses BabyBear^4
+    fri_queries=0,            # per-round query count is parameter-derived
+    fri_blowup_factor=2,      # upstream app log blowup is 1
+    pow_grinding_bits=0,      # several distinct PoW terms exist; no single total is asserted
     proven_security_bits=DECLARED_COMPOSITE_SOUNDNESS_BITS,
     is_deprecated=False,
 )
 
+# Compatibility alias for older internal imports only. This does not indicate
+# mobile readiness or a zero-knowledge property.
+TIER1_MOBILE_PROFILE = OPENVM_V2_CANDIDATE_PROFILE
 TIER2_SERVER_PROFILE = ProofBackendProfileV3(
-    backend_name="0PSP-Tier2-OpenVM-v2.0.2 (OPTIONAL / DEPRECATED)",
-    is_zero_knowledge=True,
-    blinding_rows=CANONICAL_ZK_BLINDING_ROWS,
-    leaf_salt_bytes=32,
-    extension_degree=5,
-    fri_queries=38,
-    fri_blowup_factor=16,
-    pow_grinding_bits=20,
-    proven_security_bits=DECLARED_COMPOSITE_SOUNDNESS_BITS,
+    backend_name="Legacy unreviewed candidate profile (deprecated)",
+    is_zero_knowledge=False,
+    blinding_rows=0,
+    leaf_salt_bytes=0,
+    extension_degree=4,
+    fri_queries=0,
+    fri_blowup_factor=2,
+    pow_grinding_bits=0,
+    proven_security_bits=0.0,
     is_deprecated=True,
 )
-
-PRIMARY_PROVER_PROFILE: Final[ProofBackendProfileV3] = TIER1_MOBILE_PROFILE
+PRIMARY_PROVER_PROFILE: Final[ProofBackendProfileV3] = OPENVM_V2_CANDIDATE_PROFILE
 
 
 class ProofArtifactVerifier(Protocol):
@@ -153,8 +146,8 @@ class ProofArtifactVerifier(Protocol):
     validate its backend/verifying key/executable configuration, enforce the
     complete accepted spend relation, and compare the proof's actual public output
     with `expected_public_digest`. It must not implement this contract by checking
-    a host predicate or by returning a constant. The current repository does not
-    provide a reviewed Tier-1 implementation satisfying this contract.
+    a host predicate or by returning a constant. The current repository only integrates an experimental OpenVM candidate adapter; it does not
+    provide a production verifier satisfying this contract.
     """
 
     def verify_proof(
@@ -162,7 +155,6 @@ class ProofArtifactVerifier(Protocol):
         envelope: TxEnvelopeV3Candidate,
         *,
         expected_public_digest: bytes,
-        spent_commitment: bytes,
         profile: ProofBackendProfileV3,
     ) -> bool:
         """Cryptographically verify this proof and all statement/policy bindings."""
@@ -199,9 +191,8 @@ def verify_public_statement_digest(
 def verify_candidate_proof_envelope(
     envelope: TxEnvelopeV3Candidate,
     *,
-    spent_commitment: bytes,
     proof_verifier: ProofArtifactVerifier | None = None,
-    profile: ProofBackendProfileV3 = TIER1_MOBILE_PROFILE,
+    profile: ProofBackendProfileV3 = OPENVM_V2_CANDIDATE_PROFILE,
 ) -> bool:
     """Verify a *candidate* envelope through an explicitly trusted proof adapter.
 
@@ -216,16 +207,18 @@ def verify_candidate_proof_envelope(
       public statement or the active candidate guest's public digest;
     - the adapter receives the exact statement digest and is responsible for
       actual proof verification under the pinned backend configuration;
+    - only the canonical OpenVM candidate profile object is accepted; zero-valued
+      security metadata explicitly means no composed bound is established;
     - adapter errors and non-boolean/truthy values are rejection, not success.
 
     This function is not evidence that the current repository has a production
-    verifier. No reviewed Tier-1 proof adapter is currently integrated.
+    verifier. The OpenVM candidate adapter can satisfy this candidate API, but it is not a production verifier.
     """
     if not isinstance(envelope, TxEnvelopeV3Candidate):
         return False
     if proof_verifier is None or not callable(getattr(proof_verifier, "verify_proof", None)):
         return False
-    if not isinstance(profile, ProofBackendProfileV3) or profile.is_deprecated:
+    if profile is not OPENVM_V2_CANDIDATE_PROFILE or profile.is_deprecated:
         return False
     try:
         profile.validate()
@@ -237,8 +230,6 @@ def verify_candidate_proof_envelope(
     if envelope.auth_token != ZERO_AUTH_TOKEN:
         # Legacy MAC token is not bound by the candidate proof's public statement.
         return False
-    if not isinstance(spent_commitment, bytes) or len(spent_commitment) != HASH_BYTES:
-        return False
     if not isinstance(envelope.proof, bytes) or not 1 <= len(envelope.proof) <= MAX_PROOF_BYTES:
         return False
 
@@ -247,7 +238,6 @@ def verify_candidate_proof_envelope(
         result = proof_verifier.verify_proof(
             envelope,
             expected_public_digest=expected_digest,
-            spent_commitment=spent_commitment,
             profile=profile,
         )
     except Exception:
@@ -261,9 +251,8 @@ def verify_candidate_proof_envelope(
 def verify_production_proof_envelope(
     envelope: TxEnvelopeV3Candidate,
     *,
-    spent_commitment: bytes,
     proof_verifier: ProofArtifactVerifier | None = None,
-    profile: ProofBackendProfileV3 = TIER1_MOBILE_PROFILE,
+    profile: ProofBackendProfileV3 = OPENVM_V2_CANDIDATE_PROFILE,
 ) -> bool:
     """Production spend acceptance gate; intentionally rejects while proof gates are open.
 
@@ -282,13 +271,12 @@ def verify_production_proof_envelope(
         return False
     # Even after a future gate change, refuse caller-manufactured profile objects or
     # a profile whose declared bound remains below the required target.
-    if profile is not TIER1_MOBILE_PROFILE:
+    if profile is not OPENVM_V2_CANDIDATE_PROFILE:
         return False
     if profile.claimed_security_bits < TARGET_PQ_SOUNDNESS_BITS:
         return False
     return verify_candidate_proof_envelope(
         envelope,
-        spent_commitment=spent_commitment,
         proof_verifier=proof_verifier,
         profile=profile,
     )

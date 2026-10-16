@@ -17,7 +17,7 @@ from src.protocol.proof_backend_v3 import (
     MAX_PROOF_BYTES,
     ProofBackendError,
     ProofBackendProfileV3,
-    TIER1_MOBILE_PROFILE,
+    OPENVM_V2_CANDIDATE_PROFILE,
     TIER2_SERVER_PROFILE,
     ZERO_AUTH_TOKEN,
     PRODUCTION_SPEND_VERIFICATION_ENABLED,
@@ -41,7 +41,6 @@ STATE_HEAD = b"\x44" * 48
 STATE_CONTEXT = b"\x55" * 64
 OUTPUT_ENTROPY = b"\x66" * 32
 OUT_COMM = CoinCommitmentV3(b"\x77" * 48)
-SPENT_COMMITMENT = b"\x88" * 48
 CANDIDATE_PROOF = b"test-only-placeholder-proof"
 
 
@@ -61,59 +60,45 @@ def create_statement() -> TxFieldsV3Candidate:
 
 
 def test_declared_profile_configuration_is_structurally_valid() -> None:
-    TIER1_MOBILE_PROFILE.validate()
+    OPENVM_V2_CANDIDATE_PROFILE.validate()
     TIER2_SERVER_PROFILE.validate()
     # These are configuration declarations, not cryptographic security evidence. The composed bound remains unestablished.
-    assert TIER1_MOBILE_PROFILE.claimed_security_bits == 0.0
-    assert TIER1_MOBILE_PROFILE.claimed_security_bits < 128.0
-    assert TIER1_MOBILE_PROFILE.blinding_rows == 80
-    assert TIER1_MOBILE_PROFILE.leaf_salt_bytes == 32
-    assert TIER1_MOBILE_PROFILE.is_deprecated is False
+    assert OPENVM_V2_CANDIDATE_PROFILE.claimed_security_bits == 0.0
+    assert OPENVM_V2_CANDIDATE_PROFILE.claimed_security_bits < 128.0
+    assert OPENVM_V2_CANDIDATE_PROFILE.is_zero_knowledge is False
+    assert OPENVM_V2_CANDIDATE_PROFILE.blinding_rows == 0
+    assert OPENVM_V2_CANDIDATE_PROFILE.leaf_salt_bytes == 0
+    assert OPENVM_V2_CANDIDATE_PROFILE.extension_degree == 4
+    assert OPENVM_V2_CANDIDATE_PROFILE.fri_queries == 0
+    assert OPENVM_V2_CANDIDATE_PROFILE.fri_blowup_factor == 2
+    assert OPENVM_V2_CANDIDATE_PROFILE.is_deprecated is False
     assert TIER2_SERVER_PROFILE.is_deprecated is True
 
 
-def test_invalid_declared_profile_parameters_fail_validation() -> None:
-    bad_zk = ProofBackendProfileV3(
-        backend_name="Non-ZK",
+def test_profile_validation_checks_shape_without_claiming_zero_knowledge() -> None:
+    # A non-ZK profile is structurally valid; ZK is an evidence status, not a
+    # validation requirement for candidate backend metadata.
+    non_zk = ProofBackendProfileV3(
+        backend_name="Experimental non-ZK",
         is_zero_knowledge=False,
-        blinding_rows=80,
-        leaf_salt_bytes=32,
-        extension_degree=5,
-        fri_queries=38,
-        fri_blowup_factor=16,
-        pow_grinding_bits=20,
-        proven_security_bits=130.0,
-    )
-    with pytest.raises(ProofBackendError, match="no zero-knowledge"):
-        bad_zk.validate()
-
-    bad_blinding = ProofBackendProfileV3(
-        backend_name="Weak-Blinding",
-        is_zero_knowledge=True,
-        blinding_rows=39,
-        leaf_salt_bytes=32,
-        extension_degree=5,
-        fri_queries=38,
-        fri_blowup_factor=16,
-        pow_grinding_bits=20,
-        proven_security_bits=130.0,
-    )
-    with pytest.raises(ProofBackendError, match="blinding rows .* below declared minimum"):
-        bad_blinding.validate()
-
-    bad_queries = ProofBackendProfileV3(
-        backend_name="No-Queries",
-        is_zero_knowledge=True,
-        blinding_rows=80,
-        leaf_salt_bytes=32,
-        extension_degree=5,
+        blinding_rows=0,
+        leaf_salt_bytes=0,
+        extension_degree=4,
         fri_queries=0,
-        fri_blowup_factor=16,
-        pow_grinding_bits=20,
-        proven_security_bits=130.0,
+        fri_blowup_factor=2,
+        pow_grinding_bits=0,
+        proven_security_bits=0.0,
     )
-    with pytest.raises(ProofBackendError, match="extension degree, FRI query count"):
-        bad_queries.validate()
+    non_zk.validate()
+    assert non_zk.is_zero_knowledge is False
+
+    invalid = replace(non_zk, backend_name=" ", extension_degree=0)
+    with pytest.raises(ProofBackendError, match="backend_name"):
+        invalid.validate()
+
+    invalid_numeric = replace(non_zk, proven_security_bits=float("nan"))
+    with pytest.raises(ProofBackendError, match="finite and non-negative"):
+        invalid_numeric.validate()
 
 
 def test_public_statement_digest_checks_only_byte_binding() -> None:
@@ -139,13 +124,11 @@ class _TestOnlyProofVerifier:
         envelope: TxEnvelopeV3Candidate,
         *,
         expected_public_digest: bytes,
-        spent_commitment: bytes,
         profile: ProofBackendProfileV3,
     ) -> bool:
         self.calls.append({
             "envelope": envelope,
             "expected_public_digest": expected_public_digest,
-            "spent_commitment": spent_commitment,
             "profile": profile,
         })
         return self.result  # type: ignore[return-value]
@@ -169,7 +152,6 @@ def test_candidate_envelope_rejects_when_verifier_is_not_configured() -> None:
     # returned True when sk_spend was omitted. No verifier means no acceptance.
     assert verify_candidate_proof_envelope(
         create_envelope(),
-        spent_commitment=SPENT_COMMITMENT,
     ) is False
 
 
@@ -179,7 +161,6 @@ def test_production_envelope_is_hard_locked_while_security_gates_are_open() -> N
     # Even a fake adapter that returns literal True cannot cross the release latch.
     assert verify_production_proof_envelope(
         create_envelope(),
-        spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
     ) is False
     assert verifier.calls == []
@@ -187,14 +168,13 @@ def test_production_envelope_is_hard_locked_while_security_gates_are_open() -> N
 
 def test_caller_manufactured_high_security_profile_cannot_override_release_latch() -> None:
     forged_profile = replace(
-        TIER1_MOBILE_PROFILE,
+        OPENVM_V2_CANDIDATE_PROFILE,
         backend_name="Caller-Claimed-Production-Backend",
         proven_security_bits=256.0,
     )
     verifier = _TestOnlyProofVerifier(True)
     assert verify_production_proof_envelope(
         create_envelope(),
-        spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
         profile=forged_profile,
     ) is False
@@ -209,7 +189,6 @@ def test_envelope_delegates_exact_statement_to_configured_verifier() -> None:
 
     assert verify_candidate_proof_envelope(
         envelope,
-        spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
     ) is True
 
@@ -217,8 +196,7 @@ def test_envelope_delegates_exact_statement_to_configured_verifier() -> None:
     call = verifier.calls[0]
     assert call["envelope"] is envelope
     assert call["expected_public_digest"] == public_statement_digest_v3(envelope.statement)
-    assert call["spent_commitment"] == SPENT_COMMITMENT
-    assert call["profile"] is TIER1_MOBILE_PROFILE
+    assert call["profile"] is OPENVM_V2_CANDIDATE_PROFILE
 
 
 @pytest.mark.parametrize(
@@ -240,7 +218,6 @@ def test_unbound_or_malformed_envelope_fields_are_rejected(
     verifier = _TestOnlyProofVerifier(True)
     assert verify_candidate_proof_envelope(
         create_envelope(**kwargs),
-        spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
     ) is False
     assert verifier.calls == []
@@ -255,22 +232,18 @@ def test_legacy_secret_mac_policy_is_not_accepted_as_public_proof_authorization(
 
     assert verify_candidate_proof_envelope(
         create_envelope(statement=statement),
-        spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
     ) is False
     assert verifier.calls == []
 
 
-@pytest.mark.parametrize(
-    "bad_spent_commitment",
-    [b"", b"\x00" * 47, b"\x00" * 49, bytearray(SPENT_COMMITMENT)],
-)
-def test_bad_spent_commitment_fails_closed(bad_spent_commitment: object) -> None:
+def test_noncanonical_profile_is_rejected_by_candidate_envelope() -> None:
+    forged_profile = replace(OPENVM_V2_CANDIDATE_PROFILE, backend_name="different backend")
     verifier = _TestOnlyProofVerifier(True)
     assert verify_candidate_proof_envelope(
         create_envelope(),
-        spent_commitment=bad_spent_commitment,  # type: ignore[arg-type]
         proof_verifier=verifier,
+        profile=forged_profile,
     ) is False
     assert verifier.calls == []
 
@@ -281,8 +254,7 @@ def test_rejects_backend_false_and_non_boolean_truthy_results() -> None:
         verifier = _TestOnlyProofVerifier(result)
         assert verify_candidate_proof_envelope(
             envelope,
-            spent_commitment=SPENT_COMMITMENT,
-            proof_verifier=verifier,
+                proof_verifier=verifier,
         ) is False
 
 
@@ -293,7 +265,6 @@ def test_backend_exception_fails_closed() -> None:
 
     assert verify_candidate_proof_envelope(
         create_envelope(),
-        spent_commitment=SPENT_COMMITMENT,
         proof_verifier=RaisingVerifier(),
     ) is False
 
@@ -302,7 +273,6 @@ def test_deprecated_backend_is_never_used_for_production_envelope() -> None:
     verifier = _TestOnlyProofVerifier(True)
     assert verify_candidate_proof_envelope(
         create_envelope(),
-        spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
         profile=TIER2_SERVER_PROFILE,
     ) is False

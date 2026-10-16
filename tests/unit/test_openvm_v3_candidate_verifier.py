@@ -15,8 +15,13 @@ from src.protocol.openvm_v3_candidate_verifier import (
     OpenVMV3CandidateVerifierError,
     v3_spend_public_digest_candidate,
 )
+from src.protocol.proof_backend_v3 import (
+    OPENVM_V2_CANDIDATE_PROFILE,
+    verify_candidate_proof_envelope,
+)
 from src.protocol.transaction_v3_candidate import (
     V3_NK_POSSESSION_POLICY_CANDIDATE,
+    TxEnvelopeV3Candidate,
     TxFieldsV3Candidate,
     TransactionV3CandidateError,
 )
@@ -116,6 +121,57 @@ def test_verifier_binds_proof_to_exact_executable_and_transaction_digest(
     assert kwargs["check"] is False
     assert kwargs["timeout"] == 9
 
+
+
+def test_real_openvm_adapter_wires_into_candidate_envelope_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    verifier, *_ = make_verifier(tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+        captured["command"] = command
+        expected_digest = Path(command[4]).read_text(encoding="ascii").strip()
+        assert expected_digest == v3_spend_public_digest_candidate(statement()).hex()
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(
+        "src.protocol.openvm_v3_candidate_verifier.subprocess.run",
+        fake_run,
+    )
+    envelope = TxEnvelopeV3Candidate(
+        statement=statement(),
+        auth_token=bytes(48),
+        proof=PROOF_BYTES,
+    )
+
+    assert verify_candidate_proof_envelope(
+        envelope,
+        proof_verifier=verifier,
+        profile=OPENVM_V2_CANDIDATE_PROFILE,
+    ) is True
+    assert "command" in captured
+
+
+def test_openvm_adapter_rejects_unbound_nonzero_auth_token_before_checker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    verifier, *_ = make_verifier(tmp_path)
+    monkeypatch.setattr(
+        "src.protocol.openvm_v3_candidate_verifier.subprocess.run",
+        lambda *_args, **_kwargs: pytest.fail("checker must not run for unbound auth token"),
+    )
+    envelope = TxEnvelopeV3Candidate(
+        statement=statement(),
+        auth_token=bytes([1]) * 48,
+        proof=PROOF_BYTES,
+    )
+
+    assert verify_candidate_proof_envelope(
+        envelope,
+        proof_verifier=verifier,
+        profile=OPENVM_V2_CANDIDATE_PROFILE,
+    ) is False
 
 def test_checker_nonzero_exit_is_a_rejection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
