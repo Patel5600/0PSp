@@ -41,9 +41,10 @@ PINNED_OPENVM_COMMIT: Final[str] = "59a69b8b0cbee7011ac978e4cc07707ee3681944"
 TIER1_NATIVE_AIR_ROWS: Final[int] = 1 << 17
 TIER2_OPENVM_MAX_ROWS: Final[int] = 1 << 24
 TARGET_PQ_SOUNDNESS_BITS: Final[float] = 128.0
-DECLARED_COMPOSITE_SOUNDNESS_BITS: Final[float] = 130.3
-# Backwards-compatible legacy name. The value is a historical claim, not evidence.
-PROVEN_COMPOSITE_SOUNDNESS_BITS: Final[float] = DECLARED_COMPOSITE_SOUNDNESS_BITS
+DECLARED_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
+# Backwards-compatible legacy name: zero means no composed bound is established.
+# Do not restore a positive value until it is justified for the exact accepted backend.
+PROVEN_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
 MAX_PROOF_BYTES: Final[int] = 2_000_000
 HASH_BYTES: Final[int] = 48
 ZERO_AUTH_TOKEN: Final[bytes] = bytes(HASH_BYTES)
