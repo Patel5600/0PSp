@@ -41,6 +41,17 @@ def read_lower_hex(path: Path, expected_bytes: int, field: str) -> bytes:
     return bytes.fromhex(raw)
 
 
+def write_integration_evidence(evidence_dir: Path, evidence: dict[str, object]) -> Path:
+    """Write machine-readable ledger test evidence and assert valid JSON encoding."""
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_path = evidence_dir / "ledger-integration.json"
+    serialized = json.dumps(evidence, sort_keys=True, indent=2) + "\n"
+    if json.loads(serialized) != evidence:
+        raise RuntimeError("serialized ledger integration evidence failed JSON round-trip")
+    evidence_path.write_text(serialized, encoding="utf-8")
+    return evidence_path
+
+
 def main() -> int:
     if len(sys.argv) != 7:
         print(
@@ -270,11 +281,7 @@ def main() -> int:
         "production_acceptance_enabled": False,
         "release_status": "NO-GO",
     }
-    evidence_path = evidence_dir / "ledger-integration.json"
-    evidence_path.write_text(
-        json.dumps(integration_evidence, sort_keys=True, indent=2) + "\\n",
-        encoding="utf-8",
-    )
+    evidence_path = write_integration_evidence(evidence_dir, integration_evidence)
     print(f"LEDGER_INTEGRATION_EVIDENCE={evidence_path}")
     print(
         "PASS: SQLite candidate ledger restarted and audited after the real-proof spend; "
