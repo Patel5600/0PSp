@@ -156,10 +156,18 @@ def evaluate_mobile_prover_architectures(
     Returns analytical model projections based on power-of-two STARK polynomial domain sizes
     and mobile OS memory bounds.
     """
-    if tree_depth < 1 or tree_depth > 64:
-        raise ValueError(f"tree_depth must be in 1..64, got {tree_depth}")
-    if outputs < 1 or outputs > 1024:
-        raise ValueError(f"outputs must be in 1..1024, got {outputs}")
+    if (
+        isinstance(tree_depth, bool)
+        or not isinstance(tree_depth, int)
+        or not 1 <= tree_depth <= 64
+    ):
+        raise ValueError(f"tree_depth must be an integer in 1..64, got {tree_depth!r}")
+    if (
+        isinstance(outputs, bool)
+        or not isinstance(outputs, int)
+        or not 1 <= outputs <= 1024
+    ):
+        raise ValueError(f"outputs must be an integer in 1..1024, got {outputs!r}")
 
     # Baseline 1-in/1-out depth-63 reference count: 25 + (63*2) + (1*2) = 153 permutations
     p_mono = calculate_monolithic_permutations(tree_depth, outputs)
