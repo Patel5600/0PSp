@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -71,15 +72,33 @@ def test_verifier_binds_proof_to_exact_executable_and_transaction_digest(
     verifier, checker, app_vk = make_verifier(tmp_path)
     captured: dict[str, object] = {}
 
+    original_checker = checker.read_bytes()
+    original_vk = app_vk.read_bytes()
+
     def fake_run(command: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
         captured["command"] = command
         captured["kwargs"] = kwargs
-        assert Path(command[1]) == app_vk
+        staged_checker = Path(command[0])
+        staged_vk = Path(command[1])
+        # The process must receive private staged artifacts, not the original paths.
+        assert staged_checker != checker
+        assert staged_vk != app_vk
+        assert staged_checker.read_bytes() == original_checker
+        assert staged_vk.read_bytes() == original_vk
+        if sys.platform != "win32":
+            assert staged_checker.stat().st_mode & 0o111
         assert Path(command[2]).read_bytes() == PROOF_BYTES
         assert Path(command[3]).read_text(encoding="ascii").strip() == APP_COMMITMENT.hex()
         assert Path(command[4]).read_text(encoding="ascii").strip() == (
             "bc065015515112dd8a826a5009441c5148d87ecc2d53ca954df5e5572937167e624de15f69453d6f6400a01c67d84c81f69ccf6477f7f81d709e3b2dfb9ec488"
         )
+
+        # Simulate the original paths being swapped after staging but immediately
+        # before the checker would run. The staged bytes must remain unchanged.
+        checker.write_bytes(b"attacker replacement checker")
+        app_vk.write_bytes(b"attacker replacement verifying key")
+        assert staged_checker.read_bytes() == original_checker
+        assert staged_vk.read_bytes() == original_vk
         return subprocess.CompletedProcess(command, 0, stdout="verified\n", stderr="")
 
     monkeypatch.setattr(
@@ -90,7 +109,8 @@ def test_verifier_binds_proof_to_exact_executable_and_transaction_digest(
 
     command = captured["command"]
     kwargs = captured["kwargs"]
-    assert command[0] == str(checker)
+    assert Path(command[0]).name == "proof-checker"
+    assert Path(command[1]).name == "app.vk"
     assert kwargs["shell"] is False
     assert kwargs["capture_output"] is True
     assert kwargs["check"] is False
@@ -116,6 +136,14 @@ def test_changed_checker_or_verifying_key_fails_closed(
     verifier, checker, _ = make_verifier(tmp_path)
     checker.write_bytes(b"replacement checker with a different SHA-256 digest")
     with pytest.raises(OpenVMV3CandidateVerifierError, match="checker executable SHA-256"):
+        verifier(statement(), PROOF_BYTES)
+
+
+
+def test_changed_verifying_key_fails_closed(tmp_path: Path) -> None:
+    verifier, _, app_vk = make_verifier(tmp_path)
+    app_vk.write_bytes(b"replacement verifying key with a different SHA-256 digest")
+    with pytest.raises(OpenVMV3CandidateVerifierError, match="verifying key SHA-256"):
         verifier(statement(), PROOF_BYTES)
 
 

@@ -36,7 +36,11 @@ class OpenVMV3CandidateVerifierError(ValueError):
     """The verifier is misconfigured or could not verify a candidate proof."""
 
 
+MAX_PINNED_ARTIFACT_BYTES = 512 * 1024 * 1024
+
+
 def _regular_file_sha256(path: Path, *, executable: bool = False) -> bytes:
+    """Hash a pinned artifact through a no-follow descriptor."""
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(path, flags)
@@ -50,19 +54,127 @@ def _regular_file_sha256(path: Path, *, executable: bool = False) -> bytes:
             raise OpenVMV3CandidateVerifierError(
                 f"pinned verifier artifact is not a regular file: {path}"
             )
-        if executable and sys.platform != "win32" and not (info.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
+        if info.st_size <= 0 or info.st_size > MAX_PINNED_ARTIFACT_BYTES:
+            raise OpenVMV3CandidateVerifierError(
+                f"pinned verifier artifact size is outside the accepted range: {path}"
+            )
+        if executable and sys.platform != "win32" and not (
+            info.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        ):
             raise OpenVMV3CandidateVerifierError(
                 f"proof checker is not executable: {path}"
             )
         digest = hashlib.sha256()
+        total = 0
         while True:
             block = os.read(fd, 1024 * 1024)
             if not block:
                 break
+            total += len(block)
+            if total > MAX_PINNED_ARTIFACT_BYTES:
+                raise OpenVMV3CandidateVerifierError(
+                    f"pinned verifier artifact exceeds size limit: {path}"
+                )
             digest.update(block)
         return digest.digest()
     finally:
         os.close(fd)
+
+
+def _stage_pinned_artifact(
+    source: Path,
+    destination: Path,
+    *,
+    expected_sha256: bytes,
+    executable: bool = False,
+) -> None:
+    """Copy and hash the same open-file bytes, then use only the staged artifact.
+
+    Hashing a source path and later executing/reading that path leaves a
+    time-of-check/time-of-use race. This helper opens with O_NOFOLLOW, streams
+    from that descriptor into a new file in the verifier's private temp directory,
+    hashes exactly those bytes, and refuses to use the copy unless the digest
+    matches the configured pin.
+    """
+    source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        source_fd = os.open(source, source_flags)
+    except OSError as exc:
+        raise OpenVMV3CandidateVerifierError(
+            f"cannot safely open pinned verifier artifact: {source}"
+        ) from exc
+
+    target_mode = 0o700 if executable else 0o600
+    target_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    target_fd: int | None = None
+    target_created = False
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        info = os.fstat(source_fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise OpenVMV3CandidateVerifierError(
+                f"pinned verifier artifact is not a regular file: {source}"
+            )
+        if info.st_size <= 0 or info.st_size > MAX_PINNED_ARTIFACT_BYTES:
+            raise OpenVMV3CandidateVerifierError(
+                f"pinned verifier artifact size is outside the accepted range: {source}"
+            )
+        if executable and sys.platform != "win32" and not (
+            info.st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        ):
+            raise OpenVMV3CandidateVerifierError(
+                f"proof checker is not executable: {source}"
+            )
+        try:
+            target_fd = os.open(destination, target_flags, target_mode)
+            target_created = True
+        except OSError as exc:
+            raise OpenVMV3CandidateVerifierError(
+                f"cannot create private staged verifier artifact: {destination.name}"
+            ) from exc
+
+        while True:
+            block = os.read(source_fd, 1024 * 1024)
+            if not block:
+                break
+            total += len(block)
+            if total > MAX_PINNED_ARTIFACT_BYTES:
+                raise OpenVMV3CandidateVerifierError(
+                    f"pinned verifier artifact exceeds size limit: {source}"
+                )
+            digest.update(block)
+            view = memoryview(block)
+            while view:
+                written = os.write(target_fd, view)
+                if written <= 0:
+                    raise OpenVMV3CandidateVerifierError(
+                        f"short write while staging verifier artifact: {destination.name}"
+                    )
+                view = view[written:]
+        os.fsync(target_fd)
+        if hasattr(os, "fchmod"):
+            os.fchmod(target_fd, target_mode)
+        else:
+            os.chmod(destination, target_mode)
+    except Exception:
+        if target_fd is not None:
+            os.close(target_fd)
+            target_fd = None
+        if target_created:
+            destination.unlink(missing_ok=True)
+        raise
+    finally:
+        os.close(source_fd)
+        if target_fd is not None:
+            os.close(target_fd)
+
+    if digest.digest() != expected_sha256:
+        destination.unlink(missing_ok=True)
+        label = "proof-checker executable" if executable else "OpenVM application verifying key"
+        raise OpenVMV3CandidateVerifierError(
+            f"{label} SHA-256 differs from its configured release pin"
+        )
 
 
 def v3_spend_public_digest_candidate(statement: TxFieldsV3Candidate) -> bytes:
@@ -169,10 +281,26 @@ class OpenVMV3CandidateProofVerifier:
         if not isinstance(proof, bytes) or not 1 <= len(proof) <= self._max_proof_bytes:
             return False
 
-        self._validate_pinned_artifacts()
         expected_digest = v3_spend_public_digest_candidate(statement)
         with tempfile.TemporaryDirectory(prefix="0psp-openvm-v3-verify-") as temp_dir:
+            # Use a private, hash-verified snapshot for both verifier executable and
+            # VK. Never hash one pathname and later execute/read that same pathname.
             root = Path(temp_dir)
+            checker_suffix = self._checker.suffix if sys.platform == "win32" else ""
+            checker_path = root / ("proof-checker" + checker_suffix)
+            app_vk_path = root / "app.vk"
+            _stage_pinned_artifact(
+                self._checker,
+                checker_path,
+                expected_sha256=self._expected_checker_sha256,
+                executable=True,
+            )
+            _stage_pinned_artifact(
+                self._app_vk,
+                app_vk_path,
+                expected_sha256=self._expected_app_vk_sha256,
+            )
+
             proof_path = root / "submitted.app.proof"
             exe_commit_path = root / "expected-app-exe-commit.txt"
             digest_path = root / "expected-public-digest.txt"
@@ -189,8 +317,8 @@ class OpenVMV3CandidateProofVerifier:
             try:
                 result = subprocess.run(
                     [
-                        str(self._checker),
-                        str(self._app_vk),
+                        str(checker_path),
+                        str(app_vk_path),
                         str(proof_path),
                         str(exe_commit_path),
                         str(digest_path),
