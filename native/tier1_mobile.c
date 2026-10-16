@@ -5,6 +5,7 @@ const uint8_t PSP_DOMAIN_OUTPUT_COIN_ID_V3[] = "0PSP-OUTPUT-COIN-ID-v3-anchor-in
 const uint8_t PSP_DOMAIN_OUTPUT_RNF_V3[] = "0PSP-OUTPUT-RNF-v3-anchor-index-candidate";
 const uint8_t PSP_DOMAIN_NOTE_BUNDLE_V3[] = "0PSP-NOTE-PK-BUNDLE-v3";
 const uint8_t PSP_DOMAIN_TX_FIELDS_V3[] = "0PSP-TX-FIELDS-v3-CANDIDATE-v2-SHAKE256";
+const uint8_t PSP_DOMAIN_TX_PAYOUT_CONTEXT_V3[] = "0PSP-TX-PAYOUT-CONTEXT-v3-CANDIDATE-v1-SHAKE256";
 const uint8_t PSP_DOMAIN_TX_DIGEST_V3[] = "0PSP-TX-DIGEST-v3-CANDIDATE-v2-SHAKE256";
 const uint8_t PSP_POLICY_NK_POSSESSION_V3[] = "0PSP-V3-NK-POSSESSION-CANDIDATE-v1";
 const uint8_t PSP_DOMAIN_AK_V3[] = "0PSP_AK_DERIVE_V3";
@@ -290,40 +291,63 @@ int psp_tx_fields_v3_encode_single(
     const uint8_t *nullifier,
     const uint8_t *state_head,
     const uint8_t *state_context_digest,
+    const uint8_t *chain_id,
+    const uint8_t *recipient_address,
+    uint64_t withdraw_value,
+    const uint8_t *relayer_address,
     const uint8_t *policy_id, size_t policy_id_len,
     uint64_t fee,
     const uint8_t *output_entropy,
     const uint8_t *output_commitment,
     uint8_t *out_tx_fields, size_t *out_tx_fields_len, size_t max_tx_fields_len) {
-    size_t total_len;
-    size_t offset;
-    uint8_t len16[2];
-    uint8_t len32[4];
-    uint8_t fee_bytes[8];
+    size_t total_len, offset;
+    uint8_t len16[2], len32[4], fee_bytes[8], withdraw_bytes[8];
+    uint8_t payout_digest[PSP_TIER1_COMMITMENT_BYTES];
+    const uint8_t *parts[11];
+    size_t lengths[11];
+    int st;
 
     if (params_id == NULL || params_id_len == 0 || params_id_len > 0xffff ||
         namespace_id == NULL || root == NULL || nullifier == NULL ||
-        state_head == NULL || state_context_digest == NULL ||
+        state_head == NULL || state_context_digest == NULL || chain_id == NULL ||
+        recipient_address == NULL || relayer_address == NULL ||
         policy_id == NULL || policy_id_len == 0 || policy_id_len > 0xffff ||
         output_entropy == NULL || output_commitment == NULL ||
         out_tx_fields == NULL || out_tx_fields_len == NULL) {
         return PSP_CRYPTO_ERR_ARGUMENT;
     }
 
-    total_len = sizeof(PSP_DOMAIN_TX_FIELDS_V3) - 1u + 1u +
-                2u + params_id_len +
-                PSP_TIER1_NAMESPACE_BYTES +
-                PSP_TIER1_COMMITMENT_BYTES +
-                PSP_TIER1_NULLIFIER_BYTES +
-                PSP_TIER1_STATE_HEAD_BYTES +
-                PSP_TIER1_STATE_CONTEXT_BYTES +
-                2u + policy_id_len +
-                8u +
-                PSP_TIER1_ENTROPY_BYTES +
-                4u +
-                PSP_TIER1_COMMITMENT_BYTES;
+    write_u16_le(len16, (uint16_t)params_id_len);
+    write_u64_le(fee_bytes, fee);
+    write_u64_le(withdraw_bytes, withdraw_value);
+    parts[0] = PSP_DOMAIN_TX_PAYOUT_CONTEXT_V3;
+    lengths[0] = sizeof(PSP_DOMAIN_TX_PAYOUT_CONTEXT_V3) - 1u;
+    parts[1] = &VERSION_V3; lengths[1] = 1u;
+    parts[2] = chain_id; lengths[2] = PSP_TIER1_CHAIN_ID_BYTES;
+    parts[3] = namespace_id; lengths[3] = PSP_TIER1_NAMESPACE_BYTES;
+    parts[4] = len16; lengths[4] = sizeof(len16);
+    parts[5] = params_id; lengths[5] = params_id_len;
+    parts[6] = recipient_address; lengths[6] = PSP_TIER1_ADDRESS_BYTES;
+    parts[7] = withdraw_bytes; lengths[7] = sizeof(withdraw_bytes);
+    parts[8] = relayer_address; lengths[8] = PSP_TIER1_ADDRESS_BYTES;
+    parts[9] = fee_bytes; lengths[9] = sizeof(fee_bytes);
+    parts[10] = output_commitment; lengths[10] = PSP_TIER1_COMMITMENT_BYTES;
+    st = psp_shake256_parts(parts, lengths, 11u, payout_digest, sizeof(payout_digest));
+    if (st != PSP_CRYPTO_OK) {
+        psp_secure_zero(payout_digest, sizeof(payout_digest));
+        return st;
+    }
 
+    total_len = sizeof(PSP_DOMAIN_TX_FIELDS_V3) - 1u + 1u +
+                2u + params_id_len + PSP_TIER1_NAMESPACE_BYTES +
+                PSP_TIER1_COMMITMENT_BYTES + PSP_TIER1_NULLIFIER_BYTES +
+                PSP_TIER1_STATE_HEAD_BYTES + PSP_TIER1_STATE_CONTEXT_BYTES +
+                PSP_TIER1_CHAIN_ID_BYTES + PSP_TIER1_ADDRESS_BYTES + 8u +
+                PSP_TIER1_ADDRESS_BYTES + 2u + policy_id_len + 8u +
+                PSP_TIER1_ENTROPY_BYTES + 4u +
+                PSP_TIER1_COMMITMENT_BYTES + PSP_TIER1_COMMITMENT_BYTES;
     if (total_len > max_tx_fields_len || total_len > PSP_TIER1_MAX_TX_FIELDS_BYTES) {
+        psp_secure_zero(payout_digest, sizeof(payout_digest));
         return PSP_CRYPTO_ERR_OVERFLOW;
     }
 
@@ -331,34 +355,31 @@ int psp_tx_fields_v3_encode_single(
     memcpy(out_tx_fields + offset, PSP_DOMAIN_TX_FIELDS_V3, sizeof(PSP_DOMAIN_TX_FIELDS_V3) - 1u);
     offset += sizeof(PSP_DOMAIN_TX_FIELDS_V3) - 1u;
     out_tx_fields[offset++] = VERSION_V3;
-
-    write_u16_le(len16, (uint16_t)params_id_len);
-    memcpy(out_tx_fields + offset, len16, 2u); offset += 2u;
+    memcpy(out_tx_fields + offset, len16, sizeof(len16)); offset += sizeof(len16);
     memcpy(out_tx_fields + offset, params_id, params_id_len); offset += params_id_len;
-
     memcpy(out_tx_fields + offset, namespace_id, PSP_TIER1_NAMESPACE_BYTES); offset += PSP_TIER1_NAMESPACE_BYTES;
     memcpy(out_tx_fields + offset, root, PSP_TIER1_COMMITMENT_BYTES); offset += PSP_TIER1_COMMITMENT_BYTES;
     memcpy(out_tx_fields + offset, nullifier, PSP_TIER1_NULLIFIER_BYTES); offset += PSP_TIER1_NULLIFIER_BYTES;
     memcpy(out_tx_fields + offset, state_head, PSP_TIER1_STATE_HEAD_BYTES); offset += PSP_TIER1_STATE_HEAD_BYTES;
     memcpy(out_tx_fields + offset, state_context_digest, PSP_TIER1_STATE_CONTEXT_BYTES); offset += PSP_TIER1_STATE_CONTEXT_BYTES;
-
+    memcpy(out_tx_fields + offset, chain_id, PSP_TIER1_CHAIN_ID_BYTES); offset += PSP_TIER1_CHAIN_ID_BYTES;
+    memcpy(out_tx_fields + offset, recipient_address, PSP_TIER1_ADDRESS_BYTES); offset += PSP_TIER1_ADDRESS_BYTES;
+    memcpy(out_tx_fields + offset, withdraw_bytes, sizeof(withdraw_bytes)); offset += sizeof(withdraw_bytes);
+    memcpy(out_tx_fields + offset, relayer_address, PSP_TIER1_ADDRESS_BYTES); offset += PSP_TIER1_ADDRESS_BYTES;
     write_u16_le(len16, (uint16_t)policy_id_len);
-    memcpy(out_tx_fields + offset, len16, 2u); offset += 2u;
+    memcpy(out_tx_fields + offset, len16, sizeof(len16)); offset += sizeof(len16);
     memcpy(out_tx_fields + offset, policy_id, policy_id_len); offset += policy_id_len;
-
-    write_u64_le(fee_bytes, fee);
-    memcpy(out_tx_fields + offset, fee_bytes, 8u); offset += 8u;
-
+    memcpy(out_tx_fields + offset, fee_bytes, sizeof(fee_bytes)); offset += sizeof(fee_bytes);
     memcpy(out_tx_fields + offset, output_entropy, PSP_TIER1_ENTROPY_BYTES); offset += PSP_TIER1_ENTROPY_BYTES;
-
-    write_u32_le(len32, 1u); /* exactly 1 output count */
-    memcpy(out_tx_fields + offset, len32, 4u); offset += 4u;
-
+    write_u32_le(len32, 1u);
+    memcpy(out_tx_fields + offset, len32, sizeof(len32)); offset += sizeof(len32);
     memcpy(out_tx_fields + offset, output_commitment, PSP_TIER1_COMMITMENT_BYTES); offset += PSP_TIER1_COMMITMENT_BYTES;
-
+    memcpy(out_tx_fields + offset, payout_digest, sizeof(payout_digest)); offset += sizeof(payout_digest);
+    psp_secure_zero(payout_digest, sizeof(payout_digest));
     *out_tx_fields_len = offset;
     return PSP_CRYPTO_OK;
 }
+
 
 int psp_tx_digest_v3_candidate(
     const uint8_t *tx_fields, size_t tx_fields_len,
@@ -397,6 +418,10 @@ int psp_tier1_create_spend_package(
     const uint8_t *commitment_root,
     const uint8_t *state_head,
     const uint8_t *state_context_digest,
+    const uint8_t *chain_id,
+    const uint8_t *recipient_address,
+    uint64_t withdraw_value,
+    const uint8_t *relayer_address,
     psp_tier1_spend_package_t *out_pkg) {
     uint8_t encoded_nk_commit[PSP_TIER1_KEY_BYTES];
     uint8_t derived_nk_commit[PSP_TIER1_KEY_BYTES];
@@ -408,14 +433,18 @@ int psp_tier1_create_spend_package(
         input_coin_id == NULL || input_r_nf == NULL || input_rho_coin == NULL ||
         input_nk == NULL || recipient_bundle == NULL || recipient_bundle_len == 0 ||
         output_entropy == NULL || commitment_root == NULL ||
-        state_head == NULL || state_context_digest == NULL ||
-        out_pkg == NULL) {
+        state_head == NULL || state_context_digest == NULL || chain_id == NULL ||
+        recipient_address == NULL || relayer_address == NULL || out_pkg == NULL) {
         return PSP_CRYPTO_ERR_ARGUMENT;
     }
 
-    /* 1. Value conservation check (strictly overflow-checked) */
-    total_out = output_value + fee;
-    if (total_out < output_value || total_out != input_value) {
+    /* Check conservation over integers, without uint64 wraparound. */
+    if (output_value > UINT64_MAX - withdraw_value) return PSP_CRYPTO_ERR_ARGUMENT;
+    total_out = output_value + withdraw_value;
+    if (total_out > UINT64_MAX - fee) return PSP_CRYPTO_ERR_ARGUMENT;
+    total_out += fee;
+    if (total_out != input_value || withdraw_value != 0u) {
+        /* This native helper does not execute external withdrawals; fail closed. */
         return PSP_CRYPTO_ERR_ARGUMENT;
     }
 
@@ -514,6 +543,10 @@ int psp_tier1_create_spend_package(
         out_pkg->input_nullifier,
         state_head,
         state_context_digest,
+        chain_id,
+        recipient_address,
+        withdraw_value,
+        relayer_address,
         PSP_POLICY_NK_POSSESSION_V3, sizeof(PSP_POLICY_NK_POSSESSION_V3) - 1u,
         fee,
         output_entropy,

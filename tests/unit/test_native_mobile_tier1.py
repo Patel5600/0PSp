@@ -147,6 +147,10 @@ def test_native_tier1_spend_package_differential(native_engine):
         commitment_root=root,
         state_head=state_head,
         state_context_digest=state_context,
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
     # 2. Build Python reference TxFieldsV3Candidate statement
@@ -161,6 +165,10 @@ def test_native_tier1_spend_package_differential(native_engine):
         fee=fee,
         output_entropy=entropy,
         output_commitments=(CoinCommitmentV3(native_pkg.output_commitment),),
+        chain_id=bytes([0x01]) * 32,
+        recipient_address=bytes([0xA1]) * 20,
+        withdraw_value=0,
+        relayer_address=bytes([0xB2]) * 20,
     )
 
     py_encoded_tx = py_tx.encode()
@@ -202,6 +210,8 @@ def test_native_spend_package_adversarial_rejection(native_engine):
             recipient_bundle=bundle_bytes, output_value=950, fee=100,
             output_entropy=b"\x88" * 32, commitment_root=b"\x99" * 48,
             state_head=b"\xaa" * 48, state_context_digest=b"\xbb" * 64,
+            chain_id=bytes([0x01]) * 32, recipient_address=bytes([0xA1]) * 20,
+            withdraw_value=0, relayer_address=bytes([0xB2]) * 20,
         )
 
     # 2. Imposter NK attempt
