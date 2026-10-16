@@ -9,18 +9,18 @@ The reference model checks a shared input witness for:
 2. Input commitment opening and same-key NullifierV3 derivation.
 3. Merkle membership against the root supplied by the transaction statement.
 4. Deterministic output identity and output commitment matching.
-5. Non-overflowing uint64 value conservation for output plus fee.
+5. Non-overflowing uint64 value conservation for output, withdrawal, and fee.
 6. A digest of the canonical candidate transaction statement.
 
 Important limits:
 - Membership against a supplied root does not authenticate that root or its
   finality. Trusted-state preflight/ledger enforcement is a separate gate.
-- The candidate transaction schema has no complete semantic payout context
-  (recipient address, withdrawal amount, relayer address, and chain ID).
+- External payout settlement remains outside this host reference. The typed
+  payout context is bound in the candidate codec but this is not a payout executor.
 - This Python reference is not the active OpenVM guest relation and does not
   demonstrate that all these checks are enforced by the committed proof.
-- Depth 63 is the currently active candidate profile. A separate depth-32
-  Rust helper is not an interchangeable encoding or an approved profile.
+- Active V3 uses the canonical depth-32 profile. Depth 63 remains only as an
+  explicitly selected legacy profile.
 
 Passing these Python checks is not production authorization or proof of
 end-to-end zero knowledge. Keep P0 release gates open until proof, trusted-state,
@@ -228,12 +228,12 @@ def verify_spend_relation_v3_reference(
         )
 
     # 8. Strict Value Conservation (No Wraparound)
-    total_out = witness.output_value + statement.fee
+    total_out = witness.output_value + statement.withdraw_value + statement.fee
     if total_out > MAX_VALUE_U64:
-        raise SpendRelationV3Error("total output value overflows u64")
+        raise SpendRelationV3Error("total output, withdrawal, and fee value overflows u64")
     if witness.input_value != total_out:
         raise SpendRelationV3Error(
-            f"value conservation violated: in ({witness.input_value}) != out ({witness.output_value}) + fee ({statement.fee})"
+            f"value conservation violated: in ({witness.input_value}) != out ({witness.output_value}) + withdraw ({statement.withdraw_value}) + fee ({statement.fee})"
         )
 
     # 9. Statement Public Digest

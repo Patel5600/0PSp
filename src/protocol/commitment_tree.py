@@ -1,9 +1,8 @@
 """Canonical namespace-scoped append-only commitment Merkle tree.
 
-The tree has depth 63 because SQLite's signed INTEGER index type is the durable
-ledger index representation. Leaf indices are 0 <= index < 2^63. This module
-is a reference encoding; the actual proof circuit must implement these exact
-SHAKE256-384 computations and bind the same index/path.
+V3 uses a canonical depth-32 path with a u32 leaf index. A depth-63
+legacy/reference profile remains available explicitly for historical KATs.
+The proof circuit must match the selected profile's byte encoding.
 """
 from __future__ import annotations
 
@@ -12,10 +11,12 @@ from collections.abc import Sequence
 
 from src.primitives.namespace_v3 import NamespaceIdV3
 
-TREE_DEPTH = 63
+TREE_DEPTH = 32
 V3_TREE_DEPTH = 32
+LEGACY_TREE_DEPTH = 63
 MAX_LEAVES = (1 << TREE_DEPTH)
 V3_MAX_LEAVES = (1 << V3_TREE_DEPTH)
+LEGACY_MAX_LEAVES = (1 << LEGACY_TREE_DEPTH)
 COMMITMENT_BYTES = 48
 NODE_BYTES = 48
 _EMPTY_LEAF_DOMAIN = b"0PSP-COMMITMENT-EMPTY-LEAF-v1-SHAKE256"
@@ -28,8 +29,8 @@ class CommitmentTreeError(ValueError):
 
 
 def _validate_depth(depth: object) -> int:
-    if isinstance(depth, bool) or not isinstance(depth, int) or not 1 <= depth <= TREE_DEPTH:
-        raise CommitmentTreeError(f"tree depth must be an integer in [1, {TREE_DEPTH}]")
+    if isinstance(depth, bool) or not isinstance(depth, int) or not 1 <= depth <= LEGACY_TREE_DEPTH:
+        raise CommitmentTreeError(f"tree depth must be an integer in [1, {LEGACY_TREE_DEPTH}]")
     return depth
 
 

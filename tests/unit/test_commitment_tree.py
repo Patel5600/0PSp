@@ -4,6 +4,7 @@ import pytest
 
 from src.primitives.namespace_v3 import derive_namespace_id_v3
 from src.protocol.commitment_tree import (
+    LEGACY_TREE_DEPTH,
     TREE_DEPTH,
     CommitmentTree,
     CommitmentTreeError,
@@ -22,16 +23,16 @@ C3 = b"\x33" * 48
 
 
 def test_empty_tree_known_answer_and_namespace_domain_separation():
-    assert CommitmentTree(NS).root.hex() == (
+    assert CommitmentTree(NS, depth=LEGACY_TREE_DEPTH).root.hex() == (
         "efb75649132e89e425c0cbe84eeb6e1e00fff61091a92e50253202e026c1fa65"
         "9b75ffc2e661edeb693eb9b2b0d6d965"
     )
-    assert CommitmentTree(NS).root != CommitmentTree(OTHER_NS).root
-    assert len(empty_hashes(NS)) == TREE_DEPTH + 1
+    assert CommitmentTree(NS, depth=LEGACY_TREE_DEPTH).root != CommitmentTree(OTHER_NS, depth=LEGACY_TREE_DEPTH).root
+    assert len(empty_hashes(NS, LEGACY_TREE_DEPTH)) == LEGACY_TREE_DEPTH + 1
 
 
 def test_append_only_tree_known_answer_and_every_membership_path():
-    tree = CommitmentTree(NS)
+    tree = CommitmentTree(NS, depth=LEGACY_TREE_DEPTH)
     assert tree.append(C1) == 0
     assert tree.append(C2) == 1
     assert tree.root.hex() == (
@@ -41,20 +42,20 @@ def test_append_only_tree_known_answer_and_every_membership_path():
     assert tree.append(C3) == 2
     for index, commitment in enumerate((C1, C2, C3)):
         path = tree.membership_path(index)
-        assert len(path) == TREE_DEPTH
-        assert verify_member(NS, tree.root, index, commitment, path)
-        assert root_from_path(NS, index, commitment, path) == tree.root
+        assert len(path) == LEGACY_TREE_DEPTH
+        assert verify_member(NS, tree.root, index, commitment, path, tree_depth=LEGACY_TREE_DEPTH)
+        assert root_from_path(NS, index, commitment, path, tree_depth=LEGACY_TREE_DEPTH) == tree.root
 
 
 def test_membership_rejects_wrong_index_commitment_namespace_root_or_sibling():
-    tree = CommitmentTree(NS, [C1, C2, C3])
+    tree = CommitmentTree(NS, [C1, C2, C3], depth=LEGACY_TREE_DEPTH)
     path = tree.membership_path(1)
-    assert not verify_member(NS, tree.root, 0, C2, path)
-    assert not verify_member(NS, tree.root, 1, C3, path)
-    assert not verify_member(OTHER_NS, tree.root, 1, C2, path)
+    assert not verify_member(NS, tree.root, 0, C2, path, tree_depth=LEGACY_TREE_DEPTH)
+    assert not verify_member(NS, tree.root, 1, C3, path, tree_depth=LEGACY_TREE_DEPTH)
+    assert not verify_member(OTHER_NS, tree.root, 1, C2, path, tree_depth=LEGACY_TREE_DEPTH)
     altered = list(path)
     altered[7] = bytes([altered[7][0] ^ 1]) + altered[7][1:]
-    assert not verify_member(NS, tree.root, 1, C2, altered)
+    assert not verify_member(NS, tree.root, 1, C2, altered, tree_depth=LEGACY_TREE_DEPTH)
 
 
 def test_tree_preserves_append_only_indices_and_does_not_accept_bad_values():
@@ -79,10 +80,10 @@ def test_level_specific_node_domain_and_child_order():
 
 
 def test_path_shape_and_root_width_are_strict():
-    tree = CommitmentTree(NS, [C1])
+    tree = CommitmentTree(NS, [C1], depth=LEGACY_TREE_DEPTH)
     with pytest.raises(CommitmentTreeError, match="exactly 63"):
         root_from_path(NS, 0, C1, [])
     with pytest.raises(CommitmentTreeError, match="exactly 48 bytes"):
-        verify_member(NS, b"bad", 0, C1, tree.membership_path(0))
+        verify_member(NS, b"bad", 0, C1, tree.membership_path(0), tree_depth=LEGACY_TREE_DEPTH)
     with pytest.raises(CommitmentTreeError, match="exactly 48 bytes"):
-        root_from_path(NS, 0, C1, [b"\x00" * 48] * 62 + [b"bad"])
+        root_from_path(NS, 0, C1, [b"\x00" * 48] * 62 + [b"bad"], tree_depth=LEGACY_TREE_DEPTH)
