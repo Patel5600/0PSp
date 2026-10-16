@@ -17,6 +17,19 @@ The state-evidence verifier in this integration test is deliberately synthetic f
 
 CI runs valid and adversarial fixtures through the OpenVM guest, generates and verifies real application-level proofs, and checks the Python-to-Rust verifier/preflight integration against the exact spend statement. This is evidence for the checked-in one-input/one-output predicate slice, not a complete 0PSP release. The dependency graph and cargo-openvm v2.0.2 binary are pinned/locked for this experiment.
 
+## Real proof through the SQLite candidate ledger
+
+A second CI integration path now constructs the initial SQLite commitment tree, reads its exact retained root/head anchor, builds the transaction state-context digest for that local anchor, and generates a **new OpenVM application proof for that exact statement**. The same serialized proof is then submitted through `OpenVMV3CandidateProofVerifier` to `SQLiteV3CandidateLedger.accept_spend`.
+
+The check requires all of the following on the actual ledger path:
+
+- A mutated serialized proof is rejected, with no nullifier or output commitment written.
+- The valid SDK-generated proof is accepted and the output commitment plus consumed nullifier are committed in one SQLite state transition.
+- Replaying the same proof/nullifier is rejected as a duplicate and leaves the state unchanged.
+- Restarting the ledger reconstructs and audits the persisted tree/event history after acceptance.
+
+The runner's `prove-one` command creates a new proof for the dynamically derived ledger statement and verifies it against the exact pinned application executable commitment and expected public digest. The CI evidence reports the checker/VK hashes and the real proof result. The synthetic bootstrap evidence is deliberately test-only. The ledger's own state policy remains **local and non-final**, so this is real proof-to-ledger integration evidence for the candidate state machine, not production finality or Mainnet authorization.
+
 ## Still not established
 
 - The transaction root/state head is not made trusted by the guest. An independently reviewed state-evidence adapter must authenticate a finalized root/head and return its explicit finality-policy ID. Host acceptance recomputes the 64-byte state-context digest from the source ID, exact finalized-anchor bytes, and policy ID, then compares that digest along with namespace, params ID, root and state head before invoking the candidate proof verifier. The current local SQLite policy is explicitly nonfinal and cannot stand in for an external consensus trust source.
