@@ -435,6 +435,24 @@ def test_payout_context_mutation_cannot_reuse_original_proof(tmp_path, field_nam
     assert not ledger.is_nullifier_spent(original.input_nullifier.value)
 
 
+def test_nonzero_withdrawal_is_rejected_before_proof_or_state_mutation(tmp_path):
+    proof_calls: list[bytes] = []
+    ledger, *_ = make_environment(
+        tmp_path,
+        proof_verifier=lambda _statement, proof: proof_calls.append(proof) or True,
+    )
+    before = ledger.snapshot()
+    tx = replace(statement_for(ledger), withdraw_value=1)
+
+    with pytest.raises(SQLiteV3CandidateLedgerError, match="non-zero withdrawals are gated"):
+        ledger.accept_spend(tx, proof=VALID_PROOF)
+
+    assert proof_calls == []
+    assert ledger.snapshot() == before
+    assert not ledger.is_nullifier_spent(tx.input_nullifier.value)
+    ledger.audit_integrity()
+
+
 def test_fabricated_anchor_row_is_rejected_before_proof_or_state_mutation(tmp_path):
     calls: list[bytes] = []
     ledger, *_ = make_environment(tmp_path, proof_verifier=lambda _statement, proof: calls.append(proof) or True)

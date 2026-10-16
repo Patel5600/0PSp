@@ -41,7 +41,7 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 ### 2. Post-Quantum zkVM Spend Relation (`OpenVM v2.0.2`)
 - **Spend Circuit (`spend_v3.rs`):** Rust guest circuit executing in OpenVM v2.0.2 zkVM.
 - **Candidate predicates checked by the experimental guest (not a complete production protocol):**
-  - 63-level namespace-scoped Merkle membership path verification.
+  - 32-level namespace-scoped Merkle membership path verification with a u32 leaf index (depth-63 is legacy/reference only).
   - Recipient nullifier-deriving key (`nk`) commitment opening.
   - Note commitment opening (`CommitV3`).
   - Same-witness nullifier derivation (`NullifierV3` HMAC-SHA3-384).

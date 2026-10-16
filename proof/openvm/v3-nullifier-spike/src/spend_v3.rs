@@ -467,8 +467,9 @@ pub fn verify_spend_relation_v3(
 
     // 4. Merkle inclusion check against the caller-supplied root (Depth 32).
     // This helper does not authenticate anchor_root or prove consensus finality.
-    // Use the exact active Merkle leaf/node encoding. This helper is still a separate
-    // depth-32 experimental profile; the active OpenVM entrypoint remains depth 63.
+    // Use the canonical V3 leaf/node encoding. The active guest entrypoint uses
+    // verify_v3_spend_witness and the same depth-32 profile, but has a distinct
+    // bundle-based witness format; this helper remains a reference API, not its caller.
     let mut curr = leaf_hash(&pub_stmt.namespace_id, u64::from(wit.leaf_index), &c_in);
     for (level, sibling) in wit.merkle_path.iter().enumerate() {
         curr = if ((wit.leaf_index >> level) & 1) == 1 {
@@ -528,6 +529,19 @@ pub fn verify_spend_relation_v3(
     Ok(shake256_384(&stmt_preimage))
 }
 
+
+#[cfg(test)]
+mod active_guest_profile_tests {
+    use super::*;
+
+    #[test]
+    fn canonical_guest_profile_is_depth32_with_u32_leaf_index() {
+        // verify_v3_spend_witness reads the leaf index as u32 and iterates exactly
+        // TREE_DEPTH siblings, so this constant is a wire-format invariant.
+        assert_eq!(TREE_DEPTH, MERKLE_DEPTH_32);
+        assert_eq!(TREE_DEPTH, 32);
+    }
+}
 
 #[cfg(test)]
 mod depth32_relation_tests {

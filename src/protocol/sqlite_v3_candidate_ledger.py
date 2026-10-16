@@ -772,7 +772,15 @@ class SQLiteV3CandidateLedger:
                 evidence,
                 self._verify_local_anchor,
             )
-        except (SQLiteV3CandidateLedgerError, TrustedStateRejected):
+        except SQLiteV3CandidateLedgerError:
+            raise
+        except TrustedStateRejected as exc:
+            # Preserve the precise local integrity failure across the trusted-state
+            # boundary. The transaction is rejected before proof verification and
+            # before BEGIN IMMEDIATE, allowing callers to diagnose persisted-state
+            # corruption separately from ordinary untrusted transaction input.
+            if isinstance(exc.__cause__, SQLiteV3LedgerIntegrityError):
+                raise exc.__cause__ from exc
             raise
         except Exception as exc:
             raise SQLiteV3LedgerIntegrityError("candidate state-binding preflight failed closed") from exc
