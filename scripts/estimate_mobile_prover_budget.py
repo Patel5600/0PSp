@@ -252,9 +252,13 @@ def evaluate_mobile_prover_architectures(
         trace_columns=air_cols,
         peak_ram_mb=air_ram_mb,
         estimated_time_arm64_sec=air_time_sec,
-        witness_privacy_proven=True,
-        witness_privacy_status="VERIFIED_ZK_TRACE_BLINDING",
-        witness_privacy_rationale="Verified with B = 39 randomized blinding rows and 256-bit salted Merkle leaves under adversarial statistical-ZK testing (P0 Issue #36 resolved).",
+        witness_privacy_proven=False,
+        witness_privacy_status="GATED_END_TO_END_ZK",
+        witness_privacy_rationale=(
+            "The Python trace-blinding model has adversarial simulation tests, but no selected "
+            "OpenVM/Plonky3 production prover is wired to commit randomized rows and salts into "
+            "its actual trace/quotient. End-to-end witness privacy remains gated by P0 Issue #36."
+        ),
         android_mobile_status=air_android,
         ios_mobile_status=air_ios,
         device_support_percent=air_support,
@@ -280,11 +284,12 @@ def evaluate_mobile_prover_architectures(
         trace_columns=split_mobile_cols,
         peak_ram_mb=split_mobile_ram_mb,
         estimated_time_arm64_sec=split_mobile_time_sec,
-        witness_privacy_proven=True,
-        witness_privacy_status="VERIFIED_ZK_TRACE_BLINDING",
+        witness_privacy_proven=False,
+        witness_privacy_status="GATED_END_TO_END_ZK",
         witness_privacy_rationale=(
-            "Privacy preservation mathematically established under QROM commitment hiding (Adv <= 2^-160), "
-            "HMAC-SHA3-384 PRF nullifier, and verified B = 39 randomized ZK blinding rows and leaf salts (P0 Issue #36 resolved)."
+            "Tier-1 resource figures are analytical targets. The actual Tier-1 proof circuit and "
+            "end-to-end randomized trace/quotient masking are not integrated or verified; the "
+            "Python blinding model is not proof of production witness privacy (P0 Issue #36 remains open)."
         ),
         android_mobile_status=split_android,
         ios_mobile_status=split_ios,
