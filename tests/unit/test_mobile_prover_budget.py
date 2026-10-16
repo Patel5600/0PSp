@@ -94,8 +94,9 @@ def test_evaluate_mobile_prover_architectures_defaults() -> None:
     assert air.android_mobile_status == "FEASIBLE"
     assert air.ios_mobile_status == "BORDERLINE"
     assert air.device_support_percent == 85.0
-    assert air.witness_privacy_proven is True
-    assert air.witness_privacy_status == "VERIFIED_ZK_TRACE_BLINDING"
+    assert air.witness_privacy_proven is False
+    assert air.witness_privacy_status == "GATED_END_TO_END_ZK"
+    assert "not wired" in air.witness_privacy_rationale
 
     # 4. 2-Tier Blinded Split-Prover
     split = res["profiles"][3]
@@ -106,9 +107,10 @@ def test_evaluate_mobile_prover_architectures_defaults() -> None:
     assert split.android_mobile_status == "FEASIBLE"
     assert split.ios_mobile_status == "FEASIBLE"
     assert split.device_support_percent == 100.0
-    assert split.witness_privacy_proven is True  # Verified via ZK blinding rows and leaf salts (P0 Issue #36)
-    assert split.witness_privacy_preserved is True  # Backward-compatible property
-    assert split.witness_privacy_status == "VERIFIED_ZK_TRACE_BLINDING"
+    assert split.witness_privacy_proven is False  # A Python model is not end-to-end proof masking
+    assert split.witness_privacy_preserved is False  # Backward-compatible property reflects actual gate
+    assert split.witness_privacy_status == "GATED_END_TO_END_ZK"
+    assert "not integrated or verified" in split.witness_privacy_rationale
 
 
 def test_tree_depth_scaling_and_stark_power_of_two_domains() -> None:
