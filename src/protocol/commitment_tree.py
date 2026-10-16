@@ -156,7 +156,7 @@ class CommitmentTree:
             raise CommitmentTreeError("membership index is outside the populated tree")
         siblings = []
         cursor = index
-        for level in range(TREE_DEPTH):
+        for level in range(self.depth):
             siblings.append(self._levels[level].get(cursor ^ 1, self._defaults[level]))
             cursor >>= 1
         return tuple(siblings)
