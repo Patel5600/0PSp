@@ -8,7 +8,7 @@
 
 The previous `scripts/verify_composite_soundness.py` did not calculate the soundness of the pinned OpenVM profile. It assumed a degree-5 extension, hard-coded a per-query FRI bound, added hand-selected error terms, and reported a post-quantum bit count and blinding-row requirement without a derivation tied to the actual OpenVM configuration. Those outputs were not valid evidence and have been removed.
 
-The replacement report is deliberately fail-closed. It records the pinned backend facts, sets the composed post-quantum security result to **UNKNOWN**, sets end-to-end witness hiding to **NOT ESTABLISHED**, and returns a failing exit status until reproducible, reviewable evidence is supplied.
+The replacement Python gate is deliberately fail-closed. It records the composed post-quantum security result as **UNKNOWN**, sets end-to-end witness hiding to **NOT ESTABLISHED**, and returns a failing exit status. Separately, the pinned Rust runner calls the upstream `SoundnessCalculator::calculate` for the **app-only RBR profile**, using the same conservative constraint/AIR/trace/interaction bounds named in the pinned backend's `tests/soundness.rs`. The non-secret profile manifest records each app-level error component and the derived `n_logup` bound. This closes the gap between an advertised 100-bit preset label and a reproducible app-only calculator result; it does **not** derive a composed 0PSP post-quantum bound and does not establish witness hiding.
 
 ## Source evidence
 
@@ -23,7 +23,7 @@ The replacement report is deliberately fail-closed. It records the pinned backen
 | Item | Evidence status |
 |---|---|
 | Source revision and upstream parameter constructor | Pinned |
-| Upstream target | 100-bit RBR preset |
+| Upstream target | 100-bit RBR preset, with app-only RBR components calculated from the pinned upstream soundness calculator |
 | Current candidate's composed post-quantum bound | **Unknown / not established** |
 | End-to-end zero knowledge / witness hiding | **Not established** |
 | Full production spend relation and production trusted-state integration | **Not established** |

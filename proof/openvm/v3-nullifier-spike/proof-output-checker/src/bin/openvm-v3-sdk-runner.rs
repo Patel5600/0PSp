@@ -8,9 +8,10 @@ use openvm_sdk::{
     DefaultStarkEngine, Sdk, StdIn,
 };
 use openvm_sdk_config::SdkVmConfig;
-use openvm_stark_backend::p3_field::PrimeField32;
+use openvm_stark_backend::{p3_field::PrimeField32, soundness::SoundnessCalculator};
 use openvm_stark_sdk::config::{
-    app_params_with_100_bits_security, MAX_APP_LOG_STACKED_HEIGHT,
+    app_params_with_100_bits_security, base_field_order, challenge_field_bits,
+    MAX_APP_LOG_STACKED_HEIGHT,
 };
 use std::{
     env, fs,
@@ -22,6 +23,14 @@ const PUBLIC_VALUE_BYTES: usize = 64;
 const PINNED_OPENVM_REV: &str = "59a69b8b0cbee7011ac978e4cc07707ee3681944";
 const DECLARED_UPSTREAM_SOUNDNESS_BITS: u32 = 100;
 const REQUIRED_COMPOSITE_SOUNDNESS_BITS: u32 = 128;
+const REQUIRED_APP_RBR_SOUNDNESS_BITS: f64 = 100.0;
+const APP_MAX_CONSTRAINTS: usize = 5_000;
+const APP_NUM_AIRS: usize = 100;
+const APP_MAX_LOG_HEIGHT: usize = 24;
+const APP_NUM_COLUMNS: usize = 30_000;
+const APP_MAX_INTERACTIONS_PER_AIR: usize = 1_000;
+const APP_SOUNDNESS_SOURCE: &str =
+    "openvm-org/stark-backend@v2.0.1/crates/stark-backend/tests/soundness.rs";
 
 fn sdk_from_config(path: &Path) -> Result<Sdk> {
     let toml = fs::read_to_string(path)
@@ -99,19 +108,76 @@ fn read_hex_file(path: &Path, expected_bytes: usize, label: &str) -> Result<Vec<
 }
 
 
+fn calculate_pinned_app_rbr_soundness() -> (SoundnessCalculator, usize) {
+    // Match the conservative application bounds used by the exact pinned upstream
+    // backend test suite. This is the app-level RBR calculator only, not the
+    // composed 0PSP post-quantum bound and not a witness-hiding proof.
+    let params = app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT);
+    let field_bound =
+        (params.logup.max_interaction_count as f64).log2().ceil() as usize - params.l_skip;
+    let param_bound = (APP_NUM_AIRS as f64).log2().ceil() as usize
+        + (APP_MAX_INTERACTIONS_PER_AIR as f64).log2().ceil() as usize
+        + APP_MAX_LOG_HEIGHT
+        - params.l_skip;
+    let n_logup = field_bound.min(param_bound);
+    let soundness = SoundnessCalculator::calculate(
+        &params,
+        base_field_order(),
+        challenge_field_bits(),
+        APP_MAX_CONSTRAINTS,
+        APP_NUM_AIRS,
+        params.max_constraint_degree,
+        APP_MAX_LOG_HEIGHT,
+        APP_NUM_COLUMNS,
+        params.w_stack,
+        n_logup,
+    );
+    (soundness, n_logup)
+}
+
 fn write_security_profile_manifest(
     evidence_dir: &Path,
     app_commit_hex: &str,
 ) -> Result<()> {
-    // This is a reproducibility/claim-control artifact, not a cryptographic proof.
-    // The pinned upstream SDK exposes the 100-bit profile used below; do not relabel
-    // it as meeting the project's 128-bit composed target.
+    // This is reproducibility metadata plus the pinned backend's app-only RBR
+    // calculation, not a composed post-quantum security proof.
+    let (soundness, n_logup) = calculate_pinned_app_rbr_soundness();
+    if !soundness.total_bits.is_finite()
+        || soundness.total_bits < REQUIRED_APP_RBR_SOUNDNESS_BITS
+    {
+        bail!(
+            "pinned OpenVM app RBR soundness calculator returned {:.3} bits; upstream 100-bit baseline is not met",
+            soundness.total_bits
+        );
+    }
     let manifest = serde_json::json!({
         "schema": "0psp.openvm.candidate-security-profile.v1",
         "backend": "OpenVM",
         "openvm_git_revision": PINNED_OPENVM_REV,
         "security_parameter_constructor": "app_params_with_100_bits_security",
         "upstream_declared_soundness_bits": DECLARED_UPSTREAM_SOUNDNESS_BITS,
+        "calculated_app_rbr_soundness_bits": soundness.total_bits,
+        "app_rbr_soundness_target_met": soundness.total_bits >= REQUIRED_APP_RBR_SOUNDNESS_BITS,
+        "app_rbr_soundness_components_bits": {
+            "logup": soundness.logup_bits,
+            "gkr_sumcheck": soundness.gkr_sumcheck_bits,
+            "gkr_batching": soundness.gkr_batching_bits,
+            "zerocheck_sumcheck": soundness.zerocheck_sumcheck_bits,
+            "constraint_batching": soundness.constraint_batching_bits,
+            "stacked_reduction": soundness.stacked_reduction_bits,
+            "whir": soundness.whir_bits
+        },
+        "upstream_app_soundness_bounds": {
+            "max_constraints_per_air": APP_MAX_CONSTRAINTS,
+            "num_airs": APP_NUM_AIRS,
+            "max_log_trace_height": APP_MAX_LOG_HEIGHT,
+            "num_trace_columns": APP_NUM_COLUMNS,
+            "max_interactions_per_air": APP_MAX_INTERACTIONS_PER_AIR,
+            "n_logup_bound": n_logup,
+            "source": APP_SOUNDNESS_SOURCE
+        },
+        "composite_post_quantum_soundness_bits": null,
+        "composite_post_quantum_target_met": false,
         "required_composite_soundness_bits": REQUIRED_COMPOSITE_SOUNDNESS_BITS,
         "security_target_met": false,
         "profile_status": "NO-GO",
@@ -122,13 +188,15 @@ fn write_security_profile_manifest(
         "atomic_issue_spend_reorg_recovery_established": false,
         "production_acceptance_enabled": false,
         "application_executable_commitment": app_commit_hex,
-        "interpretation": "Reproducibility metadata only; not a soundness derivation or zero-knowledge proof."
+        "interpretation": "Calculated pinned upstream app-only round-by-round soundness plus provenance; not a composed post-quantum bound or zero-knowledge proof."
     });
     let path = evidence_dir.join("security-profile.json");
     fs::write(&path, serde_json::to_vec_pretty(&manifest)?)
         .with_context(|| format!("writing security profile manifest {}", path.display()))?;
     println!("V3_SPIKE_SECURITY_PROFILE_MANIFEST={}", path.display());
-    println!("V3_SPIKE_SECURITY_PROFILE_STATUS=NO-GO (100-bit upstream profile; 128-bit composite target unmet)");
+    println!("V3_SPIKE_APP_RBR_SOUNDNESS_BITS={:.3}", soundness.total_bits);
+    println!("V3_SPIKE_APP_RBR_N_LOGUP_BOUND={n_logup}");
+    println!("V3_SPIKE_SECURITY_PROFILE_STATUS=NO-GO (app-only RBR calculated; composed 128-bit PQ target and witness hiding unmet)");
     Ok(())
 }
 
@@ -496,6 +564,13 @@ mod security_profile_manifest_tests {
         assert_eq!(value["openvm_git_revision"], PINNED_OPENVM_REV);
         assert_eq!(value["security_parameter_constructor"], "app_params_with_100_bits_security");
         assert_eq!(value["upstream_declared_soundness_bits"], 100);
+        assert!(value["calculated_app_rbr_soundness_bits"].as_f64().unwrap() >= 100.0);
+        assert_eq!(value["app_rbr_soundness_target_met"], true);
+        assert_eq!(value["upstream_app_soundness_bounds"]["max_constraints_per_air"], 5000);
+        assert_eq!(value["upstream_app_soundness_bounds"]["num_airs"], 100);
+        assert_eq!(value["upstream_app_soundness_bounds"]["n_logup_bound"].as_u64(), Some(calculate_pinned_app_rbr_soundness().1 as u64));
+        assert_eq!(value["composite_post_quantum_soundness_bits"], serde_json::Value::Null);
+        assert_eq!(value["composite_post_quantum_target_met"], false);
         assert_eq!(value["required_composite_soundness_bits"], 128);
         assert_eq!(value["security_target_met"], false);
         assert_eq!(value["profile_status"], "NO-GO");

@@ -60,6 +60,28 @@ def _fixture_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path
             "openvm_git_revision": "59a69b8b0cbee7011ac978e4cc07707ee3681944",
             "security_parameter_constructor": "app_params_with_100_bits_security",
             "upstream_declared_soundness_bits": 100,
+            "calculated_app_rbr_soundness_bits": 100.25,
+            "app_rbr_soundness_target_met": True,
+            "app_rbr_soundness_components_bits": {
+                "logup": 100.25,
+                "gkr_sumcheck": 120.0,
+                "gkr_batching": 123.0,
+                "zerocheck_sumcheck": 118.0,
+                "constraint_batching": 115.0,
+                "stacked_reduction": 116.0,
+                "whir": 100.25,
+            },
+            "upstream_app_soundness_bounds": {
+                "max_constraints_per_air": 5000,
+                "num_airs": 100,
+                "max_log_trace_height": 24,
+                "num_trace_columns": 30000,
+                "max_interactions_per_air": 1000,
+                "n_logup_bound": 27,
+                "source": "openvm-org/stark-backend@v2.0.1/crates/stark-backend/tests/soundness.rs",
+            },
+            "composite_post_quantum_soundness_bits": None,
+            "composite_post_quantum_target_met": False,
             "required_composite_soundness_bits": 128,
             "security_target_met": False,
             "profile_status": "NO-GO",
@@ -143,6 +165,11 @@ def test_manifest_records_hashes_metrics_provenance_and_limits(
     }
     assert manifest["security_profile"]["profile_status"] == "NO-GO"
     assert manifest["security_profile"]["upstream_declared_soundness_bits"] == 100
+    assert manifest["security_profile"]["calculated_app_rbr_soundness_bits"] == 100.25
+    assert manifest["security_profile"]["app_rbr_soundness_target_met"] is True
+    assert manifest["security_profile"]["upstream_app_soundness_bounds"]["n_logup_bound"] == 27
+    assert manifest["security_profile"]["composite_post_quantum_soundness_bits"] is None
+    assert manifest["security_profile"]["composite_post_quantum_target_met"] is False
     assert manifest["security_profile"]["required_composite_soundness_bits"] == 128
     assert manifest["security_profile"]["security_target_met"] is False
     assert manifest["ledger_integration"]["status"] == "PASS"

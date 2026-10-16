@@ -22,6 +22,7 @@ from typing import Any
 
 HEX_256_RE = re.compile(r"^[0-9a-f]{64}$")
 HEX_512_RE = re.compile(r"^[0-9a-f]{128}$")
+APP_SOUNDNESS_SOURCE = "openvm-org/stark-backend@v2.0.1/crates/stark-backend/tests/soundness.rs"
 HEX_160_RE = re.compile(r"^[0-9a-f]{40}$")
 METRIC_RE = re.compile(
     r"(?P<key>[A-Z0-9_]+)=([0-9]+(?:\.[0-9]+)?)\s+MAX_RSS_KIB=(\d+)"
@@ -157,6 +158,9 @@ def security_profile_record(evidence_dir: Path, executable_commit: str) -> dict[
         "openvm_git_revision": "59a69b8b0cbee7011ac978e4cc07707ee3681944",
         "security_parameter_constructor": "app_params_with_100_bits_security",
         "upstream_declared_soundness_bits": 100,
+        "app_rbr_soundness_target_met": True,
+        "composite_post_quantum_soundness_bits": None,
+        "composite_post_quantum_target_met": False,
         "required_composite_soundness_bits": 128,
         "security_target_met": False,
         "profile_status": "NO-GO",
@@ -167,9 +171,65 @@ def security_profile_record(evidence_dir: Path, executable_commit: str) -> dict[
         "production_acceptance_enabled": False,
         "application_executable_commitment": executable_commit,
     }
+    boolean_keys = {
+        "security_target_met",
+        "app_rbr_soundness_target_met",
+        "composite_post_quantum_target_met",
+        "complete_production_spend_relation_established",
+        "end_to_end_witness_hiding_established",
+        "trusted_finalized_state_established",
+        "atomic_issue_spend_reorg_recovery_established",
+        "production_acceptance_enabled",
+    }
     for key, expected in required.items():
-        if value.get(key) != expected:
+        actual = value.get(key)
+        if key in boolean_keys:
+            if actual is not expected:
+                fail(f"security profile evidence field {key!r} is not the required fail-closed boolean")
+        elif actual != expected:
             fail(f"security profile evidence field {key!r} is not the required fail-closed value")
+    calculated = value.get("calculated_app_rbr_soundness_bits")
+    if (
+        isinstance(calculated, bool)
+        or not isinstance(calculated, (int, float))
+        or not math.isfinite(float(calculated))
+        or calculated < 100.0
+    ):
+        fail("pinned upstream app RBR soundness calculation is missing or below 100 bits")
+    components = value.get("app_rbr_soundness_components_bits")
+    component_keys = (
+        "logup", "gkr_sumcheck", "gkr_batching", "zerocheck_sumcheck",
+        "constraint_batching", "stacked_reduction", "whir",
+    )
+    if not isinstance(components, dict):
+        fail("app RBR soundness component breakdown is missing")
+    for key in component_keys:
+        component = components.get(key)
+        if (
+            isinstance(component, bool)
+            or not isinstance(component, (int, float))
+            or not math.isfinite(float(component))
+            or component <= 0
+        ):
+            fail(f"app RBR soundness component {key!r} is missing or invalid")
+    bounds = value.get("upstream_app_soundness_bounds")
+    expected_bounds = {
+        "max_constraints_per_air": 5000,
+        "num_airs": 100,
+        "max_log_trace_height": 24,
+        "num_trace_columns": 30000,
+        "max_interactions_per_air": 1000,
+        "source": APP_SOUNDNESS_SOURCE,
+    }
+    if not isinstance(bounds, dict) or any(bounds.get(key) != expected for key, expected in expected_bounds.items()):
+        fail("app RBR calculation does not identify the pinned upstream circuit bounds")
+    n_logup = bounds.get("n_logup_bound")
+    if isinstance(n_logup, bool) or not isinstance(n_logup, int) or n_logup <= 0:
+        fail("app RBR calculation is missing the derived n_logup bound")
+    if value.get("composite_post_quantum_soundness_bits") is not None:
+        fail("composed post-quantum security must remain unknown")
+    if value.get("composite_post_quantum_target_met") is not False:
+        fail("composed post-quantum target must remain explicitly unmet")
     return {
         "sha256": sha256_file(path),
         "schema": value["schema"],
@@ -177,6 +237,12 @@ def security_profile_record(evidence_dir: Path, executable_commit: str) -> dict[
         "openvm_git_revision": value["openvm_git_revision"],
         "security_parameter_constructor": value["security_parameter_constructor"],
         "upstream_declared_soundness_bits": value["upstream_declared_soundness_bits"],
+        "calculated_app_rbr_soundness_bits": float(calculated),
+        "app_rbr_soundness_target_met": True,
+        "app_rbr_soundness_components_bits": components,
+        "upstream_app_soundness_bounds": bounds,
+        "composite_post_quantum_soundness_bits": None,
+        "composite_post_quantum_target_met": False,
         "required_composite_soundness_bits": value["required_composite_soundness_bits"],
         "security_target_met": value["security_target_met"],
         "profile_status": value["profile_status"],

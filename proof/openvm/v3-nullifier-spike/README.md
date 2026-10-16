@@ -15,7 +15,7 @@ The state-evidence verifier in this integration test is deliberately synthetic f
 
 ## Security-parameter reality check
 
-The pinned runner uses upstream `app_params_with_100_bits_security`. The backend's own `SystemParams::new` documentation warns that a requested security target does not guarantee the overall protocol's security. This candidate therefore emits `security-profile.json` with the upstream 100-bit RBR target, required 128-bit composite PQ target, explicit `NO-GO`, and false values for end-to-end witness hiding and production acceptance. The manifest is reproducibility/claim-control metadata, not a proof.
+The pinned runner uses upstream `app_params_with_100_bits_security` and calls the pinned backend's `SoundnessCalculator::calculate` for the app-only RBR profile under the conservative bounds used by that backend's own test suite. `security-profile.json` records the calculated component breakdown and derived `n_logup` bound, alongside the upstream 100-bit RBR target. The composed 128-bit post-quantum result remains **UNKNOWN**, end-to-end witness hiding remains **NOT ESTABLISHED**, and the profile stays **NO-GO**. This manifest is reproducibility evidence, not a composed soundness proof.
 
 The former `scripts/verify_composite_soundness.py` invented a degree-5 field model and unsupported per-query error terms that were not derived from the pinned backend. It has been replaced with a fail-closed evidence report: composed PQ security is recorded as **UNKNOWN**, not an estimated bit count, and the command exits nonzero. See [the security-claim correction record](../../../docs/audit/chp4.23-openvm-security-claim-correction.md) for upstream source references and the release gate.
 
