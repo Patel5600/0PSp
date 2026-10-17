@@ -40,10 +40,31 @@ def test_release_manifest_pins_crypto_profile_and_build_inputs() -> None:
     profile = manifest["security_profile"]
     assert profile["constructor"] == "app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT)"
     assert profile["declared_app_rbr_bits"] == 100
+    assert profile["calculated_active_app_rbr_bits"] == pytest.approx(100.08983133159032)
+    assert profile["app_rbr_assumptions"] == {
+        "max_trace_log_height": 24,
+        "max_constraints_per_air": 5000,
+        "num_airs": 100,
+        "max_interactions_per_air": 1000,
+        "num_trace_columns": 30000,
+        "w_stack": 2048,
+        "bound_scope": "OpenVM application RBR calculator under declared ceilings; not Fiat-Shamir/QROM composition",
+    }
     assert profile["composed_post_quantum_bits"] is None
     assert profile["composed_128_bit_target_met"] is False
     assert profile["witness_zero_knowledge_established"] is False
     assert profile["prover_trace_masking_established"] is False
+    params = manifest["backend_parameters"]
+    app_params = params["app_config"]["system_params"]
+    assert (app_params["log_blowup"], app_params["l_skip"], app_params["n_stack"]) == (1, 4, 20)
+    assert app_params["whir"]["rounds"] == [
+        {"num_queries": 193},
+        {"num_queries": 88},
+        {"num_queries": 81},
+        {"num_queries": 81},
+    ]
+    assert params["transcript"]["challenger"] == "Plonky3 DuplexChallenger"
+    assert params["transcript"]["permutation"] == "Poseidon2BabyBear<16>"
 
     repo = PINS.parents[3]
     for name, digest in manifest["build_inputs_sha256"].items():

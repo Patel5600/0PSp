@@ -1,12 +1,11 @@
 # 0PSP 27-Gate Production Verification Dossier
 
-**Status Date:** 2026-10-14  
-**Baseline Git Commit:** Consolidated `main` (`43e2751`)  
-**Operational Release Boundary:**  
-- **Testnet Release (`v0.1.0-alpha`):** **GO** (zero financial risk, testnet assets only).  
-- **Mainnet Live-Value Transfer:** **Strictly Gated (NO-GO)** pending independent third-party audits and prover trace zero-knowledge masking.
+> **Historical snapshot:** This dossier describes an earlier review baseline (`43e2751`, dated 2026-10-14) and is not the current release decision or evidence for current cryptographic claims. Current status: local synthetic Production-1 test-value path only; public testnet and Mainnet live value are **NO-GO**. The active OpenVM proof label is “proof of knowledge under pinned verifier assumptions; zero-knowledge NOT established.” See the current README, SPEC, LIMITATIONS, and gate matrix.
 
-This dossier provides the exhaustive technical verification, mathematical proofs, code references, and adversarial test evidence for all 27 protocol gates defined in the [Production Gate Matrix](production-gate-matrix.md).
+**Status Date:** 2026-10-14  
+**Historical Baseline Git Commit:** `43e2751`
+
+This dossier records the historical audit notes for 27 gates defined in the [Production Gate Matrix](production-gate-matrix.md). Its claims must be read under the historical-snapshot limitation above; it does not establish current implementation soundness or witness hiding.
 
 ---
 
@@ -91,7 +90,7 @@ This dossier provides the exhaustive technical verification, mathematical proofs
 
 ---
 
-### 14–19. Post-Quantum ZK Spend Relation Gates (OpenVM v2.0.2 Candidate)
+### 14–19. OpenVM Spend-Relation Gates (candidate; composed PQ bound and transcript zero-knowledge not established)
 - **14. Proof-Backend Selection:** **GO for OpenVM v2.0.2 Candidate / NO-GO for Mainnet Live Value**. Rust guest circuit [`proof/openvm/v3-nullifier-spike/src/spend_v3.rs`](../../proof/openvm/v3-nullifier-spike/src/spend_v3.rs) compiles and executes; 5 adversarial tests pass.
 - **15. ZK Transaction-Digest Binding:** **GO for Candidate / NO-GO for Mainnet**. Host encoding bound inside `spend_v3.rs` to public statement digest.
 - **16. Commit Opening Inside Proof:** **GO for Candidate / NO-GO for Mainnet**. SHAKE256-384 commitment opening verified over witness values.

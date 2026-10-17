@@ -497,6 +497,83 @@ fn main() -> Result<()> {
 mod security_profile_tests {
     use super::*;
 
+    #[test]
+    fn active_backend_parameters_match_release_manifest() {
+        let config_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../openvm.toml");
+        let toml = fs::read_to_string(config_path).expect("read pinned OpenVM config");
+        let mut vm_config = SdkVmConfig::from_toml(&toml).expect("parse pinned OpenVM config");
+        vm_config.system.config = vm_config
+            .system
+            .config
+            .clone()
+            .with_public_values(PUBLIC_VALUE_BYTES);
+        let app = AppConfig::new(
+            vm_config,
+            app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT),
+        );
+        let aggregation = AggregationSystemParams::default();
+        let parameters = serde_json::json!({
+            "app_config": app,
+            "aggregation": aggregation,
+            "transcript": {
+                "engine": "BabyBearPoseidon2CpuEngine<CpuTranscript>",
+                "field": "BabyBear",
+                "extension_degree": 4,
+                "permutation": "Poseidon2BabyBear<16>",
+                "challenger": "Plonky3 DuplexChallenger",
+                "width": 16,
+                "rate": 8,
+                "digest_elements": 8,
+            }
+        });
+        let pin_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../production1-pins.json");
+        let pins: serde_json::Value = serde_json::from_slice(
+            &fs::read(pin_path).expect("read Production-1 pin manifest"),
+        )
+        .expect("parse Production-1 pin manifest");
+        assert_eq!(
+            pins["backend_parameters"], parameters,
+            "active OpenVM FRI/STARK, VM, aggregation, or transcript parameters drifted"
+        );
+        let engine_type = std::any::type_name::<DefaultStarkEngine>();
+        assert!(
+            engine_type.contains("BabyBearPoseidon2CpuEngine"),
+            "the pinned release must use the BabyBear/Poseidon2 CPU engine"
+        );
+        let rbr_assumptions = serde_json::json!({
+            "max_trace_log_height": 24,
+            "max_constraints_per_air": 5000,
+            "num_airs": 100,
+            "max_interactions_per_air": 1000,
+            "num_trace_columns": 30000,
+            "w_stack": 2048,
+            "bound_scope": "OpenVM application RBR calculator under declared ceilings; not Fiat-Shamir/QROM composition"
+        });
+        assert_eq!(
+            pins["security_profile"]["app_rbr_assumptions"],
+            rbr_assumptions,
+            "active RBR assumption set drifted from the release manifest"
+        );
+        let active_app_rbr_bits = profile_bits(
+            "active-app",
+            &app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT),
+            rbr_assumptions["max_constraints_per_air"].as_u64().unwrap() as usize,
+            rbr_assumptions["num_airs"].as_u64().unwrap() as usize,
+            rbr_assumptions["max_trace_log_height"].as_u64().unwrap() as usize,
+            rbr_assumptions["num_trace_columns"].as_u64().unwrap() as usize,
+            rbr_assumptions["max_interactions_per_air"].as_u64().unwrap() as usize,
+        );
+        eprintln!("active preset app-RBR under pinned upstream bounds: {active_app_rbr_bits:.5} bits");
+        let expected_app_rbr_bits = pins["security_profile"]["calculated_active_app_rbr_bits"]
+            .as_f64()
+            .expect("manifest app-RBR value is numeric");
+        assert!(
+            (active_app_rbr_bits - expected_app_rbr_bits).abs() < 1e-9,
+            "active app-RBR calculation drifted from release manifest"
+        );
+        assert!(active_app_rbr_bits < TARGET_SECURITY_BITS as f64);
+    }
+
     fn n_logup_bound(
         params: &SystemParams,
         num_airs: usize,

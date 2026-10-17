@@ -18,7 +18,7 @@ class Production1ArtifactPinError(ValueError):
 _VERIFIED_PINS_TOKEN = object()
 # SHA-256 of the committed UTF-8 manifest after canonicalizing CRLF to LF. Git's
 # Windows checkout can otherwise change the file bytes without changing its blob.
-PRODUCTION1_PINS_SHA256 = "92b99e3485f700b0df91e7e42b80b82a8898408ba872442eb3299a01b55054ab"
+PRODUCTION1_PINS_SHA256 = "17ae0076a6fe974f3cfc00cab50a095dcbf41b0222aaffbf06a1a5e1ecb882ec"
 
 _PINNED_BUILD_INPUTS = {
     "openvm_toml": Path("proof/openvm/v3-nullifier-spike/openvm.toml"),
@@ -45,6 +45,16 @@ _PINNED_BUILD_INPUTS = {
 _SECURITY_PROFILE = {
     "constructor": "app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT)",
     "declared_app_rbr_bits": 100,
+    "calculated_active_app_rbr_bits": 100.08983133159032,
+    "app_rbr_assumptions": {
+        "max_trace_log_height": 24,
+        "max_constraints_per_air": 5000,
+        "num_airs": 100,
+        "max_interactions_per_air": 1000,
+        "num_trace_columns": 30000,
+        "w_stack": 2048,
+        "bound_scope": "OpenVM application RBR calculator under declared ceilings; not Fiat-Shamir/QROM composition",
+    },
     "composed_post_quantum_bits": None,
     "composed_128_bit_target_met": False,
     "witness_zero_knowledge_established": False,

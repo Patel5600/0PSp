@@ -165,6 +165,45 @@ def test_production1_host_reference_accepts_only_the_proved_arity_and_depth() ->
         )
 
 
+def test_leaf_outside_authorized_issuance_tree_cannot_be_spent() -> None:
+    statement, witness, *_ = _create_test_fixture()
+    unauthorized_witness = replace(
+        witness,
+        input_coin_id=ScopedCoinId(b"\xf0" * 32),
+    )
+    unauthorized_commitment = commit_coin_v3(
+        namespace_id=statement.namespace_id,
+        public_key_bundle=unauthorized_witness.input_bundle,
+        value=unauthorized_witness.input_value,
+        coin_id=unauthorized_witness.input_coin_id,
+        r_nf=unauthorized_witness.input_r_nf,
+        rho_coin=unauthorized_witness.input_rho,
+        params_id=statement.params_id,
+    )
+    unauthorized_nullifier = compute_nullifier_v3(
+        namespace_id=statement.namespace_id,
+        params_id=statement.params_id,
+        public_key_bundle=unauthorized_witness.input_bundle,
+        commitment=unauthorized_commitment,
+        coin_id=unauthorized_witness.input_coin_id,
+        r_nf=unauthorized_witness.input_r_nf,
+        nullifier_key=unauthorized_witness.input_nk,
+    )
+    statement_for_unauthorized_leaf = replace(
+        statement,
+        input_nullifier=unauthorized_nullifier,
+    )
+
+    with pytest.raises(
+        SpendRelationV3Error,
+        match="input commitment is not a valid member of statement commitment_root",
+    ):
+        verify_spend_relation_v3_production1_reference(
+            statement_for_unauthorized_leaf,
+            unauthorized_witness,
+        )
+
+
 @pytest.mark.parametrize(("input_value", "fee"), [(0, 0), ((1 << 64) - 1, 0), ((1 << 64) - 1, (1 << 64) - 1)])
 def test_production1_u64_boundary_values_are_well_defined(input_value: int, fee: int) -> None:
     statement, witness, *_ = _create_test_fixture(input_value=input_value, fee=fee)

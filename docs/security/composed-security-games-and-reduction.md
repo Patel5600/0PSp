@@ -1,6 +1,6 @@
 # 0PSP Composed Security Games and Concrete Reduction Bounds
 
-> **Status limitation:** This is a historical conditional model, not a proof that the active Production-1 OpenVM implementation satisfies its games or reductions. The active pinned runner declares a 100-bit application RBR target; no composed ≥128-bit post-quantum bound, zero-knowledge/witness-hiding property, or prover-trace masking is established. The active proof label is “proof of knowledge under pinned OpenVM verifier assumptions; zero-knowledge NOT established.” Current release status is defined by `README.md`, `SPEC.md`, and `docs/LIMITATIONS.md`.
+> **Status limitation:** This is a historical conditional model, not a proof that the active Production-1 OpenVM implementation satisfies its games or reductions. The active pinned runner declares a 100-bit application RBR target and calculates 100.089831 app-RBR bits under its documented ceilings; no composed ≥128-bit post-quantum bound, zero-knowledge/witness-hiding property, or prover-trace masking is established. The active proof label is “proof of knowledge under pinned OpenVM verifier assumptions; zero-knowledge NOT established.” Current release status is defined by `README.md`, `SPEC.md`, and `docs/LIMITATIONS.md`.
 
 **Document Version:** 1.0.0  
 **Status:** Historical conditional model and analytical reductions; not an implementation security proof.

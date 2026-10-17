@@ -2,7 +2,7 @@
 
 > **Production-1 local synthetic test value: GO** | **Public testnet value: NO-GO** | **Mainnet live value: NO-GO**
 
-Production-1 freezes a one-input/one-output OpenVM spend relation and uses the same pinned proof verifier and SQLite state transition for local test value. The single-tenant Phase A worker receives plaintext witness over authenticated TLS; the operator can read it. The OpenVM profile is below the 128-bit target and does not establish end-to-end witness hiding. This status does not authorize public-chain deployment or real-value transfers. See [docs/LIMITATIONS.md](docs/LIMITATIONS.md), [the accepted relation](docs/security/ACCEPTED_SPEND_RELATION_V3.md), and [the gate matrix](docs/security/production-gate-matrix.md).
+Production-1 freezes a one-input/one-output OpenVM spend relation and uses the same pinned proof verifier and SQLite state transition for local test value. The active preset declares 100-bit application RBR and calculates 100.089831 app-RBR bits under its documented ceilings; composed ≥128-bit PQ security is not claimed. The proof does not establish transcript zero-knowledge. The single-tenant Phase A worker receives plaintext witness over authenticated TLS; the operator can read it. This status does not authorize public-chain deployment or real-value transfers. See [docs/LIMITATIONS.md](docs/LIMITATIONS.md), [the accepted relation](docs/security/ACCEPTED_SPEND_RELATION_V3.md), and [the gate matrix](docs/security/production-gate-matrix.md).
 
 The Production-1 check builds the OpenVM guest and verifier, runs the repository tests, then exercises a synthetic local note through worker proving, client verification, ledger acceptance, and duplicate-spend rejection. Follow [Production-1 setup](proof/openvm/v3-nullifier-spike/README.md#clean-machine-production-1-check) from a clean Linux machine.
 
@@ -33,7 +33,7 @@ Production-1 provides the scoped local test-value spend path described above. Ot
 
 ### 2. OpenVM spend_v3 (`OpenVM v2.0.2`)
 - Production-1 freezes the active guest to one input, one output, and a namespace-scoped depth-63 path. It constrains NK possession, CommitV3 opening, same-witness NullifierV3, value conservation, and anchor/slot-bound output identity.
-- The pinned upstream profile targets 100 bits; the measured parameter analysis is below 128 bits. The proof does not establish end-to-end witness hiding or masked prover traces. See [BENCH.md](BENCH.md) and [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
+- The active pinned profile calculates 100.089831 application RBR bits under documented bounds; composed ≥128-bit PQ security and transcript zero-knowledge are not established. See [BENCH.md](BENCH.md) and [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 ### 3. Durable SQLite Ledger & Historical Anchor Ring
 - **Atomic State Transitions:** SQLite WAL mode with immediate transactions enforcing unique deposit anchors, unique output commitments, and single-use nullifiers.
 - **Historical Anchor Ring:** The current candidate configuration defaults to a 256-anchor local root/head window. This is local history, not distributed consensus, finalized-state authentication, or external rollback protection.

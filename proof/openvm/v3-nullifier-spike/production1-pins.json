@@ -11,11 +11,21 @@
     "composed_128_bit_target_met": false,
     "witness_zero_knowledge_established": false,
     "prover_trace_masking_established": false,
-    "transcript_claim": "Pinned OpenVM verifier implementation only; no independent Fiat-Shamir/QROM composition bound claimed"
+    "transcript_claim": "Pinned OpenVM verifier implementation only; no independent Fiat-Shamir/QROM composition bound claimed",
+    "calculated_active_app_rbr_bits": 100.08983133159032,
+    "app_rbr_assumptions": {
+      "max_trace_log_height": 24,
+      "max_constraints_per_air": 5000,
+      "num_airs": 100,
+      "max_interactions_per_air": 1000,
+      "num_trace_columns": 30000,
+      "w_stack": 2048,
+      "bound_scope": "OpenVM application RBR calculator under declared ceilings; not Fiat-Shamir/QROM composition"
+    }
   },
   "build_inputs_sha256": {
     "openvm_toml": "3180ee5a86fd046c62accab08a665f1cb6fc3d1507ce3b0374900b1ef3c620a5",
-    "runner_source": "b93f802aca52d389ce82423a8cead1918cf1aaa67286269cfdc328b1f76192d4",
+    "runner_source": "8aeab1e38ba1501108b896d86088c1f6a6079eaae7cabc8ebcb280be07103261",
     "checker_source": "d55dcc56328491d5034651f66fb8ab32b12b06defd1b604b98b4c3565726f07e",
     "cargo_lock": "66f46b494202611d2b3100307586921364feae596f634658ecd259e07e518f98",
     "cargo_manifest": "4709ca215fa94ff73760865861277e032e20af29634e1f312894903728e4e558",
@@ -38,5 +48,206 @@
     "windows-x86_64": "bf0511237e01fdcf5db369fee26c56809bbb178d8a0e411baaa7f12c5e5aa167"
   },
   "guest_source": "proof/openvm/v3-nullifier-spike/src/spend_v3.rs",
-  "toolchain": "rustc 1.91.1; cargo-openvm 2.0.2; riscv64-unknown-elf-gcc 15.3.0"
+  "toolchain": "rustc 1.91.1; cargo-openvm 2.0.2; riscv64-unknown-elf-gcc 15.3.0",
+  "backend_parameters": {
+    "aggregation": {
+      "internal": {
+        "l_skip": 2,
+        "log_blowup": 3,
+        "logup": {
+          "log_max_message_length": 7,
+          "max_interaction_count": 2013265921,
+          "pow_bits": 19
+        },
+        "max_constraint_degree": 4,
+        "n_stack": 17,
+        "w_stack": 512,
+        "whir": {
+          "folding_pow_bits": 18,
+          "k": 4,
+          "mu_pow_bits": 20,
+          "proximity": {
+            "ListDecoding": {
+              "m": 2
+            }
+          },
+          "query_phase_pow_bits": 20,
+          "rounds": [
+            {
+              "num_queries": 68
+            },
+            {
+              "num_queries": 30
+            },
+            {
+              "num_queries": 20
+            }
+          ]
+        }
+      },
+      "leaf": {
+        "l_skip": 4,
+        "log_blowup": 2,
+        "logup": {
+          "log_max_message_length": 7,
+          "max_interaction_count": 2013265921,
+          "pow_bits": 18
+        },
+        "max_constraint_degree": 4,
+        "n_stack": 17,
+        "w_stack": 2048,
+        "whir": {
+          "folding_pow_bits": 4,
+          "k": 4,
+          "mu_pow_bits": 13,
+          "proximity": "UniqueDecoding",
+          "query_phase_pow_bits": 20,
+          "rounds": [
+            {
+              "num_queries": 118
+            },
+            {
+              "num_queries": 84
+            },
+            {
+              "num_queries": 81
+            }
+          ]
+        }
+      }
+    },
+    "app_config": {
+      "app_vm_config": {
+        "bigint": null,
+        "deferral": null,
+        "ecc": null,
+        "fp2": null,
+        "io": {},
+        "keccak": {},
+        "modular": null,
+        "pairing": null,
+        "rv32i": {},
+        "rv32m": {
+          "range_tuple_checker_sizes": [
+            256,
+            2048
+          ]
+        },
+        "sha2": null,
+        "system": {
+          "config": {
+            "max_constraint_degree": 3,
+            "memory_config": {
+              "addr_space_height": 3,
+              "addr_spaces": [
+                {
+                  "layout": "Null",
+                  "num_cells": 0
+                },
+                {
+                  "layout": "U8",
+                  "num_cells": 128
+                },
+                {
+                  "layout": "U8",
+                  "num_cells": 536870912
+                },
+                {
+                  "layout": "U8",
+                  "num_cells": 64
+                },
+                {
+                  "layout": {
+                    "F": {
+                      "size": 4
+                    }
+                  },
+                  "num_cells": 0
+                },
+                {
+                  "layout": {
+                    "F": {
+                      "size": 4
+                    }
+                  },
+                  "num_cells": 0
+                },
+                {
+                  "layout": {
+                    "F": {
+                      "size": 4
+                    }
+                  },
+                  "num_cells": 0
+                },
+                {
+                  "layout": {
+                    "F": {
+                      "size": 4
+                    }
+                  },
+                  "num_cells": 0
+                },
+                {
+                  "layout": {
+                    "F": {
+                      "size": 4
+                    }
+                  },
+                  "num_cells": 0
+                }
+              ],
+              "decomp": 17,
+              "pointer_max_bits": 29,
+              "timestamp_max_bits": 29
+            },
+            "num_public_values": 64
+          }
+        }
+      },
+      "system_params": {
+        "l_skip": 4,
+        "log_blowup": 1,
+        "logup": {
+          "log_max_message_length": 7,
+          "max_interaction_count": 2013265921,
+          "pow_bits": 18
+        },
+        "max_constraint_degree": 3,
+        "n_stack": 20,
+        "w_stack": 2048,
+        "whir": {
+          "folding_pow_bits": 5,
+          "k": 4,
+          "mu_pow_bits": 15,
+          "proximity": "UniqueDecoding",
+          "query_phase_pow_bits": 20,
+          "rounds": [
+            {
+              "num_queries": 193
+            },
+            {
+              "num_queries": 88
+            },
+            {
+              "num_queries": 81
+            },
+            {
+              "num_queries": 81
+            }
+          ]
+        }
+      }
+    },
+    "transcript": {
+      "challenger": "Plonky3 DuplexChallenger",
+      "digest_elements": 8,
+      "engine": "BabyBearPoseidon2CpuEngine<CpuTranscript>",
+      "extension_degree": 4,
+      "field": "BabyBear",
+      "permutation": "Poseidon2BabyBear<16>",
+      "rate": 8,
+      "width": 16
+    }
+  }
 }
