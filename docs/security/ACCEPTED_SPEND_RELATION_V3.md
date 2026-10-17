@@ -21,6 +21,10 @@ The verifier recomputes the digest from the host-parsed statement and requires e
 
 The relation's pure verification API returns the selected relation ID, parameters, namespace, root/head/context, nullifier, output commitments, and fee after proof verification. It does not consult or mutate ledger state. A caller must apply its root-acceptance policy separately; the Production-1 SQLite ledger rechecks the anchor and nullifier/output uniqueness inside its write transaction.
 
+The root in the statement is a claim proved against by the guest, not an authenticated-finality assertion. The API contract is `Verify(vk, public_including_root, proof) -> verified public fields | reject`; callers must provide the authenticated-root policy and then separately apply state. Production-1's local ring is a synthetic local state policy only. Wrong and expired roots are rejected by that composition, but no consensus or public-chain finality adapter is implemented.
+
+Issuance is a separate composition predicate. For the local-only profile, `I_local(c)` is true exactly for a commitment present in the authorized synthetic bootstrap evidence used to initialize the tree. The spend guest enforces membership under the supplied root; therefore a leaf absent from the authorized tree cannot satisfy membership. This is not a public deposit/mint predicate, and the demo faucet creates no public-chain asset claim.
+
 ## Private inputs
 
 The witness contains the exact canonical TxFieldsV3 bytes; input BundleV3; u64 input value; input coin ID, nullifier randomness, commitment randomness and nullifier key; u64 leaf index and 63 ordered 48-byte Merkle siblings; output BundleV3, u64 output value and output commitment randomness. The worker receives the serialized witness in RAM over TLS. In Phase A the operator and prover process can see plaintext.
@@ -45,6 +49,6 @@ This host composition is local SQLite state for test value. It is not a consensu
 
 ## Security scope
 
-OpenVM's current measured profile does not establish a composed 128-bit post-quantum bound. This document makes no full witness-ZK or prover-trace-masking claim. Phase A trusts one operator with plaintext witness. The proof checker and ledger establish relation satisfaction and local replay protection for the stated profile; they do not authenticate issuance, recipient intent, external finality, or reorg recovery.
+The active manifest pins the upstream `app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT)` profile, which declares 100-bit application RBR. Separate proposed-parameter calculations in `BENCH.md` are not active release parameters. The active composed bound is unknown; composed ≥128-bit post-quantum security is **NOT CLAIMED**. Security label: **proof of knowledge under the pinned OpenVM verifier assumptions; zero-knowledge / witness hiding NOT established**. No prover-trace masking or independent Fiat–Shamir/QROM composition bound is claimed. Phase A trusts one operator with plaintext witness. The proof checker and ledger establish relation satisfaction and local replay protection for the stated profile; they do not authenticate public issuance, recipient intent, external finality, or reorg recovery.
 
 The Rust guest predicate has a fixed-vector test that flips a byte in every public and private field and each of the 63 Merkle siblings; all mutations reject. Python host-reference mutation tests cover every typed statement and witness field and enforce only the Production-1 1-in/1-out depth-63 profile. These tests are regression evidence for the implementation boundary and are not a proof of the cryptographic soundness of OpenVM or the protocol.

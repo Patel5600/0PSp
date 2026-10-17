@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,23 @@ def test_release_manifest_pin_is_stable_across_crlf_checkout(tmp_path, monkeypat
     assert result is not None
     assert len(captured["expected_app_verifying_key_sha256"]) == 32
     assert len(captured["app_executable_commitment"]) == 32
+
+
+def test_release_manifest_pins_crypto_profile_and_build_inputs() -> None:
+    manifest = json.loads(PINS.read_text(encoding="utf-8"))
+    profile = manifest["security_profile"]
+    assert profile["constructor"] == "app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT)"
+    assert profile["declared_app_rbr_bits"] == 100
+    assert profile["composed_post_quantum_bits"] is None
+    assert profile["composed_128_bit_target_met"] is False
+    assert profile["witness_zero_knowledge_established"] is False
+    assert profile["prover_trace_masking_established"] is False
+
+    repo = PINS.parents[3]
+    for name, digest in manifest["build_inputs_sha256"].items():
+        relative = production1_artifacts._PINNED_BUILD_INPUTS[name]
+        content = (repo / relative).read_bytes().replace(b"\r\n", b"\n")
+        assert hashlib.sha256(content).hexdigest() == digest
 
 
 def test_release_manifest_content_mutation_fails_pin_check(tmp_path) -> None:

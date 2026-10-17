@@ -18,7 +18,47 @@ class Production1ArtifactPinError(ValueError):
 _VERIFIED_PINS_TOKEN = object()
 # SHA-256 of the committed UTF-8 manifest after canonicalizing CRLF to LF. Git's
 # Windows checkout can otherwise change the file bytes without changing its blob.
-PRODUCTION1_PINS_SHA256 = "bfef4f50d99bafd8d86085f06f4c0e9d1a50369e177df3d083dfe11b18403d69"
+PRODUCTION1_PINS_SHA256 = "92b99e3485f700b0df91e7e42b80b82a8898408ba872442eb3299a01b55054ab"
+
+_PINNED_BUILD_INPUTS = {
+    "openvm_toml": Path("proof/openvm/v3-nullifier-spike/openvm.toml"),
+    "runner_source": Path(
+        "proof/openvm/v3-nullifier-spike/proof-output-checker/src/bin/openvm-v3-sdk-runner.rs"
+    ),
+    "checker_source": Path(
+        "proof/openvm/v3-nullifier-spike/proof-output-checker/src/main.rs"
+    ),
+    "cargo_lock": Path("proof/openvm/v3-nullifier-spike/proof-output-checker/Cargo.lock"),
+    "cargo_manifest": Path("proof/openvm/v3-nullifier-spike/proof-output-checker/Cargo.toml"),
+    "rust_toolchain": Path("proof/openvm/v3-nullifier-spike/rust-toolchain.toml"),
+    "guest_entry_source": Path("proof/openvm/v3-nullifier-spike/src/main.rs"),
+    "guest_library_source": Path("proof/openvm/v3-nullifier-spike/src/lib.rs"),
+    "guest_relation_source": Path("proof/openvm/v3-nullifier-spike/src/spend_v3.rs"),
+    "guest_cargo_lock": Path("proof/openvm/v3-nullifier-spike/Cargo.lock"),
+    "guest_cargo_manifest": Path("proof/openvm/v3-nullifier-spike/Cargo.toml"),
+    "host_verifier_adapter": Path("src/protocol/openvm_v3_candidate_verifier.py"),
+    "proof_envelope_verifier": Path("src/protocol/proof_backend_v3.py"),
+    "public_statement_codec": Path("src/protocol/transaction_v3_candidate.py"),
+    "stateful_testnet_composition": Path("src/protocol/production1_ledger.py"),
+}
+
+_SECURITY_PROFILE = {
+    "constructor": "app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT)",
+    "declared_app_rbr_bits": 100,
+    "composed_post_quantum_bits": None,
+    "composed_128_bit_target_met": False,
+    "witness_zero_knowledge_established": False,
+    "prover_trace_masking_established": False,
+    "transcript_claim": (
+        "Pinned OpenVM verifier implementation only; no independent "
+        "Fiat-Shamir/QROM composition bound claimed"
+    ),
+}
+
+
+def _canonical_sha256(path: Path) -> str:
+    content = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(content).hexdigest()
 
 
 class Production1OpenVMProofVerifier(OpenVMV3CandidateProofVerifier):
@@ -42,6 +82,19 @@ def load_production1_verifier(
             raise ValueError("profile/circuit id mismatch")
         if pins["backend"] != "OpenVM" or pins["openvm"] != "2.0.2":
             raise ValueError("unsupported backend release")
+        if pins["openvm_git_revision"] != "59a69b8b0cbee7011ac978e4cc07707ee3681944":
+            raise ValueError("unsupported OpenVM source revision")
+        if pins["stark_backend"] != "2.0.1":
+            raise ValueError("unsupported STARK backend release")
+        if pins["security_profile"] != _SECURITY_PROFILE:
+            raise ValueError("security claim/profile drift")
+        recorded_inputs = pins["build_inputs_sha256"]
+        if set(recorded_inputs) != set(_PINNED_BUILD_INPUTS):
+            raise ValueError("pinned build input set is incomplete or unexpected")
+        repo_root = Path(__file__).resolve().parents[2]
+        for name, relative_path in _PINNED_BUILD_INPUTS.items():
+            if _canonical_sha256(repo_root / relative_path) != recorded_inputs[name]:
+                raise ValueError(f"pinned build input changed: {name}")
         machine = platform.machine().lower()
         machine = "x86_64" if machine in {"amd64", "x64"} else machine
         target = f"{'windows' if sys.platform == 'win32' else sys.platform}-{machine}"

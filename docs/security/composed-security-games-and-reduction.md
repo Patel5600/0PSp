@@ -1,14 +1,16 @@
 # 0PSP Composed Security Games and Concrete Reduction Bounds
 
+> **Status limitation:** This is a historical conditional model, not a proof that the active Production-1 OpenVM implementation satisfies its games or reductions. The active pinned runner declares a 100-bit application RBR target; no composed ≥128-bit post-quantum bound, zero-knowledge/witness-hiding property, or prover-trace masking is established. The active proof label is “proof of knowledge under pinned OpenVM verifier assumptions; zero-knowledge NOT established.” Current release status is defined by `README.md`, `SPEC.md`, and `docs/LIMITATIONS.md`.
+
 **Document Version:** 1.0.0  
-**Status:** Formal Specification and Analytical Reductions (V2 Production Baseline & V3 Candidate)  
-**Security Baseline:** Testnet `v0.1.0-alpha` (GO for testnet tokens); Mainnet live-value transfer is strictly **GATED (NO-GO)** pending external audit and prover-trace zero-knowledge masking.
+**Status:** Historical conditional model and analytical reductions; not an implementation security proof.
+**Security Baseline:** Historical only. Current local synthetic test-value and Mainnet status are stated in README and the gate matrix; public testnet and Mainnet live-value transfer remain **NO-GO**.
 
 ---
 
 ## 1. Scope and Cryptographic Doctrine
 
-This document formalizes the composed security model for the 0PSP zero-knowledge private cash protocol. It establishes the mathematical definitions, execution games, and reduction bounds for:
+This document gives conditional definitions, execution games, and reduction analyses for a proposed 0PSP private-spend protocol. It does not establish that the active implementation is zero-knowledge or satisfies these reductions. Topics include:
 
 1. **Balance Conservation Game ($\mathbf{Exp}^{\text{balance}}_{\mathcal{A}}$)**: Preventing token minting out of thin air, inflation, double spending, and unauthorized value extraction.
 2. **Anonymity and Unlinkability Game ($\mathbf{Exp}^{\text{anon}}_{\mathcal{A}}$)**: Preventing note ownership linkage, transaction tracing, and sender-directed deanonymization.
