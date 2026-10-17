@@ -10,6 +10,7 @@ import pytest
 
 from src.protocol.v3_proof_worker import (
     MAX_PROOF_BYTES,
+    PROOF_PRIVACY_STATUS,
     PROOF_RESPONSE_MAGIC,
     ProofHTTPServer,
     ProofRequestHandler,
@@ -84,6 +85,7 @@ def test_worker_requires_auth_and_wipes_request_witness(worker_server) -> None:
     result = json.loads(accepted.body)
     assert result["proof"] == base64.b64encode(PROOF).decode("ascii")
     assert result["public_inputs"] == PUBLIC_INPUTS.hex()
+    assert result["proof_privacy"] == PROOF_PRIVACY_STATUS
     assert isinstance(result["prove_ms"], float)
     assert result["peak_rss_kib"] == 2048
     assert len(received) == 1

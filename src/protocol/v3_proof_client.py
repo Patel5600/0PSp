@@ -4,6 +4,7 @@ from __future__ import annotations
 import http.client
 import base64
 import json
+import os
 import ssl
 import time
 import uuid
@@ -17,6 +18,7 @@ from src.protocol.transaction_v3_candidate import TxFieldsV3Candidate
 from src.protocol.v3_proof_worker import (
     MAX_PROOF_BYTES,
     PRODUCTION1_CIRCUIT_ID,
+    PROOF_PRIVACY_STATUS,
 )
 
 
@@ -32,6 +34,7 @@ def _request_and_verify_spend_proof(
     witness: bytes | bytearray,
     statement: TxFieldsV3Candidate,
     verifier: OpenVMV3CandidateProofVerifier,
+    allow_non_zk_test_value: bool = False,
     timeout_seconds: float = 1200,
 ) -> tuple[bytes, bytes, float, float, int]:
     """Prove remotely, then bind and verify the public statement locally.
@@ -40,6 +43,14 @@ def _request_and_verify_spend_proof(
     certificate-validated HTTPS connection. Phase A still trusts the worker
     operator with plaintext while the OpenVM guest executes.
     """
+    if not allow_non_zk_test_value:
+        raise V3ProofClientError(
+            "pinned OpenVM proof does not establish witness hiding; refusing by default"
+        )
+    if os.environ.get("PROFILE") != "production1_testnet":
+        raise V3ProofClientError(
+            "non-ZK proof opt-in is restricted to PROFILE=production1_testnet"
+        )
     if not isinstance(witness, bytearray) or not 1 <= len(witness) <= 2_000_000:
         raise V3ProofClientError("witness length is outside configured bounds")
     if not isinstance(api_key, bytes) or len(api_key) < 32:
@@ -102,9 +113,11 @@ def _request_and_verify_spend_proof(
     try:
         result = json.loads(envelope)
         if not isinstance(result, dict) or set(result) != {
-            "proof", "public_inputs", "prove_ms", "peak_rss_kib"
+            "proof", "public_inputs", "proof_privacy", "prove_ms", "peak_rss_kib"
         }:
             raise ValueError("invalid response fields")
+        if result["proof_privacy"] != PROOF_PRIVACY_STATUS:
+            raise ValueError("proof privacy status is missing or unsupported")
         public_inputs = bytes.fromhex(result["public_inputs"])
         proof = base64.b64decode(result["proof"], validate=True)
         if not 1 <= len(proof) <= MAX_PROOF_BYTES:
@@ -141,6 +154,7 @@ def request_and_verify_spend_proof(
     witness: bytearray,
     statement: TxFieldsV3Candidate,
     verifier: OpenVMV3CandidateProofVerifier,
+    allow_non_zk_test_value: bool = False,
     timeout_seconds: float = 1200,
 ) -> tuple[bytes, bytes, float, float, int]:
     """Request a proof and wipe the caller-owned mutable witness on every exit."""
@@ -154,6 +168,7 @@ def request_and_verify_spend_proof(
             witness=witness,
             statement=statement,
             verifier=verifier,
+            allow_non_zk_test_value=allow_non_zk_test_value,
             timeout_seconds=timeout_seconds,
         )
     finally:

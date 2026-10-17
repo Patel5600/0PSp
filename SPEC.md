@@ -45,6 +45,8 @@ The active release manifest pins OpenVM 2.0.2 at git revision `59a69b8b0cbee7011
 
 Security label: **proof of knowledge under the pinned OpenVM verifier assumptions; zero-knowledge / witness hiding NOT established**. No prover-trace masking or independent Fiat–Shamir/QROM composition bound is established. This statement concerns the proof transcript; Phase A's operator visibility of plaintext witness is a separate deployment limitation. The complete guest predicate and regression tests do not prove backend soundness, transcript privacy, or protocol composition.
 
+The client API refuses this non-ZK proof by default. The synthetic local test path must explicitly opt in under `PROFILE=production1_testnet`; the worker returns `proof_privacy=witness_hiding_not_established`, which the client requires. This guard prevents silent privacy claims but does not add transcript masking or make the proof zero-knowledge.
+
 ## Root acceptance and issuance boundary
 
 `verify_production1_spend(statement, proof, vk)` is pure: it verifies the proof against the pinned verifier and the caller-supplied public statement, including its root, then returns verified public fields. It neither authenticates the root nor reads or mutates ledger state. The caller must supply a root authenticated under its own policy. The local Production-1 SQLite composition accepts only bootstrap/current/history anchors already present in its local ring and rejects wrong or expired roots; these are local synthetic anchors, not consensus-finalized roots. No adapter currently supplies independently authenticated public-chain finality.

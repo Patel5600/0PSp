@@ -102,6 +102,7 @@ def main() -> int:
             witness=witness,
             statement=statement,
             verifier=verifier,
+            allow_non_zk_test_value=True,
         )
     finally:
         witness[:] = b"\x00" * len(witness)

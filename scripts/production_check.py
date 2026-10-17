@@ -24,6 +24,8 @@ def main() -> int:
     limitations = (ROOT / "docs/LIMITATIONS.md").read_text(encoding="utf-8")
     matrix = (ROOT / "docs/security/production-gate-matrix.md").read_text(encoding="utf-8")
     relation = (ROOT / "proof/openvm/v3-nullifier-spike/src/spend_v3.rs").read_text(encoding="utf-8")
+    client = (ROOT / "src/protocol/v3_proof_client.py").read_text(encoding="utf-8")
+    worker = (ROOT / "src/protocol/v3_proof_worker.py").read_text(encoding="utf-8")
 
     if not PRODUCTION1_TESTNET_SPEND_VERIFICATION_ENABLED:
         blockers.append("production1_testnet verifier latch is disabled")
@@ -31,6 +33,12 @@ def main() -> int:
         blockers.append("mainnet_live verifier latch must remain disabled")
     if PRODUCTION_SPEND_VERIFICATION_ENABLED:
         blockers.append("legacy mainnet production latch must remain disabled")
+    if "allow_non_zk_test_value: bool = False" not in client:
+        blockers.append("proof client must refuse non-ZK proofs by default")
+    if '"proof_privacy": PROOF_PRIVACY_STATUS' not in worker:
+        blockers.append("worker response must expose the pinned proof-privacy status")
+    if 'PROOF_PRIVACY_STATUS = "witness_hiding_not_established"' not in worker:
+        blockers.append("worker must not claim unsupported witness hiding")
     if "Production-1 local synthetic test value: GO" not in readme:
         blockers.append("README does not declare the limited local synthetic test-value status")
     if "Public testnet value: NO-GO" not in readme:

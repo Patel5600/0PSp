@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,7 @@ from src.primitives.nullifier_v3 import NullifierV3
 from src.protocol.openvm_v3_candidate_verifier import v3_spend_public_digest_candidate
 from src.protocol.transaction_v3_candidate import V3_NK_POSSESSION_POLICY_CANDIDATE, TxFieldsV3Candidate
 from src.protocol.v3_proof_client import V3ProofClientError, request_and_verify_spend_proof
+from src.protocol.v3_proof_worker import PROOF_PRIVACY_STATUS
 
 API_KEY = b"client-test-api-key-material-32-bytes!!"
 PROOF = b"serialized proof"
@@ -63,12 +65,18 @@ class FakeConnection:
         self.closed = True
 
 
-def call_client(response_bytes: bytes, *, verifier_result: bool = True):
+def call_client(
+    response_bytes: bytes,
+    *,
+    verifier_result: bool = True,
+    privacy_status: str = PROOF_PRIVACY_STATUS,
+):
     current = statement()
     envelope = (
         json.dumps({
             "proof": base64.b64encode(PROOF).decode("ascii"),
             "public_inputs": v3_spend_public_digest_candidate(current).hex(),
+            "proof_privacy": privacy_status,
             "prove_ms": 123.5,
             "peak_rss_kib": 4096,
         }, separators=(",", ":")).encode("ascii")
@@ -78,6 +86,7 @@ def call_client(response_bytes: bytes, *, verifier_result: bool = True):
     witness = bytearray(b"client-memory-witness")
 
     with (
+        patch.dict(os.environ, {"PROFILE": "production1_testnet"}),
         patch("src.protocol.v3_proof_client.ssl.create_default_context", return_value=object()),
         patch("src.protocol.v3_proof_client.http.client.HTTPSConnection", return_value=connection),
     ):
@@ -88,8 +97,37 @@ def call_client(response_bytes: bytes, *, verifier_result: bool = True):
             witness=witness,
             statement=current,
             verifier=lambda tx, proof: verifier_calls.append((tx, proof)) or verifier_result,
+            allow_non_zk_test_value=True,
         )
     return result, connection, verifier_calls, current, envelope, witness
+
+
+def test_client_refuses_non_zk_proof_by_default() -> None:
+    witness = bytearray(b"secret")
+    with pytest.raises(V3ProofClientError, match="does not establish witness hiding"):
+        request_and_verify_spend_proof(
+            worker_url="https://localhost:8443",
+            api_key=API_KEY,
+            ca_certificate="local-ca.pem",
+            witness=witness,
+            statement=statement(),
+            verifier=lambda *_args: True,
+        )
+    assert witness == bytearray(len(b"secret"))
+
+
+def test_non_zk_opt_in_is_test_profile_only() -> None:
+    with patch.dict(os.environ, {"PROFILE": "mainnet_live"}):
+        with pytest.raises(V3ProofClientError, match="restricted to PROFILE=production1_testnet"):
+            request_and_verify_spend_proof(
+                worker_url="https://localhost:8443",
+                api_key=API_KEY,
+                ca_certificate="local-ca.pem",
+                witness=bytearray(b"secret"),
+                statement=statement(),
+                verifier=lambda *_args: True,
+                allow_non_zk_test_value=True,
+            )
 
 
 def test_client_sends_witness_over_https_and_locally_verifies_public_input() -> None:
@@ -109,15 +147,17 @@ def test_client_sends_witness_over_https_and_locally_verifies_public_input() -> 
 
 
 def test_client_rejects_non_https_worker_url() -> None:
-    with pytest.raises(V3ProofClientError, match="HTTPS origin"):
-        request_and_verify_spend_proof(
-            worker_url="http://localhost:8443",
-            api_key=API_KEY,
-            ca_certificate="local-ca.pem",
-            witness=bytearray(b"witness"),
-            statement=statement(),
-            verifier=lambda *_args: True,
-        )
+    with patch.dict(os.environ, {"PROFILE": "production1_testnet"}):
+        with pytest.raises(V3ProofClientError, match="HTTPS origin"):
+            request_and_verify_spend_proof(
+                worker_url="http://localhost:8443",
+                api_key=API_KEY,
+                ca_certificate="local-ca.pem",
+                witness=bytearray(b"witness"),
+                statement=statement(),
+                verifier=lambda *_args: True,
+                allow_non_zk_test_value=True,
+            )
 
 
 def test_client_requires_mutable_witness_and_wipes_on_early_failure() -> None:
@@ -132,18 +172,25 @@ def test_client_requires_mutable_witness_and_wipes_on_early_failure() -> None:
         )
 
     witness = bytearray(b"secret")
-    with pytest.raises(V3ProofClientError, match="API key"):
-        request_and_verify_spend_proof(
-            worker_url="https://localhost:8443",
-            api_key=b"short",
-            ca_certificate="local-ca.pem",
-            witness=witness,
-            statement=statement(),
-            verifier=lambda *_args: True,
-        )
+    with patch.dict(os.environ, {"PROFILE": "production1_testnet"}):
+        with pytest.raises(V3ProofClientError, match="API key"):
+            request_and_verify_spend_proof(
+                worker_url="https://localhost:8443",
+                api_key=b"short",
+                ca_certificate="local-ca.pem",
+                witness=witness,
+                statement=statement(),
+                verifier=lambda *_args: True,
+                allow_non_zk_test_value=True,
+            )
     assert witness == bytearray(len(b"secret"))
 
 
 def test_client_rejects_proof_when_local_verifier_fails() -> None:
     with pytest.raises(V3ProofClientError, match="rejected"):
         call_client(b"", verifier_result=False)
+
+
+def test_client_rejects_worker_claim_that_privacy_is_established() -> None:
+    with pytest.raises(V3ProofClientError, match="malformed proof envelope"):
+        call_client(b"", privacy_status="witness_hiding_established")

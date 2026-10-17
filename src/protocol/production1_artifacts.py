@@ -18,7 +18,7 @@ class Production1ArtifactPinError(ValueError):
 _VERIFIED_PINS_TOKEN = object()
 # SHA-256 of the committed UTF-8 manifest after canonicalizing CRLF to LF. Git's
 # Windows checkout can otherwise change the file bytes without changing its blob.
-PRODUCTION1_PINS_SHA256 = "17ae0076a6fe974f3cfc00cab50a095dcbf41b0222aaffbf06a1a5e1ecb882ec"
+PRODUCTION1_PINS_SHA256 = "bb970c863bd2a32d15ecf9920bc6e65138f5352a33263800643f4e7eb613ea73"
 
 _PINNED_BUILD_INPUTS = {
     "openvm_toml": Path("proof/openvm/v3-nullifier-spike/openvm.toml"),
@@ -38,6 +38,8 @@ _PINNED_BUILD_INPUTS = {
     "guest_cargo_manifest": Path("proof/openvm/v3-nullifier-spike/Cargo.toml"),
     "host_verifier_adapter": Path("src/protocol/openvm_v3_candidate_verifier.py"),
     "proof_envelope_verifier": Path("src/protocol/proof_backend_v3.py"),
+    "proof_client": Path("src/protocol/v3_proof_client.py"),
+    "proof_worker": Path("src/protocol/v3_proof_worker.py"),
     "public_statement_codec": Path("src/protocol/transaction_v3_candidate.py"),
     "stateful_testnet_composition": Path("src/protocol/production1_ledger.py"),
 }

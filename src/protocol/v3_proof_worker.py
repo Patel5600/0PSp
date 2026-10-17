@@ -20,6 +20,9 @@ from typing import Callable
 
 PROOF_RESPONSE_MAGIC = b"0PSP-OPENVM-APP-PROOF-v1"
 PRODUCTION1_CIRCUIT_ID = "openvm-spend-v3-p1-depth63-1in1out-v1"
+# The pinned OpenVM 2.0.2 backend does not mask prover traces. This is protocol
+# metadata, not a claim that the proof hides its witness.
+PROOF_PRIVACY_STATUS = "witness_hiding_not_established"
 MAX_WITNESS_BYTES = 2_000_000
 MAX_PROOF_BYTES = 2_000_000
 MAX_RESPONSE_BYTES = len(PROOF_RESPONSE_MAGIC) + 64 + 4 + MAX_PROOF_BYTES
@@ -295,6 +298,7 @@ class ProofRequestHandler(BaseHTTPRequestHandler):
             result = json.dumps({
                 "proof": base64.b64encode(proof).decode("ascii"),
                 "public_inputs": public_inputs.hex(),
+                "proof_privacy": PROOF_PRIVACY_STATUS,
                 "prove_ms": prove_ms,
                 "peak_rss_kib": prover_result.peak_rss_kib,
             }, separators=(",", ":")).encode("ascii")
