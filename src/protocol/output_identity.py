@@ -193,6 +193,9 @@ def verify_output_identity_candidate(
 # V2 and CHp4.6 candidate formulas/domains remain untouched.
 DOMAIN_OUTPUT_COIN_ID_V3 = b"0PSP-OUTPUT-COIN-ID-v3-anchor-index-candidate"
 DOMAIN_OUTPUT_RNF_V3 = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate"
+DOMAIN_OUTPUT_COIN_ID_PRODUCTION1 = b"0PSP-OUTPUT-COIN-ID-PRODUCTION1-v1-SHAKE256"
+DOMAIN_OUTPUT_RNF_PRODUCTION1 = b"0PSP-OUTPUT-RNF-PRODUCTION1-v1-SHAKE256"
+PRODUCTION1_ANCHOR_CONTEXT_BYTES = 48 + 48 + 64
 DOMAIN_ISSUANCE_COIN_ID_V3 = b"0PSP-ISSUANCE-COIN-ID-v3"
 DOMAIN_ISSUANCE_RNF_V3 = b"0PSP-ISSUANCE-RNF-v3"
 ISSUANCE_ENTROPY_BYTES = 32
@@ -309,6 +312,78 @@ def derive_output_identity_v3_candidate(
         coin_id=ScopedCoinId(coin_id),
         r_nf=NullifierSecret(r_nf),
     )
+
+
+def derive_output_identity_v3_production1(
+    *,
+    namespace_id: NamespaceIdV3,
+    anchor_context: bytes,
+    parent_coin_id: ScopedCoinId,
+    parent_r_nf: NullifierSecret,
+    parent_public_key_bundle: bytes,
+    parent_commitment: CoinCommitmentV3,
+    parent_nullifier_key: NullifierDerivingKeyV3,
+    recipient_key_bundle: bytes,
+    transaction_entropy: bytes,
+    output_index: int,
+    params_id: bytes,
+) -> OutputIdentityCandidate:
+    """Derive the Production-1 output identity from the exact anchor and slot.
+
+    `anchor_context` is commitment_root || state_head || state_context_digest
+    (48 + 48 + 64 bytes). This encoding is mirrored byte-for-byte by the active
+    OpenVM guest. Production-1 freezes one output at canonical slot zero.
+    """
+    if not isinstance(namespace_id, NamespaceIdV3):
+        raise TypeError("namespace_id must be a NamespaceIdV3")
+    if not isinstance(anchor_context, bytes) or len(anchor_context) != PRODUCTION1_ANCHOR_CONTEXT_BYTES:
+        raise ValueError("anchor_context must be root || state_head || state_context_digest")
+    if not isinstance(parent_coin_id, ScopedCoinId) or not isinstance(parent_r_nf, NullifierSecret):
+        raise TypeError("parent coin_id and r_nf must use their V3 secret types")
+    if not isinstance(parent_nullifier_key, NullifierDerivingKeyV3):
+        raise TypeError("parent_nullifier_key must be a NullifierDerivingKeyV3")
+    if not isinstance(parent_commitment, CoinCommitmentV3):
+        raise TypeError("parent_commitment must be a CoinCommitmentV3")
+    if not isinstance(parent_public_key_bundle, bytes) or not parent_public_key_bundle:
+        raise ValueError("parent_public_key_bundle must be non-empty canonical bytes")
+    if not isinstance(recipient_key_bundle, bytes) or not recipient_key_bundle:
+        raise ValueError("recipient_key_bundle must be non-empty canonical bytes")
+    if not isinstance(transaction_entropy, bytes) or len(transaction_entropy) != TRANSACTION_ENTROPY_BYTES:
+        raise ValueError("transaction_entropy must be exactly 32 bytes")
+    if not isinstance(params_id, bytes) or not 1 <= len(params_id) < (1 << 16):
+        raise ValueError("params_id must be 1..65535 bytes")
+    if isinstance(output_index, bool) or not isinstance(output_index, int) or output_index != 0:
+        raise ValueError("Production-1 supports exactly canonical output slot zero")
+    if len(parent_public_key_bundle) >= (1 << 32) or len(recipient_key_bundle) >= (1 << 32):
+        raise ValueError("BundleV3 encoding is too large")
+    decode_note_public_key_bundle_v3(parent_public_key_bundle)
+    decode_note_public_key_bundle_v3(recipient_key_bundle)
+
+    parent_nullifier = compute_nullifier_v3(
+        namespace_id, params_id, parent_public_key_bundle, parent_commitment,
+        parent_coin_id, parent_r_nf, parent_nullifier_key,
+    ).value
+
+    def preimage(domain: bytes) -> bytes:
+        return b"".join((
+            domain,
+            b"\x01",
+            len(params_id).to_bytes(2, "little"), params_id,
+            namespace_id.data,
+            anchor_context,
+            parent_nullifier,
+            len(parent_commitment.value).to_bytes(2, "little"), parent_commitment.value,
+            parent_coin_id.data,
+            parent_r_nf.data,
+            len(parent_public_key_bundle).to_bytes(4, "little"), parent_public_key_bundle,
+            len(recipient_key_bundle).to_bytes(4, "little"), recipient_key_bundle,
+            transaction_entropy,
+            output_index.to_bytes(2, "big"),
+        ))
+
+    coin_id = hashlib.shake_256(preimage(DOMAIN_OUTPUT_COIN_ID_PRODUCTION1)).digest(OUTPUT_ID_BYTES)
+    r_nf = hashlib.shake_256(preimage(DOMAIN_OUTPUT_RNF_PRODUCTION1)).digest(NULLIFIER_SECRET_BYTES)
+    return OutputIdentityCandidate(ScopedCoinId(coin_id), NullifierSecret(r_nf))
 
 
 def derive_issuance_output_identity_v3_candidate(

@@ -1,4 +1,4 @@
-name: OpenVM V3 nullifier feasibility spike (non-production)
+name: OpenVM Production-1 spend verification
 
 on:
   pull_request:
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   host-tests-and-guest-build:
-    name: Host KAT/adversarial tests and OpenVM guest build (non-production)
+    name: Production-1 relation and verifier checks
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     defaults:
@@ -34,6 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes build-essential gcc-riscv64-unknown-elf
+          test "$(riscv64-unknown-elf-gcc -dumpfullversion)" = "15.3.0"
 
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install 1.91.1 --profile minimal --component rust-src
@@ -71,7 +72,7 @@ jobs:
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
           python3 scripts/make_witnesses.py "$fixture_dir"
           test "$(cat "$fixture_dir/expected-public-digest.txt")" = "82ec02fc6689a4c56038463a780a9d3e75d5075043645cdb754a4d9c73b21df665303861e54f2a07876f811f1fdb38f353f1572367db5fb4a36f27672983b5ee"
-          test "$(cat "$fixture_dir/expected-spend-public-digest.txt")" = "0cdf055499351512e97f57e0c479b7d0be992525ab9283da872fb3ba1e21e02da4f910b79407e6a6fe80f56a4edca146d8eeb55bfa520bc6ad36e87534595cda"
+          test "$(cat "$fixture_dir/expected-spend-public-digest.txt")" = "aa7b029542a3d75bc6dee7d9927b9efa10e5fc45a5ff1eb19745ec9357733e32cd4974e83b050bbbd14a2c36c141bfee99e833d7030ce1657c3a727039c53f0f"
 
       - name: Test proof checker and build the custom 64-byte OpenVM SDK runner
         run: |
@@ -117,7 +118,7 @@ jobs:
             exit 1
           fi
           python3 scripts/check_public_output.py "$fixture_dir/spend-valid-run.log" "$fixture_dir/expected-spend-public-digest.txt"
-          for fixture in spend-wrong-key spend-changed-value spend-changed-salt spend-wrong-nullifier spend-bad-bundle spend-trailing-data spend-bad-root spend-bad-path spend-changed-output-entropy spend-unknown-policy spend-value-conservation; do
+          for fixture in spend-wrong-key spend-changed-value spend-changed-salt spend-wrong-nullifier spend-bad-bundle spend-trailing-data spend-bad-root spend-bad-path spend-changed-output-entropy spend-changed-state-head spend-changed-state-context spend-unknown-policy spend-value-conservation; do
             if "$runner" run openvm.toml "$elf" "$fixture_dir/$fixture.witness" > "$fixture_dir/$fixture-run.log" 2>&1; then
               echo "OpenVM unexpectedly accepted adversarial spend fixture: $fixture"
               cat "$fixture_dir/$fixture-run.log"
@@ -147,6 +148,9 @@ jobs:
             expected-app-exe-commit.txt "$fixture_dir/expected-public-digest.txt"
           "$checker" openvm/app.vk "$fixture_dir/spend-valid.app.proof" \
             expected-app-exe-commit.txt "$fixture_dir/expected-spend-public-digest.txt"
+          python3 scripts/openvm_ledger_integration.py \
+            "$checker" openvm/app.vk "$fixture_dir/spend-valid.app.proof" \
+            expected-app-exe-commit.txt "$fixture_dir/expected-spend-public-digest.txt"
           python3 scripts/verify_candidate_proof_adapter.py \
             "$checker" openvm/app.vk "$fixture_dir/spend-valid.app.proof" \
             expected-app-exe-commit.txt "$fixture_dir/expected-spend-public-digest.txt"
@@ -154,15 +158,47 @@ jobs:
             "$evidence_dir/app-verify.metrics" "$evidence_dir/spend-prove.metrics" \
             "$evidence_dir/spend-verify.metrics"
 
-      - name: Generate a proof for the live SQLite anchor and apply the real spend atomically
+      - name: End-to-end local spend through the authenticated TLS proof worker
         run: |
           set -euo pipefail
           fixture_dir="$RUNNER_TEMP/v3-nullifier-witnesses"
-          evidence_dir="$fixture_dir/evidence"
           runner="proof-output-checker/target/release/openvm-v3-sdk-runner"
-          elf="$(cat "$RUNNER_TEMP/v3-nullifier-guest-elf.path")"
           checker="proof-output-checker/target/release/psp-openvm-v3-proof-output-checker"
-          python3 scripts/verify_candidate_sqlite_ledger_integration.py "$runner" openvm.toml "$elf" "$checker" expected-app-exe-commit.txt "$evidence_dir"
+          elf="$(cat "$RUNNER_TEMP/v3-nullifier-guest-elf.path")"
+          cert="$RUNNER_TEMP/openvm-worker-test.crt"
+          key="$RUNNER_TEMP/openvm-worker-test.key"
+          ledger="$RUNNER_TEMP/openvm-worker-ledger.sqlite3"
+          openssl req -x509 -newkey rsa:2048 -sha256 -days 1 -nodes \
+            -keyout "$key" -out "$cert" -subj '/CN=localhost' \
+            -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' >/dev/null 2>&1
+          export OPENVM_RUNNER="$runner"
+          export OPENVM_CONFIG="openvm.toml"
+          export OPENVM_ELF="$elf"
+          export WORKER_API_KEY="$(openssl rand -hex 32)"
+          export WORKER_TLS_CERT="$cert"
+          export WORKER_TLS_KEY="$key"
+          export WORKER_BIND_HOST="127.0.0.1"
+          export WORKER_PORT="8443"
+          python3 "$GITHUB_WORKSPACE/src/protocol/v3_proof_worker.py" >/dev/null 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true; wait "$worker_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in $(seq 1 60); do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --request POST --data-binary '' --cacert "$cert" \
+              https://localhost:8443/v1/prove || true)"
+            if [ "$status" = "401" ]; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          python3 scripts/openvm_local_spend.py \
+            --worker-url https://localhost:8443 \
+            --ca-certificate "$cert" \
+            --checker "$checker" \
+            --app-vk openvm/app.vk \
+            --app-commit expected-app-exe-commit.txt \
+            --ledger "$ledger" \
+            --allow-synthetic-bootstrap
 
       - name: Ensure guest build did not alter locked dependencies
         run: git diff --exit-code -- proof/openvm/v3-nullifier-spike/Cargo.lock

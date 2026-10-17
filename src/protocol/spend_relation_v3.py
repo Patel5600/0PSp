@@ -35,7 +35,10 @@ from src.protocol.note_public_key_bundle_v3 import (
     NotePublicKeyBundleV3,
     decode_note_public_key_bundle_v3,
 )
-from src.protocol.output_identity import derive_output_identity_v3_candidate
+from src.protocol.output_identity import (
+    derive_output_identity_v3_candidate,
+    derive_output_identity_v3_production1,
+)
 from src.protocol.transaction_v3_candidate import (
     TX_V3_CANDIDATE_VERSION,
     TxFieldsV3Candidate,
@@ -218,7 +221,7 @@ def verify_spend_relation_v3_reference(
 
     # 6 & 7. Output Identity Derivation & Commitment Matching for every output
     for idx, out_w in enumerate(outputs):
-        derived_output_identity = derive_output_identity_v3_candidate(
+        identity_inputs = dict(
             namespace_id=statement.namespace_id,
             parent_coin_id=witness.input_coin_id,
             parent_r_nf=witness.input_r_nf,
@@ -230,6 +233,18 @@ def verify_spend_relation_v3_reference(
             output_index=idx,
             params_id=statement.params_id,
         )
+        if len(outputs) == 1 and len(witness.merkle_siblings) == 63:
+            derived_output_identity = derive_output_identity_v3_production1(
+                **identity_inputs,
+                anchor_context=(
+                    statement.commitment_root
+                    + statement.ledger_state_head
+                    + statement.state_context_digest
+                ),
+            )
+        else:
+            # Legacy host-only reference vectors are not the Production-1 accepted profile.
+            derived_output_identity = derive_output_identity_v3_candidate(**identity_inputs)
 
         expected_output_commitment = commit_coin_v3(
             namespace_id=statement.namespace_id,

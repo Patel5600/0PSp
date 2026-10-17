@@ -34,9 +34,9 @@ pub const MAX_WITNESS_BYTES: usize = 2_000_000;
 const EMPTY_LEAF_DOMAIN: &[u8] = b"0PSP-COMMITMENT-EMPTY-LEAF-v1-SHAKE256";
 const LEAF_DOMAIN: &[u8] = b"0PSP-COMMITMENT-LEAF-v1-SHAKE256";
 const NODE_DOMAIN: &[u8] = b"0PSP-COMMITMENT-NODE-v1-SHAKE256";
-const OUTPUT_COIN_ID_DOMAIN: &[u8] = b"0PSP-OUTPUT-COIN-ID-v3-anchor-index-candidate";
-const OUTPUT_RNF_DOMAIN: &[u8] = b"0PSP-OUTPUT-RNF-v3-anchor-index-candidate";
-const OUTPUT_ID_VERSION: u8 = 0x03;
+const OUTPUT_COIN_ID_DOMAIN: &[u8] = b"0PSP-OUTPUT-COIN-ID-PRODUCTION1-v1-SHAKE256";
+const OUTPUT_RNF_DOMAIN: &[u8] = b"0PSP-OUTPUT-RNF-PRODUCTION1-v1-SHAKE256";
+const OUTPUT_ID_VERSION: u8 = 0x01;
 const OUTPUT_ENTROPY_BYTES: usize = 32;
 const STATE_CONTEXT_BYTES: usize = 64;
 
@@ -182,6 +182,9 @@ fn verify_membership(
 fn derive_output_identity(
     params_id: &[u8],
     namespace: &[u8; HASH_BYTES],
+    anchor_root: &[u8; HASH_BYTES],
+    anchor_state_head: &[u8; HASH_BYTES],
+    anchor_context_digest: &[u8; STATE_CONTEXT_BYTES],
     parent_nullifier: &[u8; HASH_BYTES],
     parent_commitment: &[u8; HASH_BYTES],
     parent_coin_id: &[u8; COIN_ID_BYTES],
@@ -203,7 +206,8 @@ fn derive_output_identity(
 
     let encode = |domain: &[u8]| {
         let mut preimage = Vec::with_capacity(
-            domain.len() + 1 + 2 + params_id.len() + HASH_BYTES + 2 + HASH_BYTES
+            domain.len() + 1 + 2 + params_id.len() + HASH_BYTES + HASH_BYTES
+                + HASH_BYTES + STATE_CONTEXT_BYTES + 2 + HASH_BYTES
                 + COIN_ID_BYTES + R_NF_BYTES + 4 + parent_bundle.len()
                 + 4 + recipient_bundle.len() + OUTPUT_ENTROPY_BYTES + 2,
         );
@@ -212,6 +216,9 @@ fn derive_output_identity(
         preimage.extend_from_slice(&(params_id.len() as u16).to_le_bytes());
         preimage.extend_from_slice(params_id);
         preimage.extend_from_slice(namespace);
+        preimage.extend_from_slice(anchor_root);
+        preimage.extend_from_slice(anchor_state_head);
+        preimage.extend_from_slice(anchor_context_digest);
         preimage.extend_from_slice(parent_nullifier);
         preimage.extend_from_slice(&(HASH_BYTES as u16).to_le_bytes());
         preimage.extend_from_slice(parent_commitment);
@@ -295,7 +302,8 @@ pub fn verify_v3_spend_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     }
 
     let (output_coin_id, output_r_nf) = derive_output_identity(
-        &tx.params_id, &tx.namespace, &input_nullifier, &input_commitment,
+        &tx.params_id, &tx.namespace, &tx.root, &tx.state_head,
+        &tx.state_context_digest, &input_nullifier, &input_commitment,
         &input_coin_id, &input_r_nf, &input_bundle, &output_bundle, &tx.output_entropy,
     )?;
     let output_commitment = coin_commitment_v3(

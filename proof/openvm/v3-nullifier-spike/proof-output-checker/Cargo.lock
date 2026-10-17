@@ -282,7 +282,9 @@ version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a6ed1b54d8dc333e7be604d00fa9262f4635485ffea923647b6521a5fff045d"
 dependencies = [
+ "arrayvec",
  "bytemuck",
+ "glam",
  "serde",
 ]
 
@@ -1057,6 +1059,12 @@ name = "gimli"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
+
+[[package]]
+name = "glam"
+version = "0.34.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc148d4ddd3930c52f9e5ae79b89805c6f07e9ff417e7b083e0348cea60a5aba"
 
 [[package]]
 name = "glob"
@@ -3056,6 +3064,7 @@ dependencies = [
 name = "psp-openvm-v3-proof-output-checker"
 version = "0.1.0"
 dependencies = [
+ "bitcode",
  "eyre",
  "hex",
  "openvm-continuations",
@@ -3064,6 +3073,7 @@ dependencies = [
  "openvm-stark-backend",
  "openvm-stark-sdk",
  "serde_json",
+ "zeroize",
 ]
 
 [[package]]

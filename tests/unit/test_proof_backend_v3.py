@@ -14,6 +14,8 @@ from src.primitives.namespace_v3 import NamespaceIdV3
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.primitives.nullifier_v3 import NullifierV3
 from src.protocol.proof_backend_v3 import (
+    MAINNET_LIVE_SPEND_VERIFICATION_ENABLED,
+    PRODUCTION1_TESTNET_SPEND_VERIFICATION_ENABLED,
     MAX_PROOF_BYTES,
     ProofBackendError,
     ProofBackendProfileV3,
@@ -173,16 +175,25 @@ def test_candidate_envelope_rejects_when_verifier_is_not_configured() -> None:
     ) is False
 
 
-def test_production_envelope_is_hard_locked_while_security_gates_are_open() -> None:
+def test_production_envelope_requires_profile_and_rejects_injected_verifier() -> None:
     assert PRODUCTION_SPEND_VERIFICATION_ENABLED is False
+    assert PRODUCTION1_TESTNET_SPEND_VERIFICATION_ENABLED is True
+    assert MAINNET_LIVE_SPEND_VERIFICATION_ENABLED is False
     verifier = _TestOnlyProofVerifier(True)
-    # Even a fake adapter that returns literal True cannot cross the release latch.
+    # Testnet profile only accepts the concrete OpenVM checker; mainnet stays closed.
     assert verify_production_proof_envelope(
         create_envelope(),
         spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
+        profile="production1_testnet",
     ) is False
     assert verifier.calls == []
+    assert verify_production_proof_envelope(
+        create_envelope(),
+        spent_commitment=SPENT_COMMITMENT,
+        proof_verifier=verifier,
+        profile="mainnet_live",
+    ) is False
 
 
 def test_caller_manufactured_high_security_profile_cannot_override_release_latch() -> None:
@@ -196,7 +207,7 @@ def test_caller_manufactured_high_security_profile_cannot_override_release_latch
         create_envelope(),
         spent_commitment=SPENT_COMMITMENT,
         proof_verifier=verifier,
-        profile=forged_profile,
+        profile=forged_profile,  # type: ignore[arg-type]
     ) is False
     assert verifier.calls == []
 

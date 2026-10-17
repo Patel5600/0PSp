@@ -1,0 +1,14 @@
+{
+  "profile": "production1_testnet",
+  "backend": "OpenVM",
+  "openvm": "2.0.2",
+  "circuit_id": "openvm-spend-v3-p1-depth63-1in1out-v1",
+  "app_executable_commitment": "002475b9df4d392a8aa4bf2b906dd9b86152689524f3beb4d133649f38efe29c",
+  "app_verifying_key_sha256": "0da298daf04036ef93407a00495a74a4bce0cee7fe6fdb4055364b1a2176d699",
+  "checker_sha256_by_platform": {
+    "linux-x86_64": "55cabefc49ce965ed90d015e8d558e0d6c4f6668cc722abd2a7ab23dc2193ae5",
+    "windows-x86_64": "bf0511237e01fdcf5db369fee26c56809bbb178d8a0e411baaa7f12c5e5aa167"
+  },
+  "guest_source": "proof/openvm/v3-nullifier-spike/src/spend_v3.rs",
+  "toolchain": "rustc 1.91.1; cargo-openvm 2.0.2; riscv64-unknown-elf-gcc 15.3.0"
+}

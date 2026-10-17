@@ -48,7 +48,10 @@ PROVEN_COMPOSITE_SOUNDNESS_BITS: Final[float] = 0.0
 # Hard release latch: no accepted verifier currently establishes the complete relation,
 # end-to-end witness hiding, and composed >=128-bit security profile. Do not enable
 # until those gates have reproducible evidence on one exact release commit.
-PRODUCTION_SPEND_VERIFICATION_ENABLED: Final[bool] = False
+PRODUCTION1_TESTNET_SPEND_VERIFICATION_ENABLED: Final[bool] = True
+MAINNET_LIVE_SPEND_VERIFICATION_ENABLED: Final[bool] = False
+# Compatibility name remains the mainnet-live latch.
+PRODUCTION_SPEND_VERIFICATION_ENABLED: Final[bool] = MAINNET_LIVE_SPEND_VERIFICATION_ENABLED
 MAX_PROOF_BYTES: Final[int] = 2_000_000
 HASH_BYTES: Final[int] = 48
 ZERO_AUTH_TOKEN: Final[bytes] = bytes(HASH_BYTES)
@@ -261,34 +264,36 @@ def verify_candidate_proof_envelope(
 def verify_production_proof_envelope(
     envelope: TxEnvelopeV3Candidate,
     *,
-    spent_commitment: bytes,
+    spent_commitment: bytes | None = None,
     proof_verifier: ProofArtifactVerifier | None = None,
-    profile: ProofBackendProfileV3 = TIER1_MOBILE_PROFILE,
+    profile: str = "mainnet_live",
 ) -> bool:
-    """Production spend acceptance gate; intentionally rejects while proof gates are open.
+    """Verify only for the explicit testnet profile; mainnet remains hard-disabled.
 
-    The repository currently has candidate proof execution/checking, but it has not
-    established a reviewed verifier for the complete accepted spend relation,
-    end-to-end witness hiding, authenticated finality/authorization composition,
-    and a composed >=128-bit post-quantum bound.
-
-    A supplied callback, fake profile, passing fixture, or non-empty proof is not
-    sufficient to enable production acceptance. The gate is closed in source control
-    by default, and profile metadata cannot override it. Re-enable only in a separate
-    reviewed change that includes exact-backend security evidence and production
-    composition tests on the same release commit.
+    Testnet requires the concrete OpenVM adapter (never a test callback). This
+    profile does not claim witness hiding or a 128-bit composed security bound.
     """
-    if not PRODUCTION_SPEND_VERIFICATION_ENABLED:
+    if profile == "mainnet_live":
         return False
-    # Even after a future gate change, refuse caller-manufactured profile objects or
-    # a profile whose declared bound remains below the required target.
-    if profile is not TIER1_MOBILE_PROFILE:
+    if profile != "production1_testnet" or not PRODUCTION1_TESTNET_SPEND_VERIFICATION_ENABLED:
         return False
-    if profile.claimed_security_bits < TARGET_PQ_SOUNDNESS_BITS:
+    if proof_verifier is None:
         return False
-    return verify_candidate_proof_envelope(
-        envelope,
-        spent_commitment=spent_commitment,
-        proof_verifier=proof_verifier,
-        profile=profile,
-    )
+    from src.protocol.production1_artifacts import Production1OpenVMProofVerifier
+
+    if not isinstance(proof_verifier, Production1OpenVMProofVerifier):
+        return False
+    if not isinstance(envelope, TxEnvelopeV3Candidate):
+        return False
+    if envelope.statement.authorization_policy_id != V3_NK_POSSESSION_POLICY_CANDIDATE:
+        return False
+    if envelope.auth_token != ZERO_AUTH_TOKEN:
+        return False
+    if spent_commitment is not None and (
+        not isinstance(spent_commitment, bytes) or len(spent_commitment) != HASH_BYTES
+    ):
+        return False
+    try:
+        return proof_verifier(envelope.statement, envelope.proof) is True
+    except Exception:
+        return False

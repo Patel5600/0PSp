@@ -1,18 +1,12 @@
-# 0PSP — Post-Quantum Private Spend Primitive
+# 0PSP ? Private Spend Protocol
 
-> **Release Status: TESTNET / SYNTHETIC TESTING ONLY. MAINNET LIVE-VALUE TRANSFERS: NO-GO.**
-> Testnet readiness and green unit tests do not establish production proof soundness, authorization, zero knowledge, custody, finalized state, or recovery readiness.
-> External audit is deferred as a separate milestone; internal implementation and cryptographic gates remain mandatory.
-0PSP is a research-stage private-spend protocol candidate. It contains C11 cryptographic primitives, a single-node SQLite candidate ledger, EVM proof components, and an experimental OpenVM guest. These components are not yet composed into a complete production spend verifier with proven authorization, trusted finalized state, end-to-end zero knowledge, custody, and recovery.
+> **Production-1 Testnet (test value): GO** | **Mainnet live value: NO-GO**
 
-## Current security gate (2026-10-16; Release Candidate v0.1.0)
+Production-1 freezes a one-input/one-output OpenVM spend relation and uses the same pinned proof verifier and SQLite state transition for local test value. The single-tenant Phase A worker receives plaintext witness over authenticated TLS; the operator can read it. The OpenVM profile is below the 128-bit target and does not establish end-to-end witness hiding. This status does not authorize public-chain deployment or real-value transfers. See [docs/LIMITATIONS.md](docs/LIMITATIONS.md), [the accepted relation](docs/security/ACCEPTED_SPEND_RELATION_V3.md), and [the gate matrix](docs/security/production-gate-matrix.md).
 
-- **Local / synthetic candidate validation:** The latest checked Functional Checks run for proof-verifier hardening commit [`216b85f`](https://github.com/Patel5600/0PSp/commit/216b85f5f9013c4329232d71631db89fb863c54f) reports **730 collected, 729 passed, 1 skipped, 0 failures** ([CI run](https://github.com/Patel5600/0PSp/actions/runs/38905101365)). This is a commit-scoped unit/native/invariant result, not evidence of a live testnet deployment or production protocol readiness. The OpenVM workflow covers an experimental one-input/one-output candidate, not the complete accepted spend protocol.
-  - *Allowed scope:* deterministic fixtures, local simulation, and testnet-token experiments after verifying the exact deployed configuration. This README does not claim that a live testnet issuance-to-spend-to-recovery flow has been demonstrated.
-- **Mainnet Release: NO-GO for all live-value transfers.**
-  - `verify_production_proof_envelope()` is hard release-latched off (`PRODUCTION_SPEND_VERIFICATION_ENABLED = False`); the canonical profile declares 0 established composite security bits. Candidate verification helpers are not production acceptance.
-  - The complete shared-witness spend relation, production authorization, authenticated root/finality, issuance/custody, reorg/recovery, and end-to-end witness hiding remain mandatory.
-  - External audit remains deferred, but that does not waive internal cryptographic and end-to-end evidence.
+The Production-1 check builds the OpenVM guest and verifier, runs the repository tests, then exercises a synthetic local note through worker proving, client verification, ledger acceptance, and duplicate-spend rejection. Follow [Production-1 setup](proof/openvm/v3-nullifier-spike/README.md#clean-machine-production-1-check) from a clean Linux machine.
+
+Threshold multi-party authorization, Monero ring signatures/RingCT, mobile proving, and public-chain issuance are not implemented. External audit remains deferred; mainnet live value stays NO-GO.
 
 ## Engineering Doctrine (The 5 Pillars)
 
@@ -21,15 +15,15 @@
 1. **Pillar 1: Attacking (Red-Team):** Adversarial suites ([`tests/adversarial/`](tests/adversarial/)) enforcing SQLite fault injection simulating power loss / uncommitted aborts, duplicate-nullifier concurrency races, parent anchor replay prevention, and OpenVM public-statement manipulation.
 2. **Pillar 2: Evidence (Empirical):** Fixed cryptographic known-answer tests, differential primitive tests, adversarial/unit suites, and hardware timing diagnostics. Exact counts are commit-specific: the cited proof-verifier hardening CI head reports 729 passed and 1 skipped. A timing screen is a diagnostic, not a constant-time proof.
 3. **Pillar 3: Proof (Mathematical):** Theory documents describe conditional primitive reductions and security-game models ([`docs/theory/commitment-hiding-and-binding-proof.md`](docs/theory/commitment-hiding-and-binding-proof.md), [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md)). They do not prove that the current guest, verifier, state adapter, and ledger composition satisfies those assumptions. The composed production soundness bound and end-to-end zero-knowledge guarantee remain unestablished.
-4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, a depth-63/u64 active host-and-OpenVM candidate Merkle profile, typed descriptors (`NamespaceIdV3`), and domain-separated transaction candidate fields (`TxFieldsV3Candidate`). The separate depth-32 Rust helper is experimental and is not the active guest entrypoint.
-5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 cryptographic implementation ([`native/`](native/)), explicit memory-cleansing calls (`psp_secure_zero`), optional OS page-locking APIs (`VirtualLock`/`mlock`), an experimental OpenVM guest ([`proof/openvm/`](proof/openvm/)), and native/API fixtures ([`tests/conftest.py`](tests/conftest.py)). These mechanisms do not prove whole-process zeroization, constant-time behavior, or end-to-end protocol security; see open internal gate [#40](https://github.com/Patel5600/0PSp/issues/40).
-6. **Pillar 6: Honest Limits (Zero Hype):** Testnet/synthetic testing may proceed within its stated limits. All Mainnet live-value transfers, both capped and uncapped, remain **NO-GO** until implementation, proof, authorization, custody, state, recovery, and integration gates pass on one exact release commit. External audit is deferred separately and is not a substitute for these internal gates.
+4. **Pillar 4: Structures (Rigid Data Models):** Strictly domain-separated binary serialization with fixed little/big-endian lengths, a depth-63/u64 active Production-1 host-and-OpenVM Merkle relation, typed descriptors (`NamespaceIdV3`), and domain-separated transaction fields. The separate depth-32 Rust helper is not the active guest entrypoint.
+5. **Pillar 5: Code (Clean & Fail-Closed):** Zero-dependency C11 cryptographic implementation ([`native/`](native/)), explicit memory-cleansing calls (`psp_secure_zero`), optional OS page-locking APIs (`VirtualLock`/`mlock`), a pinned OpenVM Production-1 spend guest ([`proof/openvm/`](proof/openvm/)), and native/API fixtures ([`tests/conftest.py`](tests/conftest.py)). These mechanisms do not prove whole-process zeroization, constant-time behavior, or end-to-end witness hiding; see [LIMITATIONS.md](docs/LIMITATIONS.md).
+6. **Pillar 6: Honest Limits (Zero Hype):** Testnet/synthetic testing may proceed within its stated limits. All Mainnet live-value transfers, both capped and uncapped, remain **NO-GO** until implementation, proof, authorization, custody, state, recovery, integration, and independent external-audit gates pass on one exact release commit.
 
-Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Mainnet remains NO-GO until all internal mandatory criteria are evidenced closed on one exact release commit. External audit is deferred and not claimed.
+Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](docs/security/evidence-first-rfc-register.md), the [Binary Production Gate Matrix](docs/security/production-gate-matrix.md), and the [27-Gate Production Verification Dossier](docs/security/27-gate-verification-dossier.md). Mainnet remains NO-GO until all internal mandatory criteria are evidenced closed on one exact release commit and an independent external audit is completed. No audit is claimed.
 
 ## Architecture and Core Subsystems
 
-0PSP currently contains the following research-stage components; their presence does not imply a production-ready end-to-end protocol:
+Production-1 provides the scoped local test-value spend path described above. Other components below remain research or integration-stage; their presence does not imply a complete Mainnet protocol:
 
 ### 1. Zero-Dependency C11 Cryptographic Engine (`libpsp_native`)
 - **Primitive implementation:** Native C11 Keccak-f[1600], SHAKE256-384 and HMAC-SHA3-384 with known-answer and differential tests; claim the exact tested primitives and vectors, not whole-protocol security.
@@ -37,17 +31,21 @@ Canonical review trackers: [Evidence-first RFC register and NO-GO dashboard](doc
 - **Memory handling:** `psp_secure_zero` and platform page-locking calls are present. They do not establish that every secret copy is erased or that all operating-system paging/crash-dump paths are prevented.
 - **Cross-Platform:** Compiles cleanly with GCC, Clang, and MSVC across Linux, macOS, and Windows.
 
-### 2. Experimental OpenVM Spend Candidate (`OpenVM v2.0.2`)
-- **Status:** non-production candidate only; merged `main` uses a depth-63 Merkle path and u64 leaf index in the active guest. A separate depth-32 Rust helper exists but is not the active entrypoint.
-- Candidate fixtures exercise a one-input/one-output predicate, but this is not evidence for complete authorization, authenticated finalized state, issuance/custody, atomic spend composition, or end-to-end zero knowledge.
-- Historical proof-size and verification-time measurements apply only to the exact cited experimental guest/configuration; they are not target-device or complete-relation benchmarks.
-- **Production requirement:** a pinned real proof verifier must enforce the full accepted relation and be integrated with trusted state and atomic ledger transitions before any live-value release.
+### 2. OpenVM spend_v3 (`OpenVM v2.0.2`)
+- Production-1 freezes the active guest to one input, one output, and a namespace-scoped depth-63 path. It constrains NK possession, CommitV3 opening, same-witness NullifierV3, value conservation, and anchor/slot-bound output identity.
+- The pinned upstream profile targets 100 bits; the measured parameter analysis is below 128 bits. The proof does not establish end-to-end witness hiding or masked prover traces. See [BENCH.md](BENCH.md) and [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 ### 3. Durable SQLite Ledger & Historical Anchor Ring
 - **Atomic State Transitions:** SQLite WAL mode with immediate transactions enforcing unique deposit anchors, unique output commitments, and single-use nullifiers.
-- **Historical Anchor Ring:** The current candidate configuration defaults to 4,096 local root/head snapshots; earlier PR #32 evidence used 256. This is local history, not distributed consensus, finalized-state authentication, or external rollback protection.
+- **Historical Anchor Ring:** The current candidate configuration defaults to a 256-anchor local root/head window. This is local history, not distributed consensus, finalized-state authentication, or external rollback protection.
 - **Crash & Fault Injection Resilience:** Tested against uncommitted process aborts, power-loss simulations, concurrent duplicate nullifier races, and direct Merkle node corruption via `audit_integrity()`.
 
-### 4. EVM Light-Client Deposit Evidence & Authorizer
+### 4. Single-tenant OpenVM proof worker (Phase A)
+- The worker exposes `POST /v1/prove` over TLS with bearer authentication, a fixed circuit ID, bounded JSON witness payload, concurrency one, and no request-body logs. It wipes mutable witness buffers and reports prove time and child peak RSS.
+- Phase A sends plaintext witness bytes to the operator-controlled worker. The operator can read them; this does not provide witness confidentiality from the service. No attested TEE Phase B exists.
+- The Production-1 CLI verifies the proof locally, then the ledger independently verifies and atomically accepts it. Its faucet/bootstrap data is synthetic and carries no external finality claim. See the [relation specification](SPEC.md) and [limitations](docs/LIMITATIONS.md).
+- Run `make production-check` for the local mint-note, worker prove, client verify, ledger accept, and duplicate-spend rejection path.
+
+### 5. EVM Light-Client Deposit Evidence & Authorizer
 - **Light-Client Finality:** Pinned Helios 0.12.0 light-client integration tracking authenticated execution headers and checkpoint ancestry.
 - **Trie Inclusion Proofs:** Strict Ethereum Keccak-256, RLP, and Modified Patricia Trie (MPT) inclusion verifier for transactions and receipts. Verified by 30 differential tests against independent implementations (`pycryptodome`, `rlp`, `HexaryTrie`).
 - **Custody Reserve Solvency:** `src/adapters/evm_deposit_authorizer.py` enforces vault reserve solvency (`contract_balance >= total_minted + amount`) before authorizing mint issuance.
@@ -59,9 +57,9 @@ The theory documents contain conditional reductions and security-game models for
 - **Commitment-binding theory model:** The cited reduction relates SHAKE256-384 binding to collision resistance under the document's quantum-adversary assumptions. It is a conditional primitive argument, not a proof that the current deployed protocol satisfies a composed post-quantum security target.
 - **Statistical-hiding theory model:** The cited document states a bound under its formal assumptions and entropy model. That bound has not been established for the active OpenVM proof transcript, verifier, and production state/authorization composition.
 - **Composed Security-Game Models:** Defined in [`docs/security/composed-security-games-and-reduction.md`](docs/security/composed-security-games-and-reduction.md). The model claims need to be matched to an accepted implementation and complete proof relation before being treated as production guarantees:
-  - **Balance Conservation Game:** Proves no polynomial-time adversary can inflate protocol supply without violating either MPT inclusion, hash collision resistance, or range-bound arithmetic.
-  - **Recipient Unlinkability Game (Anonymity):** Formalizes indistinguishability under chosen-witness attacks, ensuring note spends cannot be linked to the recipient or creator.
-  - **Double-Spend Replay Prevention Game:** Proves that an accepted spend transition irrevocably consumes the nullifier, preventing any subsequent spend of the same coin.
+  - **Balance Conservation Game:** A conditional formal model; it is not evidence that deployed issuance, proof verification, and ledger composition satisfy its assumptions.
+  - **Recipient Unlinkability Game:** A formal privacy model; the current candidate proof profile does not establish its witness-hiding guarantee.
+  - **Double-Spend Replay Prevention Game:** A formal model supported by local SQLite uniqueness tests; this does not establish distributed consensus or cross-deployment replay protection.
 
 ## Status: The 27-Gate Production Verification Matrix
 
@@ -221,8 +219,8 @@ The matrix below is formatted as individual gate entries rather than a six-colum
 
 ### 26. External Cryptographic Audit
 
-- **Testnet:** **DEFERRED** · **Mainnet:** **DEFERRED**
-- **Evidence:** Deliberately scheduled post-launch milestone prior to real-value transfer
+- **Testnet:** **DEFERRED** · **Mainnet:** **REQUIRED BEFORE LAUNCH; NOT PERFORMED**
+- **Evidence:** Not performed; required before any Mainnet real-value transfer
 - **Mainnet obligation:** Third-party external audit completion
 
 ### 27. **Complete 0PSP Production Release**
@@ -237,7 +235,7 @@ The matrix below is formatted as individual gate entries rather than a six-colum
 
 - [RFC-01: user-committed issuance](docs/security/rfc-01-user-committed-issuance.md) — Hiding and binding formal proof in QROM, deposit evidence normalizer, and authorizer adapter.
 - [RFC-02: V2-only spend relation](docs/theory/spend-relation-spec.md) — Frozen V2 equations and component specifications.
-- [CHp4.7: V3 candidate relation](docs/theory/spend-relation-v3-candidate.md) — Recipient-keyed nullifier and output identity candidate, instantiated in OpenVM `spend_v3.rs`.
+- [Accepted spend relation v3](docs/security/ACCEPTED_SPEND_RELATION_V3.md) — Production-1's frozen 1-in/1-out relation. The broader CHp4.7 research relation remains distinct.
 - [RFC-03: hash/circuit benchmark](docs/plan/rfc-03-hash-circuit-benchmark.md) — Empirical OpenVM v2.0.2 prover and verifier benchmark metrics.
 - [RFC-04: side-channel diagnostics](docs/security/rfc-04-side-channel-diagnostics.md) — Zero-dependency C11 constant-time engine, `psp_secure_zero` memory barrier scrubbing, physical RAM pinning, and cycle-accurate hardware RDTSC timing screens.
 - [CHp4.1: reference state transitions](docs/audit/chp4.1-reference-state-transitions.md) — Reference state model and linearizability checks.

@@ -56,8 +56,9 @@ def make_environment(
     *,
     name: str = "candidate.sqlite3",
     commitments: tuple[bytes, ...] = BOOTSTRAP_COMMITMENTS,
-    anchor_window: int = 4,
+    anchor_window: int = 256,
     proof_verifier=None,
+    ledger_class=SQLiteV3CandidateLedger,
 ):
     tree = CommitmentTree(NAMESPACE, list(commitments))
     evidence = StateAnchorEvidenceV3(
@@ -83,7 +84,7 @@ def make_environment(
     if proof_verifier is None:
         proof_verifier = lambda _statement, proof: proof == VALID_PROOF
 
-    ledger = SQLiteV3CandidateLedger(
+    ledger = ledger_class(
         tmp_path / name,
         expected_namespace_id=NAMESPACE,
         expected_params_id=PARAMS_ID,
@@ -104,6 +105,7 @@ def statement_for(
     output: bytes = OUTPUT_A,
     root: bytes | None = None,
     state_head: bytes | None = None,
+    anchor_version: int | None = None,
     policy: bytes = V3_NK_POSSESSION_POLICY_CANDIDATE,
 ) -> TxFieldsV3Candidate:
     current = ledger.snapshot()
@@ -113,10 +115,8 @@ def statement_for(
         commitment_root=current.commitment_root if root is None else root,
         input_nullifier=NullifierV3(nullifier),
         ledger_state_head=current.ledger_state_head if state_head is None else state_head,
-        state_context_digest=state_context_digest_v3_candidate(
-            (evidence := ledger.state_evidence_for_version(current.state_version)).source_id,
-            evidence.finalized_anchor,
-            ledger.finality_policy_id,
+        state_context_digest=ledger.state_context_digest_for_version(
+            current.state_version if anchor_version is None else anchor_version
         ),
         authorization_policy_id=policy,
         fee=0,
@@ -128,6 +128,11 @@ def statement_for(
 def test_authenticated_bootstrap_and_single_spend_survive_restart(tmp_path) -> None:
     ledger, evidence, bootstrap, verify_bootstrap = make_environment(tmp_path)
     initial = ledger.snapshot()
+    assert ledger.state_context_digest_for_version(0) == state_context_digest_v3_candidate(
+        SOURCE_ID,
+        FINALIZED_ANCHOR,
+        BOOTSTRAP_FINALITY_POLICY_ID,
+    )
     tx = statement_for(ledger, output=OUTPUT_A)
 
     accepted = ledger.accept_spend(tx, proof=VALID_PROOF)
@@ -137,6 +142,7 @@ def test_authenticated_bootstrap_and_single_spend_survive_restart(tmp_path) -> N
     assert accepted.proof_anchor_version == 0
     assert accepted.state_version == 1
     assert ledger.snapshot().state_version == 1
+    assert ledger.state_context_digest_for_version(1) != ledger.state_context_digest_for_version(0)
     assert ledger.contains_commitment(OUTPUT_A)
     assert ledger.is_nullifier_spent(NULLIFIER_A)
     assert ledger.snapshot().commitment_root != initial.commitment_root
@@ -256,6 +262,24 @@ def test_proof_rejection_leaves_no_partial_state(tmp_path) -> None:
     ledger.audit_integrity()
 
 
+def test_mid_transition_failure_after_output_insert_rolls_back(tmp_path) -> None:
+    class FailingAfterOutputInsert(SQLiteV3CandidateLedger):
+        def _append_commitment(self, conn, *args, **kwargs):
+            root = super()._append_commitment(conn, *args, **kwargs)
+            if len(args) >= 4 and args[3] == "spend":
+                raise RuntimeError("injected crash after output tree insert")
+            return root
+
+    ledger, *_ = make_environment(tmp_path, ledger_class=FailingAfterOutputInsert)
+    before = ledger.snapshot()
+    with pytest.raises(RuntimeError, match="injected crash"):
+        ledger.accept_spend(statement_for(ledger, output=OUTPUT_A), proof=VALID_PROOF)
+    assert ledger.snapshot() == before
+    assert not ledger.contains_commitment(OUTPUT_A)
+    assert not ledger.is_nullifier_spent(NULLIFIER_A)
+    ledger.audit_integrity()
+
+
 def test_old_proof_anchor_expires_after_window_advances(tmp_path) -> None:
     ledger, *_ = make_environment(tmp_path, anchor_window=2)
     anchor_zero = ledger.snapshot()
@@ -284,14 +308,39 @@ def test_old_proof_anchor_expires_after_window_advances(tmp_path) -> None:
     ledger.audit_integrity()
 
 
-def test_concurrent_same_nullifier_has_exactly_one_winner(tmp_path) -> None:
-    rendezvous = threading.Barrier(2)
+def test_non_tip_anchor_remains_acceptable_inside_256_anchor_ring(tmp_path) -> None:
+    ledger, *_ = make_environment(tmp_path, anchor_window=256)
+    anchor_zero = ledger.snapshot()
+    first = statement_for(ledger, nullifier=NULLIFIER_A, output=OUTPUT_A)
+    ledger.accept_spend(first, proof=VALID_PROOF)
 
+    historical = statement_for(
+        ledger,
+        nullifier=b"\x82" * 48,
+        output=b"\x92" * 48,
+        root=anchor_zero.commitment_root,
+        state_head=anchor_zero.ledger_state_head,
+        anchor_version=0,
+    )
+    accepted = ledger.accept_spend(historical, proof=VALID_PROOF)
+
+    assert accepted.proof_anchor_version == 0
+    assert accepted.state_version == 2
+    assert ledger.is_nullifier_spent(b"\x82" * 48)
+    ledger.audit_integrity()
+
+
+def test_concurrent_same_nullifier_has_exactly_one_winner(tmp_path) -> None:
     def proof_verifier(_statement, proof: bytes) -> bool:
-        rendezvous.wait(timeout=10)
+        # Verification executes under BEGIN IMMEDIATE, so the second concurrent
+        # submitter waits for the winner and then observes the used nullifier.
         return proof == VALID_PROOF
 
-    ledger, *_ = make_environment(tmp_path, proof_verifier=proof_verifier)
+    ledger, *_ = make_environment(
+        tmp_path,
+        anchor_window=256,
+        proof_verifier=proof_verifier,
+    )
     tx_a = statement_for(ledger, nullifier=NULLIFIER_A, output=OUTPUT_A)
     tx_b = statement_for(ledger, nullifier=NULLIFIER_A, output=OUTPUT_B)
 

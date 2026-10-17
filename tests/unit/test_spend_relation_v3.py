@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 import pytest
 
 from src.primitives.coin_commitment_v3 import commit_coin_v3
@@ -17,7 +18,10 @@ from src.primitives.nullifier_v3 import (
 )
 from src.protocol.commitment_tree import CommitmentTree, TREE_DEPTH
 from src.protocol.note_public_key_bundle_v3 import NotePublicKeyBundleV3
-from src.protocol.output_identity import derive_output_identity_v3_candidate
+from src.protocol.output_identity import (
+    derive_output_identity_v3_candidate,
+    derive_output_identity_v3_production1,
+)
 from src.protocol.spend_relation_v3 import (
     MultiOutputSpendWitnessV3,
     OutputWitnessV3,
@@ -88,8 +92,11 @@ def _create_test_fixture():
     output_rho = b"\xdd" * 36
     output_entropy = b"\xee" * 32
 
-    output_identity = derive_output_identity_v3_candidate(
+    ledger_state_head = b"\x55" * 48
+    state_context_digest = b"\x66" * 64
+    output_identity = derive_output_identity_v3_production1(
         namespace_id=NAMESPACE,
+        anchor_context=commitment_root + ledger_state_head + state_context_digest,
         parent_coin_id=input_coin_id,
         parent_r_nf=input_r_nf,
         parent_public_key_bundle=sender_bundle,
@@ -117,8 +124,8 @@ def _create_test_fixture():
         namespace_id=NAMESPACE,
         commitment_root=commitment_root,
         input_nullifier=input_nullifier,
-        ledger_state_head=b"\x55" * 48,
-        state_context_digest=b"\x66" * 64,
+        ledger_state_head=ledger_state_head,
+        state_context_digest=state_context_digest,
         authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE,
         fee=fee,
         output_entropy=output_entropy,
@@ -147,6 +154,20 @@ def test_valid_spend_relation_v3_acceptance() -> None:
     statement, witness, _, _, _ = _create_test_fixture()
     digest = verify_spend_relation_v3_reference(statement, witness)
     assert len(digest) == 64
+
+
+@pytest.mark.parametrize(
+    "field, replacement",
+    [
+        ("ledger_state_head", b"\x57" * 48),
+        ("state_context_digest", b"\x67" * 64),
+    ],
+)
+def test_production1_output_identity_is_bound_to_anchor_context(field, replacement) -> None:
+    statement, witness, *_ = _create_test_fixture()
+    changed_statement = replace(statement, **{field: replacement})
+    with pytest.raises(SpendRelationV3Error, match="output commitment"):
+        verify_spend_relation_v3_reference(changed_statement, witness)
 
 
 def test_spend_relation_v3_inflation_rejected() -> None:
@@ -396,7 +417,7 @@ def test_spend_relation_v3_merkle_index_path_ambiguity_rejection() -> None:
 def test_spend_relation_v3_tx_context_relayer_tampering_rejection() -> None:
     """Trap 5: TxContext / Relayer Tampering Protection.
 
-    Ensures that tampering with state_context_digest or fee alters the statement digest.
+    Ensures that the state context participates in Production-1 output identity.
     """
     statement, witness, _, _, _ = _create_test_fixture()
     valid_digest = verify_spend_relation_v3_reference(statement, witness)
@@ -414,10 +435,9 @@ def test_spend_relation_v3_tx_context_relayer_tampering_rejection() -> None:
         output_entropy=statement.output_entropy,
         output_commitments=statement.output_commitments,
     )
-    tampered_digest = verify_spend_relation_v3_reference(tampered_stmt, witness)
-
-    # The public statement digest MUST be cryptographically distinct, invalidating any proof
-    assert tampered_digest != valid_digest
+    with pytest.raises(SpendRelationV3Error, match="output commitment"):
+        verify_spend_relation_v3_reference(tampered_stmt, witness)
+    assert len(valid_digest) == 64
 
 
 def test_valid_multi_output_spend_relation_v3_acceptance() -> None:

@@ -47,6 +47,16 @@ $$\text{Total Keccak-f Permutations} = 153 \quad \implies \quad 126 \text{ permu
 
 Traversing 63 levels of an append-only tree in general-purpose zkVM instructions forces the prover to evaluate over **16 million trace rows ($2^{24}$)**, expanding intermediate polynomial evaluation domains into **$2.73\text{ GB}$ of RAM**.
 
+## Proving-service deployment decision
+
+The approved rollout has two trust phases. These are service trust assumptions, not proof-system security claims:
+
+- **Phase A — trusted single-tenant operator:** the operator may receive and process the plaintext witness. Restrict this phase to a named operator and tenant, authenticated submissions, encrypted transport and storage, isolated short-lived workers, disabled witness logging/core dumps, and documented deletion. The operator is inside the privacy trust boundary and can learn witness values. This phase must not be described as blind proving or end-to-end witness hiding.
+- **Phase B — client-verified attested TEE:** the client verifies a fresh hardware attestation before encrypting a witness to the enclave's ephemeral public key. The attestation must bind the enclave measurement to the exact guest ELF, OpenVM VM configuration, verifier key, proof parameters, and protocol version; the request must bind a client nonce and canonical public-statement digest. The enclave may process plaintext internally. The host operator is outside the intended confidentiality boundary, while the hardware, firmware, attestation roots, enclave measurement, and side-channel policy remain trusted. Reject stale/revoked TCB levels, debug enclaves, measurement mismatches, replayed attestations, and responses that do not bind the request nonce and public statement.
+- **Out of scope:** multi-party computation and confidentiality from the enclave itself. Encryption in transit or to an ordinary server key does not make the witness confidential from the proving process that decrypts it.
+
+Neither phase makes the current OpenVM candidate production-ready. The checked-in SDK runner selects `app_params_with_100_bits_security`, below the project's 128-bit post-quantum target; the active OpenVM proof path still lacks established end-to-end witness hiding. Phase B therefore remains a design target until attestation verification, the enclave proving service, key binding, and operational recovery are implemented and reviewed. See [`proof_backend_v3.py`](../../src/protocol/proof_backend_v3.py) and the [production gate matrix](../security/production-gate-matrix.md).
+
 ---
 
 ## 3. The Solution: 2-Tier Blinded Split-Prover Architecture

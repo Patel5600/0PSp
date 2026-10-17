@@ -119,7 +119,7 @@ This dossier provides the exhaustive technical verification, mathematical proofs
 ---
 
 ### 26–27. External Audit & Release Decision
-- **26. External Audit:** **DEFERRED (Intentional Pre-Launch Deferral)**. Third-party audit is explicitly planned as a post-launch milestone before Mainnet live value.
+- **26. External Audit:** **REQUIRED BEFORE MAINNET; NOT STARTED / NOT PERFORMED**. Commission an independent third-party review after the complete relation, verifier, security parameters, and release composition are frozen; close findings and rerun evidence on the audited release commit. No audit or certification is claimed.
 - **27. Complete 0PSP Production Release:**
   - **Testnet Release (`v0.1.0-alpha`):** **GO**. Full protocol operational for testnet token issuance, transfer, nullifier consumption, and verifiable state transitions.
   - **Mainnet Real-Value Transfer:** **Strictly Gated (NO-GO)** until external third-party cryptographic audits and prover-trace zero-knowledge masking are completed.

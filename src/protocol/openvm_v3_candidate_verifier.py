@@ -41,7 +41,7 @@ MAX_PINNED_ARTIFACT_BYTES = 512 * 1024 * 1024
 
 def _regular_file_sha256(path: Path, *, executable: bool = False) -> bytes:
     """Hash a pinned artifact through a no-follow descriptor."""
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
         fd = os.open(path, flags)
     except OSError as exc:
@@ -96,7 +96,7 @@ def _stage_pinned_artifact(
     hashes exactly those bytes, and refuses to use the copy unless the digest
     matches the configured pin.
     """
-    source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
         source_fd = os.open(source, source_flags)
     except OSError as exc:
@@ -105,7 +105,10 @@ def _stage_pinned_artifact(
         ) from exc
 
     target_mode = 0o700 if executable else 0o600
-    target_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    target_flags = (
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    )
     target_fd: int | None = None
     target_created = False
     digest = hashlib.sha256()

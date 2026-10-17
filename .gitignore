@@ -14,3 +14,4 @@ venv/
 
 native/build/
 **/target/
+proof/openvm/v3-nullifier-spike/openvm/release/

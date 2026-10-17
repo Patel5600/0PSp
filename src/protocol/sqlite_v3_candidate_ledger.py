@@ -47,6 +47,7 @@ from src.protocol.transaction_v3_candidate import (
     TransactionV3CandidateError,
     TxFieldsV3Candidate,
     decode_tx_fields_v3_candidate,
+    state_context_digest_v3_candidate,
     transaction_digest_v3_candidate,
     validate_nk_possession_policy_v3_candidate,
 )
@@ -65,7 +66,7 @@ LEDGER_ID_BYTES = 16
 SQLITE_INDEX_MAX = (1 << 63) - 1
 MAX_PROOF_BYTES = 2_000_000
 MAX_TX_BYTES = 1_000_000
-DEFAULT_ANCHOR_WINDOW = 4096
+DEFAULT_ANCHOR_WINDOW = 256
 LOCAL_FINALITY_POLICY_ID = b"0PSP-SQLITE-V3-CANDIDATE-LOCAL-STATE-NONFINAL-v1"
 
 _EVENT_DOMAIN = b"0PSP-V3-CANDIDATE-LEDGER-EVENT-v1-SHAKE256"
@@ -562,6 +563,16 @@ class SQLiteV3CandidateLedger:
             ).fetchone()
             if row is None:
                 raise SQLiteV3StaleLedgerState("requested candidate state anchor is not retained")
+            if state_version == 0:
+                bootstrap = conn.execute(
+                    "SELECT bootstrap_source_id,bootstrap_finalized_anchor,bootstrap_evidence "
+                    "FROM v3_ledger_meta WHERE singleton=1"
+                ).fetchone()
+                if bootstrap is None:
+                    raise SQLiteV3LedgerIntegrityError("candidate bootstrap evidence is missing")
+                return StateAnchorEvidenceV3(
+                    bytes(bootstrap[0]), bytes(bootstrap[1]), bytes(bootstrap[2])
+                )
             ledger_id = self._ledger_id(conn)
         root, head, count = bytes(row[0]), bytes(row[1]), int(row[2])
         anchor_payload = _anchor_payload(state_version, root, head, count)
@@ -569,6 +580,16 @@ class SQLiteV3CandidateLedger:
             source_id=_state_source_id(ledger_id),
             finalized_anchor=anchor_payload,
             evidence=_local_evidence_payload(ledger_id, anchor_payload),
+        )
+
+    def state_context_digest_for_version(self, state_version: int) -> bytes:
+        """Return the transaction context bound to an authenticated retained anchor."""
+        evidence = self.state_evidence_for_version(state_version)
+        snapshot = self._verify_local_anchor(evidence)
+        return state_context_digest_v3_candidate(
+            snapshot.source_id,
+            snapshot.finalized_anchor,
+            snapshot.finality_policy_id,
         )
 
     def _evidence_for_transaction(self, statement: TxFieldsV3Candidate) -> tuple[StateAnchorEvidenceV3, int]:
@@ -589,6 +610,26 @@ class SQLiteV3CandidateLedger:
         if not isinstance(evidence, StateAnchorEvidenceV3):
             raise TrustedStateRejected("local state evidence must be StateAnchorEvidenceV3")
         with closing(self._connect()) as conn:
+            bootstrap = conn.execute(
+                "SELECT bootstrap_source_id,bootstrap_finalized_anchor,bootstrap_evidence,"
+                "bootstrap_root,bootstrap_head,bootstrap_count FROM v3_ledger_meta WHERE singleton=1"
+            ).fetchone()
+            if bootstrap is None:
+                raise TrustedStateRejected("candidate bootstrap evidence is missing")
+            bootstrap_evidence = StateAnchorEvidenceV3(
+                bytes(bootstrap[0]), bytes(bootstrap[1]), bytes(bootstrap[2])
+            )
+            if evidence == bootstrap_evidence:
+                snapshot = self._verify_external_bootstrap(evidence)
+                anchor = conn.execute(
+                    "SELECT commitment_root,state_head,commitment_count "
+                    "FROM v3_commitment_anchors WHERE state_version=0"
+                ).fetchone()
+                if anchor is None or (
+                    bytes(anchor[0]), bytes(anchor[1]), int(anchor[2])
+                ) != (snapshot.commitment_root, snapshot.ledger_state_head, int(bootstrap[5])):
+                    raise TrustedStateRejected("authenticated bootstrap anchor differs from retained version 0")
+                return snapshot
             ledger_id = self._ledger_id(conn)
             source_id = _state_source_id(ledger_id)
             if evidence.source_id != source_id:
@@ -711,14 +752,6 @@ class SQLiteV3CandidateLedger:
         except Exception as exc:
             raise SQLiteV3LedgerIntegrityError("candidate state-binding preflight failed closed") from exc
 
-        try:
-            if self._verify_spend_proof(binding.statement, proof) is not True:
-                raise SQLiteV3ProofRejected("candidate V3 spend proof rejected")
-        except SQLiteV3ProofRejected:
-            raise
-        except Exception as exc:
-            raise SQLiteV3ProofRejected("candidate V3 proof verifier failed closed") from exc
-
         nullifier = statement.input_nullifier.value
         output_commitment = statement.output_commitments[0].value
         tx_fields = statement.encode()
@@ -748,6 +781,17 @@ class SQLiteV3CandidateLedger:
                 (self._namespace.data, output_commitment),
             ).fetchone():
                 raise SQLiteV3DuplicateCommitment("candidate V3 output commitment already exists")
+            # Keep the state snapshot and the cryptographic decision in the same
+            # write transaction as nullifier/output insertion. A concurrent spend
+            # cannot advance the anchor or consume this nullifier between verify
+            # and commit. Verification failures roll back without ledger changes.
+            try:
+                if self._verify_spend_proof(binding.statement, proof) is not True:
+                    raise SQLiteV3ProofRejected("candidate V3 spend proof rejected")
+            except SQLiteV3ProofRejected:
+                raise
+            except Exception as exc:
+                raise SQLiteV3ProofRejected("candidate V3 proof verifier failed closed") from exc
             next_version = version + 1
             first_output_index = count
             new_root = self._append_commitment(
@@ -882,7 +926,8 @@ class SQLiteV3CandidateLedger:
             meta = conn.execute(
                 """SELECT schema_version,namespace_id,params_id,policy_id,profile_id,
                           bootstrap_root,bootstrap_head,bootstrap_count,state_version,state_head,
-                          commitment_count,commitment_root,bootstrap_finalized_anchor
+                          commitment_count,commitment_root,bootstrap_finalized_anchor,
+                          bootstrap_source_id,bootstrap_evidence,ledger_id
                    FROM v3_ledger_meta WHERE singleton=1"""
             ).fetchone()
             if meta is None:
@@ -895,6 +940,25 @@ class SQLiteV3CandidateLedger:
             bootstrap_root, bootstrap_head, bootstrap_count = bytes(meta[5]), bytes(meta[6]), int(meta[7])
             state_version, state_head, commitment_count, commitment_root = int(meta[8]), bytes(meta[9]), int(meta[10]), bytes(meta[11])
             bootstrap_finalized_anchor = bytes(meta[12])
+            bootstrap_evidence = StateAnchorEvidenceV3(
+                bytes(meta[13]), bootstrap_finalized_anchor, bytes(meta[14])
+            )
+            bootstrap_snapshot = self._verify_external_bootstrap(bootstrap_evidence)
+            ledger_id = bytes(meta[15])
+            if (
+                bootstrap_snapshot.namespace_id != self._namespace
+                or bootstrap_snapshot.params_id != self._params_id
+                or bootstrap_snapshot.commitment_root != bootstrap_root
+                or bootstrap_snapshot.ledger_state_head != bootstrap_head
+            ):
+                raise SQLiteV3LedgerIntegrityError(
+                    "authenticated bootstrap snapshot differs from persisted checkpoint metadata"
+                )
+            bootstrap_context_digest = state_context_digest_v3_candidate(
+                bootstrap_snapshot.source_id,
+                bootstrap_snapshot.finalized_anchor,
+                bootstrap_snapshot.finality_policy_id,
+            )
             bootstrap_rows = conn.execute(
                 "SELECT commitment,commitment_index FROM v3_commitments WHERE source_kind='bootstrap' ORDER BY commitment_index"
             ).fetchall()
@@ -990,6 +1054,23 @@ class SQLiteV3CandidateLedger:
                 ):
                     raise SQLiteV3LedgerIntegrityError(
                         "persisted V3 transaction root/head do not match its recorded proof anchor"
+                    )
+                anchor_version = int(proof_anchor_version)
+                if anchor_version == 0:
+                    expected_context_digest = bootstrap_context_digest
+                else:
+                    anchor_root, anchor_head, anchor_count = snapshots[anchor_version]
+                    anchor_evidence_payload = _anchor_payload(
+                        anchor_version, anchor_root, anchor_head, anchor_count
+                    )
+                    expected_context_digest = state_context_digest_v3_candidate(
+                        _state_source_id(ledger_id),
+                        anchor_evidence_payload,
+                        LOCAL_FINALITY_POLICY_ID,
+                    )
+                if statement.state_context_digest != expected_context_digest:
+                    raise SQLiteV3LedgerIntegrityError(
+                        "persisted V3 transaction context does not bind its recorded proof anchor"
                     )
                 # Recompute the event payload from the stored typed records, not from a supplied digest.
                 expected_payload = _event_payload(

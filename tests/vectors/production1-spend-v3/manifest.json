@@ -1,0 +1,25 @@
+{
+  "profile": "production1_testnet",
+  "relation": "OpenVM spend_v3 one-input/one-output; root || state_head || state_context_digest bound into output identity; slot 0",
+  "public_digest": "aa7b029542a3d75bc6dee7d9927b9efa10e5fc45a5ff1eb19745ec9357733e32cd4974e83b050bbbd14a2c36c141bfee99e833d7030ce1657c3a727039c53f0f",
+  "vectors": [
+    {
+      "file": "valid.witness",
+      "sha256": "5945d74952a2771735121b8a03f6d3b4d31cf0ae5c19b7d9fac730dcd963cbce",
+      "expected": "accept",
+      "public_digest": "aa7b029542a3d75bc6dee7d9927b9efa10e5fc45a5ff1eb19745ec9357733e32cd4974e83b050bbbd14a2c36c141bfee99e833d7030ce1657c3a727039c53f0f"
+    },
+    {
+      "file": "wrong-state-head.witness",
+      "sha256": "e01eeb6b3059ba57464a40e959ad0b0f11d2c7b65387d41e44fd0b81ee7aef96",
+      "expected": "reject",
+      "reason": "output identity must bind the statement state head"
+    },
+    {
+      "file": "wrong-state-context.witness",
+      "sha256": "6ff7fd3a3c57037bd6e0cf9e1f7ff605dc6afd88f3db75870fff72cdc3faef41",
+      "expected": "reject",
+      "reason": "output identity must bind the finalized-state context digest"
+    }
+  ]
+}

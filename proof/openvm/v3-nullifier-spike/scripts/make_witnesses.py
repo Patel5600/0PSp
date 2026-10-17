@@ -25,7 +25,7 @@ from src.primitives.coin_commitment_v3 import commit_coin_v3
 from src.primitives.note_types_v3 import CoinCommitmentV3
 from src.protocol.commitment_tree import CommitmentTree
 from src.protocol.note_public_key_bundle_v3 import NotePublicKeyBundleV3
-from src.protocol.output_identity import derive_output_identity_v3_candidate
+from src.protocol.output_identity import derive_output_identity_v3_production1
 from src.protocol.transaction_v3_candidate import (
     V3_NK_POSSESSION_POLICY_CANDIDATE,
     TxFieldsV3Candidate,
@@ -138,6 +138,10 @@ def make_spend_context():
         namespace, PARAMS_ID, input_bundle, input_commitment,
         input_coin_id, input_r_nf, input_key,
     )
+    tree = CommitmentTree(namespace, [input_commitment.value])
+    state_context_digest = state_context_digest_v3_candidate(
+        SPEND_STATE_SOURCE, SPEND_FINALIZED_ANCHOR, SPEND_FINALITY_POLICY
+    )
 
     output_key = NullifierDerivingKeyV3(SPEND_OUTPUT_KEY)
     output_bundle_obj = NotePublicKeyBundleV3(
@@ -146,8 +150,9 @@ def make_spend_context():
         nullifier_key_commitment=compute_nullifier_key_commitment_v3(output_key),
     )
     output_bundle = output_bundle_obj.encode()
-    output_identity = derive_output_identity_v3_candidate(
+    output_identity = derive_output_identity_v3_production1(
         namespace_id=namespace,
+        anchor_context=tree.root + SPEND_STATE_HEAD + state_context_digest,
         parent_coin_id=input_coin_id,
         parent_r_nf=input_r_nf,
         parent_public_key_bundle=input_bundle,
@@ -163,16 +168,13 @@ def make_spend_context():
         output_identity.coin_id, output_identity.r_nf,
         SPEND_OUTPUT_RHO, PARAMS_ID,
     )
-    tree = CommitmentTree(namespace, [input_commitment.value])
     tx = TxFieldsV3Candidate(
         params_id=PARAMS_ID,
         namespace_id=namespace,
         commitment_root=tree.root,
         input_nullifier=input_nullifier,
         ledger_state_head=SPEND_STATE_HEAD,
-        state_context_digest=state_context_digest_v3_candidate(
-            SPEND_STATE_SOURCE, SPEND_FINALIZED_ANCHOR, SPEND_FINALITY_POLICY
-        ),
+        state_context_digest=state_context_digest,
         authorization_policy_id=V3_NK_POSSESSION_POLICY_CANDIDATE,
         fee=SPEND_FEE,
         output_entropy=SPEND_OUTPUT_ENTROPY,
@@ -326,7 +328,7 @@ def main() -> int:
     valid_spend = encode_spend_witness(ctx)
     write_case(output, "spend-valid", valid_spend)
     spend_digest = expected_spend_digest(tx)
-    expected_spend_digest_kat = "0cdf055499351512e97f57e0c479b7d0be992525ab9283da872fb3ba1e21e02da4f910b79407e6a6fe80f56a4edca146d8eeb55bfa520bc6ad36e87534595cda"
+    expected_spend_digest_kat = "aa7b029542a3d75bc6dee7d9927b9efa10e5fc45a5ff1eb19745ec9357733e32cd4974e83b050bbbd14a2c36c141bfee99e833d7030ce1657c3a727039c53f0f"
     if spend_digest.hex() != expected_spend_digest_kat:
         raise ValueError("spend public statement digest KAT mismatch")
     (output / "expected-spend-public-digest.txt").write_text(
@@ -360,6 +362,12 @@ def main() -> int:
     spend_cases["spend-bad-path"] = encode_spend_witness(ctx, siblings=tuple(bad_siblings))
     spend_cases["spend-changed-output-entropy"] = encode_spend_witness(
         ctx, tx=replace(tx, output_entropy=bytes([0x67]) * 32)
+    )
+    spend_cases["spend-changed-state-head"] = encode_spend_witness(
+        ctx, tx=replace(tx, ledger_state_head=bytes([0x78]) * 48)
+    )
+    spend_cases["spend-changed-state-context"] = encode_spend_witness(
+        ctx, tx=replace(tx, state_context_digest=bytes([0x79]) * 64)
     )
     spend_cases["spend-unknown-policy"] = encode_spend_witness(
         ctx, tx=replace(tx, authorization_policy_id=b"unknown-policy-v1")
