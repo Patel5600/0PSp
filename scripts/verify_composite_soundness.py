@@ -1,155 +1,96 @@
 #!/usr/bin/env python3
-"""0PSP Formal Post-Quantum STARK/FRI Composite Soundness Reduction Verifier.
+"""Fail-closed audit of the pinned OpenVM candidate's security claims.
 
-Calculates and proves the concrete security level of the 0PSP OpenVM/Plonky3 STARK spend relation
-under the degree-5 extension field (F_{p^5}) over BabyBear, batch-FRI parameterization,
-and LogUp coprocessor bus lookups.
-
-Evaluates:
-  1. Quotient polynomial evaluation error: eps_quotient <= (d_max * N_trace) / p^5
-  2. LogUp lookup permutation error:       eps_lookup   <= M_bus / p^5
-  3. DEEP-ALI quotient sampling error:     eps_deep     <= (d_max * N_trace) / p^5
-  4. FRI proximity error:                  eps_fri      <= (1 - theta)^N_q * 2^(-pow_bits)
-  5. Composite multi-round error:          eps_total    = eps_quotient + eps_lookup + eps_deep + eps_fri
-
-Target:
-  Composite PQ Soundness: lambda_PQ = -log2(eps_total) >= 128.0 bits.
+The previous version invented a degree-5 extension, fixed per-query FRI entropy,
+and additive error terms that were not derived from the pinned OpenVM backend.
+Those outputs must not be used as a post-quantum security proof. This replacement
+reports only facts grounded in the exact source revision and refuses the gate
+because a composed >=128-bit post-quantum bound and end-to-end witness hiding
+have not been established for the candidate.
 """
 from __future__ import annotations
 
-import argparse
 import math
 import sys
 from dataclasses import dataclass
-from typing import Dict, Any
+
+PINNED_OPENVM_REV = "59a69b8b0cbee7011ac978e4cc07707ee3681944"
+BABYBEAR_P = 2_013_265_921
+DEFAULT_EXTENSION_DEGREE = 4
+UPSTREAM_DECLARED_RBR_SOUNDNESS_BITS = 100
+REQUIRED_COMPOSITE_PQ_BITS = 128
 
 
-# BabyBear Field: p = 2^31 - 2^27 + 1 = 2013265921
-BABYBEAR_P = 2013265921
-
-# Default Production Parameters (Degree-5 Extension)
-DEFAULT_EXTENSION_DEGREE = 5
-DEFAULT_D_MAX = 3
-DEFAULT_MAX_TRACE_ROWS = 1 << 21       # 2^21 rows (2,097,152)
-DEFAULT_MAX_BUS_LOOKUPS = 1 << 22      # 2^22 coprocessor bus interactions
-DEFAULT_BLOWUP_FACTOR = 16             # rho = 1/16 = 2^(-4)
-DEFAULT_FRI_QUERIES = 38               # N_q = 38 queries
-DEFAULT_POW_GRINDING_BITS = 20         # 20-bit Fiat-Shamir query PoW grinding
-DEFAULT_MAKE_ZK = True                 # Randomized blinding rows enabled
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SoundnessReport:
-    field_size_bits: float
-    eps_quotient_bits: float
-    eps_lookup_bits: float
-    eps_deep_bits: float
-    eps_fri_bits: float
-    eps_total_bits: float
-    security_level_bits: float
-    zk_blinding_rows_required: int
+    """Observed upstream facts; unknown security is deliberately not guessed."""
+
+    backend_revision: str
+    base_field_order: int
+    extension_degree: int
+    challenge_field_bits_upper_bound: float
+    upstream_declared_rbr_soundness_bits: int
+    composite_pq_security_bits: None
+    end_to_end_witness_hiding_established: bool
+    required_composite_pq_bits: int
     meets_128bit_pq_target: bool
+    status: str
+    blockers: tuple[str, ...]
 
 
-def calculate_composite_soundness(
-    *,
-    p: int = BABYBEAR_P,
-    extension_degree: int = DEFAULT_EXTENSION_DEGREE,
-    d_max: int = DEFAULT_D_MAX,
-    n_trace: int = DEFAULT_MAX_TRACE_ROWS,
-    m_bus: int = DEFAULT_MAX_BUS_LOOKUPS,
-    blowup_factor: int = DEFAULT_BLOWUP_FACTOR,
-    fri_queries: int = DEFAULT_FRI_QUERIES,
-    pow_grinding_bits: int = DEFAULT_POW_GRINDING_BITS,
-    make_zk: bool = DEFAULT_MAKE_ZK,
-) -> SoundnessReport:
-    """Calculate exact mathematical upper bound on multi-round STARK forgery probability."""
-    # Field cardinality: |F_{p^d}| = p^d
-    field_size = p ** extension_degree
-    log2_field_size = extension_degree * math.log2(p)
+def calculate_composite_soundness() -> SoundnessReport:
+    """Return the evidence status of the pinned profile, not a fabricated estimate.
 
-    # 1. Quotient soundness error: eps_quotient = (d_max * N_trace) / |F|
-    eps_quotient = (d_max * n_trace) / field_size
-    log2_eps_quotient = math.log2(eps_quotient)
-
-    # 2. LogUp lookup error: eps_lookup = M_bus / |F|
-    eps_lookup = m_bus / field_size
-    log2_eps_lookup = math.log2(eps_lookup)
-
-    # 3. DEEP-ALI error: eps_deep <= (d_max * N_trace) / (2 * |F|)
-    eps_deep = (d_max * n_trace) / (2.0 * field_size)
-    log2_eps_deep = math.log2(eps_deep)
-
-    # 4. FRI query soundness error under Johnson list-decoding bound:
-    # Under Johnson proximity bound for rate rho = 1/16, each query yields ~2.95 bits of soundness:
-    # (1 - theta_Johnson)^N_q <= 2^(-112.1) for N_q = 38 queries.
-    # With 20-bit Fiat-Shamir query PoW grinding, eps_fri <= 2^(-112.1 - 20) = 2^(-132.1).
-    bits_per_query = 2.95  # Proven Johnson bound per-query soundness at blowup=16x
-    base_fri_security = fri_queries * bits_per_query
-    log2_eps_fri = -(base_fri_security + pow_grinding_bits)
-    eps_fri = 2.0 ** log2_eps_fri
-
-    # 5. Composite sum of forgery error terms across all interactive rounds:
-    eps_total = eps_quotient + eps_lookup + eps_deep + eps_fri
-    log2_eps_total = math.log2(eps_total)
-
-    # Net proven post-quantum soundness security level:
-    security_level = -log2_eps_total
-
-    # ZK masking: requires at least N_q + 1 randomized blinding rows per column
-    blinding_rows = (fri_queries + 1) if make_zk else 0
-
+    OpenVM's pinned upstream `app_params_with_100_bits_security` targets 100-bit
+    proven round-by-round (RBR) security under documented classical assumptions.
+    That upstream declaration is not an end-to-end >=128-bit post-quantum bound.
+    The exact candidate's composed PQ security is therefore recorded as unknown.
+    """
+    blockers = (
+        "The pinned upstream constructor targets 100-bit RBR security, not the required 128-bit post-quantum composite bound.",
+        "No independently reviewed quantum soundness reduction has been supplied for this exact backend/profile.",
+        "End-to-end witness hiding for the deployed OpenVM guest/proof configuration has not been established.",
+        "The candidate relation and local SQLite state policy do not authenticate external consensus finality or reorg recovery.",
+    )
     return SoundnessReport(
-        field_size_bits=round(log2_field_size, 3),
-        eps_quotient_bits=round(log2_eps_quotient, 3),
-        eps_lookup_bits=round(log2_eps_lookup, 3),
-        eps_deep_bits=round(log2_eps_deep, 3),
-        eps_fri_bits=round(log2_eps_fri, 3),
-        eps_total_bits=round(log2_eps_total, 3),
-        security_level_bits=round(security_level, 3),
-        zk_blinding_rows_required=blinding_rows,
-        meets_128bit_pq_target=(security_level >= 128.0),
+        backend_revision=PINNED_OPENVM_REV,
+        base_field_order=BABYBEAR_P,
+        extension_degree=DEFAULT_EXTENSION_DEGREE,
+        challenge_field_bits_upper_bound=round(
+            DEFAULT_EXTENSION_DEGREE * math.log2(BABYBEAR_P), 3
+        ),
+        upstream_declared_rbr_soundness_bits=UPSTREAM_DECLARED_RBR_SOUNDNESS_BITS,
+        composite_pq_security_bits=None,
+        end_to_end_witness_hiding_established=False,
+        required_composite_pq_bits=REQUIRED_COMPOSITE_PQ_BITS,
+        meets_128bit_pq_target=False,
+        status="NO-GO",
+        blockers=blockers,
     )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--ext-degree", type=int, default=DEFAULT_EXTENSION_DEGREE, help="Extension degree d (default: 5)")
-    parser.add_argument("--queries", type=int, default=DEFAULT_FRI_QUERIES, help="FRI query count (default: 38)")
-    parser.add_argument("--pow-bits", type=int, default=DEFAULT_POW_GRINDING_BITS, help="PoW grinding bits (default: 20)")
-    parser.add_argument("--blowup", type=int, default=DEFAULT_BLOWUP_FACTOR, help="FRI blowup factor (default: 16)")
-    args = parser.parse_args()
-
-    report = calculate_composite_soundness(
-        extension_degree=args.ext_degree,
-        fri_queries=args.queries,
-        pow_grinding_bits=args.pow_bits,
-        blowup_factor=args.blowup,
+    report = calculate_composite_soundness()
+    print("0PSP pinned OpenVM security-claim audit")
+    print(f"OpenVM revision:                 {report.backend_revision}")
+    print(f"Base field order:                {report.base_field_order}")
+    print(f"Challenge field:                 BabyBear^{report.extension_degree}")
+    print(
+        "Ideal challenge-field bit size:  "
+        f"{report.challenge_field_bits_upper_bound:.3f} bits (not a proof-system bound)"
     )
-
-    print("=" * 80)
-    print("0PSP Composite STARK/FRI Soundness Reduction Verification (Audit Milestone 3)")
-    print("=" * 80)
-    print(f"Base Field:                BabyBear (p = 2^31 - 2^27 + 1)")
-    print(f"Challenge Extension Field: F_(p^{args.ext_degree}) (|F| = 2^{report.field_size_bits} bits)")
-    print(f"FRI Configuration:         Blowup = {args.blowup}x (rho = 1/{args.blowup}) | Queries N_q = {args.queries} | PoW = {args.pow_bits} bits")
-    print(f"ZK Blinding Rows:          {report.zk_blinding_rows_required} rows per column (make_zk = True)")
-    print("-" * 80)
-    print(f"1. Quotient Error (eps_quotient):  2^({report.eps_quotient_bits})  (<= 2^-131.9)")
-    print(f"2. LogUp Bus Error (eps_lookup):    2^({report.eps_lookup_bits})  (<= 2^-132.5)")
-    print(f"3. DEEP-ALI Error (eps_deep):      2^({report.eps_deep_bits})  (<= 2^-133.0)")
-    print(f"4. FRI Soundness Error (eps_fri):  2^({report.eps_fri_bits})  (<= 2^-132.0)")
-    print("-" * 80)
-    print(f"Composite Forgery Error (eps_total): 2^({report.eps_total_bits})")
-    print(f"PROVEN PQ SECURITY LEVEL:            {report.security_level_bits} bits")
-    print("=" * 80)
-
-    if report.meets_128bit_pq_target:
-        print("[+] VERIFICATION SUCCESS: Proven security strictly exceeds 128-bit PQ requirement (>= 128.0 bits).")
-        return 0
-    else:
-        print(f"[-] VERIFICATION FAILED: Security level ({report.security_level_bits} bits) is below 128-bit PQ requirement.")
-        return 1
+    print(
+        "Upstream declared security:      "
+        f"{report.upstream_declared_rbr_soundness_bits} bits RBR (not a PQ composite claim)"
+    )
+    print("Composed post-quantum security:  UNKNOWN")
+    print("End-to-end witness hiding:       NOT ESTABLISHED")
+    print(f"Required composite PQ target:    >= {report.required_composite_pq_bits} bits")
+    print(f"Release status:                  {report.status}")
+    for blocker in report.blockers:
+        print(f"BLOCKER: {blocker}")
+    print("FAIL CLOSED: this script does not manufacture a soundness result from assumed parameters.")
+    return 1
 
 
 if __name__ == "__main__":
