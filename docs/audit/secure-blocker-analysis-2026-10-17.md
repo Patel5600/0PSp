@@ -113,3 +113,10 @@ Do not parallelize the protocol into unrelated pieces and call the aggregate com
 - **External audit:** NOT PERFORMED. This document is an internal engineering evidence review, not a certification.
 
 The only acceptable promotion is evidence-backed closure on one exact release SHA. No change in wording, profile metadata, green CI for a different SHA, or passing candidate integration test changes this decision.
+
+
+## F-08 — Master tracker PR inventory is stale (**P1 governance / release-control gap**)
+
+At the time of review, issue [#42](https://github.com/Patel5600/0PSp/issues/42) still displayed an inventory labelled “Snapshot checked 2026-10-14” in which PRs #10, #31, #30 and #28 were described as open. GitHub's current PR API state shows each is **closed without merge** (closed 2026-10-14); PR #60 is now merged. These closures do not close their linked technical gates, and no implementation is implied by a research PR being closed.
+
+The master issue has received an evidence comment with the #60 merge and PR #61 audit reference, but its long body/inventory should be reconciled in a dedicated controlled update so readers do not rely on the historical snapshot. Do not reopen abandoned research branches merely to make the table look active; first compare each branch's changes to current `main`, then either preserve useful patches on a fresh review branch or leave the technical issue open with explicit next actions.
