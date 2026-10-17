@@ -1,82 +1,56 @@
 # Production-1 gap report
 
-**Baseline:** current `main` worktree, Phase 0 inventory, 2026-10-17. This file and the Production-1 overlay in `production-gate-matrix.md` use the same gate names and statuses. The worktree contains uncommitted implementation and documentation changes; this is a code inventory, not release evidence for a SHA.
+**Baseline:** current rebased worktree, descended from remote `origin/main` `d9e1cf2` plus the local Production-1 implementation. **Release SHA:** this report and implementation are committed atomically; see the release commit in Git. **Decision:** local synthetic test-value demonstration only; public testnet value and Mainnet live value remain **NO-GO**.
 
-**Decision at baseline:** Production-1 testnet-value path is **NO-GO**. Mainnet live value is **NO-GO**. The only guest dispatched by `proof/openvm/v3-nullifier-spike/src/main.rs` is the 1-input/1-output `spend_v3::verify_v3_spend_witness` path. The separate depth-32 helper later in `spend_v3.rs` is not dispatched by that guest.
+The remote internal review at [`docs/audit/secure-blocker-analysis-2026-10-17.md`](../audit/secure-blocker-analysis-2026-10-17.md) remains authoritative for the inherited protocol blockers. Production-1 adds a pinned OpenVM proof/checker path and local SQLite spend transition; it does not close finality, issuance/custody, payee authenticity, reorg/recovery, witness hiding, composed security, or audit requirements.
 
-## Relation inventory
+## Primitive inventory
 
-| Gate | Baseline status | Evidence and exact boundary |
+| Spend-relation gate | Status | Evidence and exact boundary |
 |---|---|---|
-| Canonical statement parser and frozen 1-in/1-out profile | IMPLEMENTED | `parse_tx` checks domain, version, canonical re-encoding, fixed NK-possession policy, exactly one output, and bounded lengths. The active guest returns one 64-byte digest of the full transaction statement. |
-| Namespace-scoped Merkle membership, depth 63, u64 index | IMPLEMENTED | `verify_membership` bounds the u64 index to 63 bits, requires 63 siblings, hashes namespace/index into the leaf, and domain-separates each level. It checks against the root supplied in the statement; it does not authenticate that root. |
-| CommitV3 opening for the input | IMPLEMENTED | Active guest recomputes the commitment from the same input bundle, value, namespace, coin ID, nullifier randomness, and commitment randomness before membership. |
-| NullifierV3 HMAC-SHA3-384 same-witness binding | IMPLEMENTED | Active guest opens the input bundle's NK commitment, then uses that same `input_nk`, bundle, commitment, coin ID, and nullifier randomness to recompute the public nullifier. |
-| Value conservation and range safety | IMPLEMENTED | Values and fee parse as u64; `input = output + fee` is computed in u128, rejecting overflow-equivalent mismatches. This is the active one-output relation only. |
-| NK-possession authorization predicate | IMPLEMENTED | The witness proves knowledge of `nk` opening the key commitment in the input BundleV3. This does not implement threshold signing or an independent recipient-intent signature. |
-| Public statement binding | IMPLEMENTED | The guest emits a 64-byte digest over canonical TxFieldsV3, which includes nullifier, namespace, root, state head/context digest, fee, entropy, and the single output commitment. These fields are digest-bound rather than individually exposed as OpenVM public values. |
-| Anchor- and slot-bound output anti-reuse | PARTIAL | The active relation fixes the output slot to zero and derives output coin ID/randomness from the parent note, bundles, namespace, and transaction entropy. It does not include the statement root, state head, or state-context/finalized-anchor identifier in that derivation. |
-| Host/reference relation parity with the active guest | PARTIAL | Python reference code supports 32- and 63-level paths and multi-output witnesses; the active guest is only the fixed one-output 63-level profile. Production-1 must select and test only the exact guest profile. |
+| Fixed 1-input/1-output and canonical V3 statement | IMPLEMENTED | The active OpenVM entrypoint dispatches `spend_v3::verify_v3_spend_witness`; it requires one output, canonical encoding and the NK-possession policy. The legacy host reference is broader, so the explicit Production-1 host predicate now rejects non-1-output and non-depth-63 inputs. |
+| Namespace-scoped Merkle membership, depth 63, u64 index | IMPLEMENTED | Guest hashes namespace and u64 index into the leaf and folds 63 ordered, level-separated siblings against the statement root. It proves membership under the supplied root; it does not authenticate that root. Guest mutation tests flip each sibling and reject. |
+| CommitV3 opening and same-witness NullifierV3 | IMPLEMENTED | One parsed witness supplies the bundle, value, coin ID, `r_nf`, `rho`, and `nk`; guest recomputes the commitment, opens the bundle's NK commitment, and derives HMAC-SHA3-384 NullifierV3 from those same fields. Host and guest mutation tests reject changes to each corresponding field. |
+| Authorization predicate | IMPLEMENTED (NK possession only) | The exact policy is fixed to knowledge of `nk` opening the key commitment in the spent note bundle. It does not authenticate a third-party intended recipient, and threshold/MPC is absent. |
+| Value conservation and integer range | IMPLEMENTED (u64 1-out profile) | Input/output/fee are decoded from fixed-width u64 encodings; guest computes output plus fee in u128 and requires equality. Broader multi-output range semantics are outside the accepted profile. Python boundary tests cover 0, max-u64, and overflow; per-boundary OpenVM proof vectors remain to add. |
+| Output identity and anti-reuse | IMPLEMENTED (slot 0, local state) | The guest derives output coin ID and `r_nf` from parent-note identity, bundles, entropy, namespace and the root/head/context anchor, then checks the output CommitV3. SQLite enforces output commitment uniqueness. It does not establish intended payee authenticity or global uniqueness across deployments. |
+| Public statement binding | IMPLEMENTED (digest-bound) | Canonical TxFields bind params ID, namespace, root, nullifier, state head/context, policy, fee, entropy, one output and its commitment into the public digest. These are digest-bound, not individually revealed. `params_id` is in the statement. |
+| `relation_id` binding | PARTIAL | The verifier selects the exact `PRODUCTION1_CIRCUIT_ID` with a source-controlled pin manifest and matching VK/app commitment. The relation ID is not separately serialized into TxFields; changing that would require a new relation/version and regenerated OpenVM artifacts. |
+| Host/guest mutation parity | IMPLEMENTED for field mutation rejection; broader semantics PARTIAL | Rust guest tests execute the active guest predicate against the fixed valid vector and reject a one-bit mutation of every public/private field and each Merkle sibling. Python Production-1 host-reference tests reject each field mutation and enforce the profile arity/depth. This is predicate-level evidence, not a proof for every invalid mutation or a full cross-language differential corpus. |
+| Domain separation and versioning | PARTIAL | V3 byte layouts have explicit domains, version bytes and fixed vectors. The active domain strings retain `CANDIDATE` naming and mixed-profile legacy APIs remain in the repository; a clean normative V3 codec/domain migration is not complete. |
+| Soundness profile | NOT DONE for >=128-bit composed PQ | The pinned OpenVM setup is based on the upstream 100-bit app RBR profile. No composed post-quantum bound of at least 128 bits is established. |
+| Witness hiding / prover trace | NOT DONE | OpenVM proof transcript and prover trace have not been shown to hide the witness. Phase A worker/operator can see plaintext witness. Do not call this a zero-knowledge spend. |
+| Secret lifecycle / side channels | PARTIAL | Worker wipes the mutable request buffer on success and failure; OpenVM and Python/runtime copies, swap, crash dumps, and all secret paths are not proven wiped. Constant-time behavior is not certified. |
+| Pure verifier vs state application | IMPLEMENTED (API boundary) | `verify_production1_spend` is a pure verifier returning relation ID, params, anchor, nullifier, outputs and fee; SQLite performs the separate atomic Apply transition and rechecks state/uniqueness. Root acceptance remains caller/state policy, not proof semantics. |
+| Issuance binding | NOT DONE | Current mint is deterministic local synthetic bootstrap data. No verified public-chain deposit or one-time issuance authorization is composed with the spend primitive. |
+| Intended recipient / recovery | NOT DONE | NK possession authorizes spending the input note only. Recipient address binding, encrypted note delivery, key backup/recovery and substitution/replay policy are not specified as an accepted primitive. |
+| Multi-output spends | NOT IMPLEMENTED in accepted profile | The accepted guest and Production-1 pure verifier accept exactly 1-in/1-out. Historical reference APIs may represent multi-output candidates; those are not accepted by the pinned profile. |
+| Pure verifier artifact / release identity | IMPLEMENTED for local pin integrity; independent release attestation NOT DONE | Source-controlled manifest pins circuit ID, app VK, checker and executable commitment; adapter stages and rechecks files. This is not a signed, independently reviewed release manifest or reproducible build attestation. |
 
-## Production integration inventory
+## Composition and deployment gaps
 
-| Gate | Baseline status | Evidence and exact boundary |
+| Gate | Status | Evidence / remaining work |
 |---|---|---|
-| Pinned OpenVM artifact verifier exists | IMPLEMENTED | `OpenVMV3CandidateProofVerifier` pins checker/VK file hashes and app executable commitment, stages and rechecks exact bytes, invokes the Rust OpenVM checker, and checks the expected public digest. This is a real proof verifier. |
-| Production envelope uses the pinned verifier without injected callbacks | MISSING | `verify_production_proof_envelope()` takes a caller-supplied `proof_verifier`; its module-level latch is `False`. The local worker CLI bypasses this envelope and injects the checker callback directly into `SQLiteV3CandidateLedger`. |
-| Explicit `production1_testnet` and `mainnet_live` profiles | MISSING | One global boolean exists. There is no profile-bound enablement policy, and no fail-closed rule proving `mainnet_live` cannot be enabled by this milestone. |
-| Ledger preflight, proof verification, and spend mutation are composed atomically | PARTIAL | SQLite candidate ledger provides unique nullifier/output constraints, anchor-ring validation, and transactional mutation. The verifier is an injected callback, and the current local CLI uses synthetic bootstrap evidence. |
-| Duplicate spend and historical anchor behavior | IMPLEMENTED | SQLite unit/integration tests cover duplicate nullifiers, a 256-anchor ring, historical anchors, concurrent duplicate races, rollback/fault injection, and integrity rebuild. These tests do not turn the callback-based ledger into a production profile. |
-| Authenticated finality/reorg recovery | MISSING | The active guest binds root/head/context fields but cannot authenticate consensus. The local test path bootstraps deterministic synthetic state; there is no Production-1 recovery/finality adapter. |
-| Single-tenant worker transport and witness handling | PARTIAL | The existing worker has TLS, bearer auth, request size limits, one request at a time, timeout, no body logging, mutable-buffer wipe, and an stdin prover. Its request is raw witness bytes and response is a binary envelope; circuit ID, explicit public inputs, request ID, and prove time are not part of the API contract. Phase A operator plaintext access is intentional and must remain disclosed. |
-| Client verifies locally before ledger submission | IMPLEMENTED | The local client validates the TLS certificate, binds the public digest to its statement, verifies the proof locally, wipes the mutable witness, then submits to the SQLite ledger library. |
-| Clean-machine mint → spend → replay-reject using one production profile | PARTIAL | Local scripts construct a deterministic synthetic input note, prove and verify an OpenVM spend, then a separate integration script verifies once and rejects replay. They are not yet wired into `make production-check` as one profile-aware e2e path. |
-| Fixed golden vectors under `tests/vectors/` | MISSING | Existing fixtures are generated by scripts under the spike directory; the requested versioned test-vector set is absent. |
-| Named-machine proof measurements | IMPLEMENTED | `BENCH.md` records a 660,320-byte spend proof, 484.119 s proving, 2.852 s verifying, and 3,375,840 KiB combined runner peak RSS on a named WSL2/Ryzen 5 7530U machine. The local guest commitment differed from the pinned CI toolchain output; that caveat is recorded. |
-| Testnet profile release decision | MISSING | README and gate matrix describe synthetic/local tests only; there is no testnet-value GO profile. |
-| Mainnet live-value release decision | NO-GO | Mainnet remains disabled and out of scope. No soundness, privacy, finality, recovery, custody, or external-audit claim is inferred from Production-1 testnet work. |
+| Exact OpenVM proof verification | IMPLEMENTED for local Production-1 profile | The pinned checker verifies the OpenVM proof against the pinned VK, executable commitment and expected public digest. No mock verifier is used in the Production-1 CLI/ledger path. |
+| Local atomic nullifier/output transition | IMPLEMENTED for single SQLite database | The proof is checked in the write transaction; unique constraints, concurrent double-spend rejection, historical anchors and rollback tests cover local state. This is not distributed consensus or crash/reorg reconciliation to an external chain. |
+| Authenticated finalized state | NOT DONE | Production-1 bootstrap root/head is synthetic. There is no authenticated public testnet state adapter, checkpoint pin, or reorg/finality policy in the active path. |
+| Public testnet issuance/contracts | NOT DONE (`CONTRACTS_MISSING`) | No pool contract or shielded faucet is in the release path. Current E2E uses synthetic local note issuance only. |
+| Worker and client | IMPLEMENTED for Phase A local deployment | TLS, bearer auth, concurrency one, request limits, timeout, no witness-body logs, buffer wipe, client verification and ledger re-verification. The worker/operator can observe plaintext; no TEE attestation exists. |
+| Clean-machine E2E | IMPLEMENTED for local synthetic value, conditional on `make production-check` | The script proves, locally verifies, applies one spend, then rejects replay with the pinned backend. It does not establish public-chain deposit, finality, payee delivery or real public testnet value. |
+| Measured cost | IMPLEMENTED as single-host observation | [`BENCH.md`](../../BENCH.md) records 660,320-byte proof, ~676 s end-to-end proving, ~337 ms client verify and ~3.0 GiB peak RSS on the named host. These are not capacity guarantees. |
+| External audit | DEFERRED / NOT PERFORMED | Audit is not a substitute for the remaining internal proof, state, issuance, privacy and recovery requirements. |
+| Public testnet value | NO-GO | Contracts, issuance, authenticated finality and recovery are missing. |
+| Mainnet live value | NO-GO | Mainnet verification remains hard-disabled. No mainnet value, audit, composed >=128-bit PQ, or witness-hiding claim is made. |
 
-## Production-1 target after Phase 0
+## Verification call sites
 
-The next phases must close the anchor-bound output identity, bind the exact pinned checker/VK/circuit configuration to an explicit `production1_testnet` profile, keep `mainnet_live` unconditionally disabled, and route both client and ledger verification through that same production verifier. The ledger must verify and mutate under its atomic transaction without production callback injection. The service contract and clean-machine e2e must then be frozen and covered by vectors and adversarial tests. Mainnet remains NO-GO independently of the testnet profile.
-
-This baseline makes no claim of full witness zero knowledge, a composed 128-bit post-quantum bound, Monero ring signatures, threshold MPC, or mainnet live value.
-
-## After Phase 0–5 implementation status
-
-The table below mirrors the Production-1 overlay gate names and decision statuses in `production-gate-matrix.md`. The constraint-level inventory above uses `IMPLEMENTED | PARTIAL | MISSING`; an implemented gate maps to scoped `GO` only when its listed end-to-end evidence passes. `GO` is limited to the local synthetic test-value profile and is conditional on `make production-check` passing on this release SHA. It does not change any Mainnet gate.
-
-| Gate | Current status | Evidence / boundary |
+| Symbol | Definition/call site | Behavior |
 |---|---|---|
-| Active spend_v3 relation and anchor-bound output identity | GO | Frozen 1-in/1-out guest + matching host relation, anchor-bound slot 0, fixed vectors, and actual proof. |
-| Exact OpenVM verifier artifact pinning | GO | Source-controlled checker/VK/circuit pins verified by the actual client and ledger path. |
-| `production1_testnet` enabled / `mainnet_live` disabled | GO | Testnet verification is enabled; Mainnet and legacy Mainnet latch remain false. |
-| Atomic proof/anchor/nullifier/output transition | GO for local SQLite | Verification runs inside `BEGIN IMMEDIATE`; unique constraints, replay, concurrency and rollback tests pass. |
-| Historical anchor and replay policy | GO for local 256-anchor ring | Retained non-tip anchor accepted; duplicate spend rejected. |
-| Authenticated external finality and chain reorg recovery | MISSING | Synthetic local mint/bootstrap only; no external chain anchor or recovery adapter. |
-| Single-tenant prove API and client verification | GO for Phase A | TLS, bearer auth, request limits, concurrency one, RAM-only mutable witness, client + ledger verification; operator may see plaintext. |
-| Clean-machine mint-fixture → prove → verify → accept → replay reject | GO when `make production-check` passes | Actual OpenVM worker and pinned checker, no mock verifier. |
-| Fixed vectors and named-machine cost evidence | GO | Three fixtures and current proof costs in `BENCH.md`. |
-| Production-1 local test-value decision | GO | Conditional on `make production-check` on this exact release SHA. |
-| Mainnet live-value decision | NO-GO | Security target, full witness hiding, external finality/recovery and external audit are not established. |
+| `PRODUCTION_SPEND_VERIFICATION_ENABLED` | `src/protocol/proof_backend_v3.py`; asserted in `tests/unit/test_proof_backend_v3.py` and `scripts/production_check.py` | Compatibility name for Mainnet/live verification; remains `False`. |
+| `PRODUCTION1_TESTNET_SPEND_VERIFICATION_ENABLED` | `src/protocol/proof_backend_v3.py`; consumed by `verify_production_proof_envelope()` | Enables only the local synthetic Production-1 test-value profile. It is not an authorization to handle public testnet deposits. |
+| `verify_production_proof_envelope()` | `src/protocol/proof_backend_v3.py`; called by `src/protocol/production1_ledger.py::verify_production1_spend` | Fails closed on wrong profile or non-pinned verifier, and verifies the exact statement digest through the OpenVM adapter. |
+| `verify_production1_spend()` | `src/protocol/production1_ledger.py`; called from the ledger proof callback | Pure verification result. State transition is a separate SQLite operation with anchor and uniqueness rechecks. |
 
-## Verification call-site inventory
+## Current decision
 
-`PRODUCTION_SPEND_VERIFICATION_ENABLED` is retained as a compatibility name for the Mainnet/live profile and remains `False`. Production-1 testnet enablement is controlled separately by `PRODUCTION1_TESTNET_SPEND_VERIFICATION_ENABLED=True`.
-
-Repository-wide call-site inventory at implementation:
-
-| Symbol | Definition / call site | Use |
-|---|---|---|
-| `PRODUCTION_SPEND_VERIFICATION_ENABLED` | `src/protocol/proof_backend_v3.py:54` | Alias of the Mainnet flag; false. Test assertions: `tests/unit/test_proof_backend_v3.py:179`; release assertion: `scripts/production_check.py:32`. |
-| `verify_production_proof_envelope` | Definition `src/protocol/proof_backend_v3.py:264`; production call `src/protocol/production1_ledger.py:28` | Performs profile check, checks preflight bindings and invokes only the privately constructed pinned verifier. |
-| `verify_production_proof_envelope` tests | `tests/unit/test_proof_backend_v3.py:184,191,206` | Exercise accepted testnet proof and rejection on mainnet/profile/verifier mismatch. |
-
-| Call site | Role |
-|---|---|
-| `src/protocol/proof_backend_v3.py::verify_production_proof_envelope` | Profile gate and exact pinned verifier dispatch; fails closed for Mainnet or wrong verifier/profile. |
-| `src/protocol/production1_ledger.py::SQLiteV3Production1TestnetLedger._verify_spend_proof` | Ledger re-verification with pinned profile and preflight fields while the atomic ledger transaction is held. |
-| `scripts/production_check.py` | Asserts the profile/latch values and executes the no-mock end-to-end proof path. |
-| `tests/unit/test_proof_backend_v3.py` | Tests enabled testnet, disabled Mainnet, and fail-closed mismatches. |
-
-The active worker/client path is `scripts/production1_e2e.py` → `src/protocol/v3_proof_worker.py` → `src/protocol/v3_proof_client.py` → `SQLiteV3Production1TestnetLedger`. The `mainnet_live` profile is not enabled by any Production-1 configuration.
+README, this report and the gate matrix must describe the same scope: **local synthetic Production-1 test-value path only; public testnet value NO-GO; Mainnet live value NO-GO**. The candidate proof-to-SQLite result is real local integration evidence, not a complete public-value protocol. Do not promote the public testnet or Mainnet release gates until their missing items have exact-SHA evidence.

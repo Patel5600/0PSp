@@ -1,6 +1,6 @@
 # 0PSP ? Private Spend Protocol
 
-> **Production-1 Testnet (test value): GO** | **Mainnet live value: NO-GO**
+> **Production-1 local synthetic test value: GO** | **Public testnet value: NO-GO** | **Mainnet live value: NO-GO**
 
 Production-1 freezes a one-input/one-output OpenVM spend relation and uses the same pinned proof verifier and SQLite state transition for local test value. The single-tenant Phase A worker receives plaintext witness over authenticated TLS; the operator can read it. The OpenVM profile is below the 128-bit target and does not establish end-to-end witness hiding. This status does not authorize public-chain deployment or real-value transfers. See [docs/LIMITATIONS.md](docs/LIMITATIONS.md), [the accepted relation](docs/security/ACCEPTED_SPEND_RELATION_V3.md), and [the gate matrix](docs/security/production-gate-matrix.md).
 
@@ -225,8 +225,8 @@ The matrix below is formatted as individual gate entries rather than a six-colum
 
 ### 27. **Complete 0PSP Production Release**
 
-- **Testnet:** **GO** · **Mainnet:** **NO-GO**
-- **Evidence:** **v0.1.0-alpha Testnet Launch is GO**; Mainnet live-value transfer is gated
+- **Local synthetic test value:** **GO when `make production-check` passes** | **Public testnet value:** **NO-GO** | **Mainnet live value:** **NO-GO**
+- **Evidence:** Production-1 E2E uses pinned OpenVM verification and local SQLite with synthetic note issuance; public contracts, issuance, and authenticated finality are absent
 - **Mainnet obligation:** All mandatory external criteria evidenced closed
 
 ## Increment & Audit Registry

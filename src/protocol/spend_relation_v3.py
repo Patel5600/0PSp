@@ -60,6 +60,25 @@ class SpendRelationV3Error(ValueError):
     """Raised when a candidate witness fails any constraint of R_spend_v3."""
 
 
+def verify_spend_relation_v3_production1_reference(
+    statement: TxFieldsV3Candidate,
+    witness: "SpendWitnessV3",
+) -> bytes:
+    """Host reference for the exact pinned OpenVM Production-1 relation.
+
+    The broader historical reference below remains available for old vectors, but
+    it is deliberately excluded from the accepted 1-in/1-out, depth-63 profile.
+    This function is a pure predicate and performs no ledger mutation.
+    """
+    if not isinstance(witness, SpendWitnessV3):
+        raise SpendRelationV3Error("Production-1 accepts exactly one output")
+    if len(witness.merkle_siblings) != 63:
+        raise SpendRelationV3Error("Production-1 requires exactly 63 Merkle siblings")
+    if len(statement.output_commitments) != 1:
+        raise SpendRelationV3Error("Production-1 accepts exactly one output commitment")
+    return verify_spend_relation_v3_reference(statement, witness)
+
+
 @dataclass(frozen=True, slots=True)
 class OutputWitnessV3:
     """Private witness for an individual output note in a V3 spend transaction."""

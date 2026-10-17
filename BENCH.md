@@ -38,8 +38,8 @@ The clean Linux `make production-check` run completed on the same AMD Ryzen 5 75
 
 | Operation | Measurement |
 |---|---:|
-| Worker prove time | 676,077 ms |
-| Client local verify time | 337 ms |
+| Worker prove time | 682,444.917 ms |
+| Client local verify time | 224.389 ms |
 | Proof size | 660,320 bytes |
 | Prover peak RSS | 3,011,764 KiB |
 | End-to-end result | Proof accepted; replay rejected |

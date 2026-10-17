@@ -16,7 +16,9 @@ class Production1ArtifactPinError(ValueError):
 
 
 _VERIFIED_PINS_TOKEN = object()
-PRODUCTION1_PINS_SHA256 = "d3c26b3b73822034b00d88b802b25473e9e7903b48c678d126a91b39bc1f828d"
+# SHA-256 of the committed UTF-8 manifest after canonicalizing CRLF to LF. Git's
+# Windows checkout can otherwise change the file bytes without changing its blob.
+PRODUCTION1_PINS_SHA256 = "bfef4f50d99bafd8d86085f06f4c0e9d1a50369e177df3d083dfe11b18403d69"
 
 
 class Production1OpenVMProofVerifier(OpenVMV3CandidateProofVerifier):
@@ -32,7 +34,7 @@ def load_production1_verifier(
     *, checker_executable: str | Path, app_verifying_key: str | Path, pins_file: str | Path
 ) -> OpenVMV3CandidateProofVerifier:
     try:
-        raw = Path(pins_file).read_bytes()
+        raw = Path(pins_file).read_bytes().replace(b"\r\n", b"\n")
         if hashlib.sha256(raw).hexdigest() != PRODUCTION1_PINS_SHA256:
             raise ValueError("pin manifest does not match the source-controlled release digest")
         pins = json.loads(raw)

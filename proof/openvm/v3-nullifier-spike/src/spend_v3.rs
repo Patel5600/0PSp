@@ -329,6 +329,96 @@ pub fn verify_v3_spend_witness(witness: &[u8]) -> Result<[u8; 64], String> {
     Ok(public_digest)
 }
 
+#[cfg(test)]
+mod production1_mutation_tests {
+    use super::*;
+    use std::ops::Range;
+
+    const VALID: &[u8] = include_bytes!("../../../../tests/vectors/production1-spend-v3/valid.witness");
+
+    fn mark_fixed(reader: &mut Reader<'_>, count: usize, fields: &mut Vec<Range<usize>>, label: &str) {
+        let start = reader.offset;
+        reader.take(count, label).expect("fixture field is complete");
+        fields.push(start..reader.offset);
+    }
+
+    fn mark_u16_bytes(reader: &mut Reader<'_>, fields: &mut Vec<Range<usize>>, label: &str) {
+        let count = reader.u16_le(label).expect("fixture length is complete") as usize;
+        mark_fixed(reader, count, fields, label);
+    }
+
+    fn relation_field_ranges(witness: &[u8]) -> Vec<Range<usize>> {
+        let mut fields = Vec::new();
+        let mut outer = Reader::new(witness);
+        outer.take(SPEND_WITNESS_MAGIC.len(), "magic").unwrap();
+        let tx_len = outer.u32_le("tx length").unwrap() as usize;
+        let tx_start = outer.offset;
+        let tx_bytes = outer.take(tx_len, "tx").unwrap();
+        let mut tx = Reader::new(tx_bytes);
+        tx.take(TX_FIELDS_DOMAIN.len() + 1, "tx domain/version").unwrap();
+        mark_u16_bytes(&mut tx, &mut fields, "params_id");
+        mark_fixed(&mut tx, HASH_BYTES, &mut fields, "namespace");
+        mark_fixed(&mut tx, HASH_BYTES, &mut fields, "root");
+        mark_fixed(&mut tx, HASH_BYTES, &mut fields, "nullifier");
+        mark_fixed(&mut tx, HASH_BYTES, &mut fields, "state head");
+        mark_fixed(&mut tx, STATE_CONTEXT_BYTES, &mut fields, "state context");
+        mark_u16_bytes(&mut tx, &mut fields, "policy");
+        mark_fixed(&mut tx, 8, &mut fields, "fee");
+        mark_fixed(&mut tx, OUTPUT_ENTROPY_BYTES, &mut fields, "entropy");
+        mark_fixed(&mut tx, 4, &mut fields, "output count");
+        mark_fixed(&mut tx, HASH_BYTES, &mut fields, "output commitment");
+        tx.finish("tx").unwrap();
+        for field in &mut fields {
+            field.start += tx_start;
+            field.end += tx_start;
+        }
+
+        let input_bundle_len = outer.u32_le("input bundle length").unwrap() as usize;
+        mark_fixed(&mut outer, input_bundle_len, &mut fields, "input bundle");
+        mark_fixed(&mut outer, 8, &mut fields, "input value");
+        mark_fixed(&mut outer, COIN_ID_BYTES, &mut fields, "input coin id");
+        mark_fixed(&mut outer, R_NF_BYTES, &mut fields, "input r_nf");
+        mark_fixed(&mut outer, RHO_BYTES, &mut fields, "input rho");
+        mark_fixed(&mut outer, KEY_BYTES, &mut fields, "input nk");
+        mark_fixed(&mut outer, 8, &mut fields, "leaf index");
+        for _ in 0..TREE_DEPTH {
+            mark_fixed(&mut outer, HASH_BYTES, &mut fields, "Merkle sibling");
+        }
+        let output_bundle_len = outer.u32_le("output bundle length").unwrap() as usize;
+        mark_fixed(&mut outer, output_bundle_len, &mut fields, "output bundle");
+        mark_fixed(&mut outer, 8, &mut fields, "output value");
+        mark_fixed(&mut outer, RHO_BYTES, &mut fields, "output rho");
+        outer.finish("witness").unwrap();
+        fields
+    }
+
+    #[test]
+    fn fixed_production1_vector_is_accepted() {
+        assert!(verify_v3_spend_witness(VALID).is_ok());
+    }
+
+    #[test]
+    fn every_public_and_private_relation_field_mutation_is_rejected() {
+        for range in relation_field_ranges(VALID) {
+            assert!(range.start < range.end);
+            let mut mutated = VALID.to_vec();
+            mutated[range.start] ^= 1;
+            assert!(
+                verify_v3_spend_witness(&mutated).is_err(),
+                "mutated relation field at byte {} was accepted",
+                range.start
+            );
+        }
+    }
+
+    #[test]
+    fn production1_rejects_trailing_witness_bytes() {
+        let mut mutated = VALID.to_vec();
+        mutated.push(0);
+        assert!(verify_v3_spend_witness(&mutated).is_err());
+    }
+}
+
 // ============================================================================
 // 0PSP 2-Tier Post-Quantum Key Hierarchy & Spend Relation (Audit Milestone 1)
 // ============================================================================

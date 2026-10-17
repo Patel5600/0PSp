@@ -27,6 +27,7 @@ from src.protocol.spend_relation_v3 import (
     OutputWitnessV3,
     SpendRelationV3Error,
     SpendWitnessV3,
+    verify_spend_relation_v3_production1_reference,
     verify_spend_relation_v3_reference,
 )
 from src.protocol.transaction_v3_candidate import (
@@ -39,7 +40,7 @@ PARAMS_ID = b"spend-v3-relation-test-params"
 AUTH_SCHEME = b"0PSP-AUTH-SCHEME-V3"
 
 
-def _create_test_fixture():
+def _create_test_fixture(input_value: int = 1000, fee: int = 50):
     # 1. Setup Sender / Input Note
     sender_nk = NullifierDerivingKeyV3(b"\x11" * 48)
     sender_bundle = NotePublicKeyBundleV3(
@@ -51,8 +52,6 @@ def _create_test_fixture():
     input_coin_id = ScopedCoinId(b"\xaa" * 32)
     input_r_nf = NullifierSecret(b"\xbb" * 36)
     input_rho = b"\xcc" * 36
-    input_value = 1000
-
     input_commitment = commit_coin_v3(
         namespace_id=NAMESPACE,
         public_key_bundle=sender_bundle,
@@ -87,8 +86,9 @@ def _create_test_fixture():
         nullifier_key_commitment=compute_nullifier_key_commitment_v3(recipient_nk),
     ).encode()
 
-    fee = 50
-    output_value = 950
+    output_value = input_value - fee
+    if output_value < 0:
+        raise ValueError("test fixture fee exceeds input value")
     output_rho = b"\xdd" * 36
     output_entropy = b"\xee" * 32
 
@@ -154,6 +154,77 @@ def test_valid_spend_relation_v3_acceptance() -> None:
     statement, witness, _, _, _ = _create_test_fixture()
     digest = verify_spend_relation_v3_reference(statement, witness)
     assert len(digest) == 64
+
+
+def test_production1_host_reference_accepts_only_the_proved_arity_and_depth() -> None:
+    statement, witness, *_ = _create_test_fixture()
+    assert len(verify_spend_relation_v3_production1_reference(statement, witness)) == 64
+    with pytest.raises(SpendRelationV3Error, match="63 Merkle siblings"):
+        verify_spend_relation_v3_production1_reference(
+            statement, replace(witness, merkle_siblings=witness.merkle_siblings[:32])
+        )
+
+
+@pytest.mark.parametrize(("input_value", "fee"), [(0, 0), ((1 << 64) - 1, 0), ((1 << 64) - 1, (1 << 64) - 1)])
+def test_production1_u64_boundary_values_are_well_defined(input_value: int, fee: int) -> None:
+    statement, witness, *_ = _create_test_fixture(input_value=input_value, fee=fee)
+    assert len(verify_spend_relation_v3_production1_reference(statement, witness)) == 64
+
+
+def test_production1_max_u64_output_plus_fee_cannot_wrap() -> None:
+    max_u64 = (1 << 64) - 1
+    statement, witness, *_ = _create_test_fixture(input_value=max_u64, fee=0)
+    with pytest.raises(SpendRelationV3Error, match="overflows u64"):
+        verify_spend_relation_v3_production1_reference(
+            replace(statement, fee=1), witness
+        )
+
+
+@pytest.mark.parametrize(
+    "field,replacement",
+    [
+        ("params_id", b"other-production-params"),
+        ("namespace_id", NamespaceIdV3(b"\x91" * 48)),
+        ("commitment_root", b"\x91" * 48),
+        ("input_nullifier", NullifierV3(b"\x91" * 48)),
+        ("ledger_state_head", b"\x91" * 48),
+        ("state_context_digest", b"\x91" * 64),
+        ("authorization_policy_id", b"unsupported-policy"),
+        ("fee", 51),
+        ("output_entropy", b"\x91" * 32),
+        ("output_commitments", (CoinCommitmentV3(b"\x91" * 48),)),
+    ],
+)
+def test_production1_host_reference_rejects_each_public_field_mutation(field, replacement) -> None:
+    statement, witness, *_ = _create_test_fixture()
+    with pytest.raises((SpendRelationV3Error, ValueError)):
+        verify_spend_relation_v3_production1_reference(
+            replace(statement, **{field: replacement}), witness
+        )
+
+
+@pytest.mark.parametrize(
+    "field,replacement",
+    [
+        ("input_bundle", b"\x90" * 145),
+        ("input_value", 1001),
+        ("input_coin_id", ScopedCoinId(b"\x90" * 32)),
+        ("input_r_nf", NullifierSecret(b"\x90" * 36)),
+        ("input_rho", b"\x90" * 36),
+        ("input_nk", NullifierDerivingKeyV3(b"\x90" * 48)),
+        ("leaf_index", 1),
+        ("merkle_siblings", (b"\x90" * 48,) + (b"\x00" * 48,) * 62),
+        ("recipient_bundle", b"\x90" * 145),
+        ("output_value", 951),
+        ("output_rho", b"\x90" * 36),
+    ],
+)
+def test_production1_host_reference_rejects_each_private_field_mutation(field, replacement) -> None:
+    statement, witness, *_ = _create_test_fixture()
+    with pytest.raises((SpendRelationV3Error, ValueError)):
+        verify_spend_relation_v3_production1_reference(
+            statement, replace(witness, **{field: replacement})
+        )
 
 
 @pytest.mark.parametrize(

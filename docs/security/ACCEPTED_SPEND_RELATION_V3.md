@@ -6,6 +6,8 @@ Production-1 freezes exactly one input and one output, a namespace-scoped depth-
 
 The active OpenVM entrypoint dispatches only `spend_v3::verify_v3_spend_witness`. The legacy depth-32 host helper in the Rust module is not part of this relation. Host acceptance must reject any transaction with an output count other than one or a path other than 63 siblings.
 
+The verifier-selected relation identity is `openvm-spend-v3-p1-depth63-1in1out-v1` (`PRODUCTION1_CIRCUIT_ID`) and is pinned alongside the OpenVM app commitment, VK, and checker in `production1-pins.json`. `params_id` is serialized in TxFields and included in the public digest. The current TxFields schema does **not** serialize a separate `relation_id`; its identity is enforced by selecting the exact pinned VK/circuit. If the protocol requires the relation ID as an explicit public field, that requires a new TxFields/relation version, regenerated guest, VK and proofs. Do not infer that the human-readable circuit ID alone cryptographically selects a different relation.
+
 ## Public inputs
 
 OpenVM receives the private witness and reveals exactly 64 public bytes: `public_digest = SHAKE256-512(PUBLIC_STATEMENT_DOMAIN || version || SHAKE256-512(TxFieldsV3))`. Canonical `TxFieldsV3` binds:
@@ -16,6 +18,8 @@ OpenVM receives the private witness and reveals exactly 64 public bytes: `public
 - 32-byte output entropy, output count fixed to 1, and output commitment in canonical slot 0.
 
 The verifier recomputes the digest from the host-parsed statement and requires exact equality with the proof's 64 public bytes. The statement's `anchor_context` for output derivation is the exact fixed concatenation `commitment_root[48] || ledger_state_head[48] || state_context_digest[64]`.
+
+The relation's pure verification API returns the selected relation ID, parameters, namespace, root/head/context, nullifier, output commitments, and fee after proof verification. It does not consult or mutate ledger state. A caller must apply its root-acceptance policy separately; the Production-1 SQLite ledger rechecks the anchor and nullifier/output uniqueness inside its write transaction.
 
 ## Private inputs
 
@@ -42,3 +46,5 @@ This host composition is local SQLite state for test value. It is not a consensu
 ## Security scope
 
 OpenVM's current measured profile does not establish a composed 128-bit post-quantum bound. This document makes no full witness-ZK or prover-trace-masking claim. Phase A trusts one operator with plaintext witness. The proof checker and ledger establish relation satisfaction and local replay protection for the stated profile; they do not authenticate issuance, recipient intent, external finality, or reorg recovery.
+
+The Rust guest predicate has a fixed-vector test that flips a byte in every public and private field and each of the 63 Merkle siblings; all mutations reject. Python host-reference mutation tests cover every typed statement and witness field and enforce only the Production-1 1-in/1-out depth-63 profile. These tests are regression evidence for the implementation boundary and are not a proof of the cryptographic soundness of OpenVM or the protocol.

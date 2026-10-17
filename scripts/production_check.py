@@ -31,8 +31,10 @@ def main() -> int:
         blockers.append("mainnet_live verifier latch must remain disabled")
     if PRODUCTION_SPEND_VERIFICATION_ENABLED:
         blockers.append("legacy mainnet production latch must remain disabled")
-    if "Production-1 Testnet (test value): GO" not in readme:
-        blockers.append("README does not declare the Production-1 testnet status")
+    if "Production-1 local synthetic test value: GO" not in readme:
+        blockers.append("README does not declare the limited local synthetic test-value status")
+    if "Public testnet value: NO-GO" not in readme:
+        blockers.append("README does not keep public testnet value NO-GO")
     if "Mainnet live value: NO-GO" not in readme:
         blockers.append("README does not declare mainnet live value NO-GO")
     if "Phase A" not in limitations or "operator" not in limitations.lower():
@@ -46,6 +48,10 @@ def main() -> int:
             blockers.append(f"stale spike release marker remains: {marker}")
     if "mainnet_live" not in matrix or "production1_testnet" not in matrix:
         blockers.append("gate matrix is missing the explicit profile latch evidence")
+    if "Public testnet value is **NO-GO**" not in matrix:
+        blockers.append("gate matrix does not keep public testnet value NO-GO")
+    if "relation_id" not in limitations or "local synthetic" not in limitations:
+        blockers.append("LIMITATIONS.md is missing relation identity or local-only scope")
     for path in (
         ROOT / "src/protocol/v3_proof_worker.py",
         ROOT / "proof/openvm/v3-nullifier-spike/scripts/openvm_local_spend.py",
