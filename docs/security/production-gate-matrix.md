@@ -1,5 +1,7 @@
 # 0PSP Production Gate Matrix
 
+**Current overall production status: NO-GO** — the 0PSP-R v1 product implementation is incomplete. Production-1 remains a local synthetic test-value profile only; public testnet and Mainnet real-value release remain NO-GO.
+
 **Historical baseline:** The old `v0.1.0-alpha` testnet candidate is not evidence of the current spend path. Public testnet value is **NO-GO**; Mainnet live value is **NO-GO**.
 **Current release status: Production-1 local test-value path is scoped GO after `make production-check` passes on the release SHA; Mainnet live-value transfers remain NO-GO.**
 **0PSP-R target status:** production scope is locked in [0PSP-R Production Profile v1](../spec/0psp-r-production-profile-v1.md), but the full 0PSP-R release is **NOT IMPLEMENTED / NO-GO**. This does not widen Production-1's local synthetic test-value status. An independent external audit is required before Mainnet and has not been performed. Production-1 does not provide public-chain finality or external reorg recovery. All Mainnet proof, authorization, custody, state, integration, and recovery gates remain mandatory.
@@ -9,6 +11,10 @@
 **External cryptographic audit:** NOT PERFORMED for Mainnet; DEFERRED for Testnet (zero financial risk, testnet assets only). That does not convert missing implementation or proof obligations into GO.
 
 **Profile applicability rule:** entries later in this historical Production-1/Mainnet register that require composed >=128-bit PQ soundness or OpenVM transcript witness hiding apply to OpenVM/Vault Max or to a release making those claims. They are not a blanket requirement for the accepted classical-default 0PSP-R v1 profile. That profile must still justify its chosen classical signature/proof mechanism; any hidden settlement requires its own soundness/privacy evidence. This scope rule does not close external finality, issuance/custody, authorization, recovery, operational or release-control gates, and does not enable public testnet/Mainnet value.
+
+## Complete 0PSP production release
+
+**Status: NO-GO until all gates applicable to the declared release profile pass on one exact release SHA.** A locked scope document is not a completed implementation. Production-1's local synthetic test-value path does not establish the full 0PSP-R ratchet/session/channel product, public-chain finality, issuance/custody, or Mainnet readiness.
 
 ## 0PSP-R Production Profile v1 — scope locked, implementation incomplete
 
