@@ -16,6 +16,8 @@ This scope decision is **not** a claim that the product is already implemented. 
 
 Normative scope: [0PSP-R Production Profile v1](docs/spec/0psp-r-production-profile-v1.md). Accepted PQ limitations and implementation gaps: [LIMITATIONS.md](docs/LIMITATIONS.md). Implementation blocker: [issue #62](https://github.com/Patel5600/0PSp/issues/62). Deferred PQ-session research: [issue #63](https://github.com/Patel5600/0PSp/issues/63).
 
+**Profile applicability:** 0PSP-R v1 explicitly accepts a classical-default threat model. References below to OpenVM proof soundness, witness hiding, and composed >=128-bit post-quantum security describe the current Production-1/OpenVM or optional Vault Max path; they are not claims that default 0PSP-R sessions are PQ-secure and are not blanket v1 requirements. The selected default settlement must still enforce authorization, state, replay, range/conservation and any hidden-value proof requirements. See the normative [profile](docs/spec/0psp-r-production-profile-v1.md) and [limitations](docs/LIMITATIONS.md).
+
 ## Engineering Doctrine (The 5 Pillars)
 
 0PSP adheres strictly to the uncompromising Engineering Doctrine:
