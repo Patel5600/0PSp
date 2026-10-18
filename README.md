@@ -1,4 +1,4 @@
-# 0PSP ? Private Spend Protocol
+# 0PSP / 0PSP-R — Private Spend Protocol
 
 > **Production-1 local synthetic test value: GO** | **Public testnet value: NO-GO** | **Mainnet live value: NO-GO**
 
@@ -7,6 +7,14 @@ Production-1 freezes a one-input/one-output OpenVM spend relation and uses the s
 The Production-1 check builds the OpenVM guest and verifier, runs the repository tests, then exercises a synthetic local note through worker proving, client verification, ledger acceptance, and duplicate-spend rejection. Follow [Production-1 setup](proof/openvm/v3-nullifier-spike/README.md#clean-machine-production-1-check) from a clean Linux machine.
 
 Threshold multi-party authorization, Monero ring signatures/RingCT, mobile proving, and public-chain issuance are not implemented. External audit remains deferred; mainnet live value stays NO-GO.
+
+## Locked product direction: 0PSP-R v1 (implementation incomplete)
+
+**0PSP-R** is the locked target product: private value notes and ledger rules, ratchet-protected session payloads, funded bilateral channels, and one-time settlement bound to the exact opening/state. The accepted default is **classical-default**, with a written post-quantum residual risk. Continuous OpenVM proof-per-spend is not the default; it remains research/Vault Max.
+
+This scope decision is **not** a claim that the product is already implemented. The current Production-1 path remains a local synthetic test-value milestone. The ratchet/session and channel state machine are not present in the current release path, and public testnet value plus Mainnet live value remain **NO-GO**.
+
+Normative scope: [0PSP-R Production Profile v1](docs/spec/0psp-r-production-profile-v1.md). Accepted PQ limitations and implementation gaps: [LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## Engineering Doctrine (The 5 Pillars)
 
