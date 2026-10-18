@@ -1,12 +1,14 @@
 # 0PSP Documentation Map and Maintenance Policy
 
-**Last consistency check:** 2026-10-14  
-**Release status:** **TESTNET: GO (`v0.1.0-alpha`) / MAINNET: GATED (NO-GO)**  
-**Normative status:** research prototype; documentation and regression tests do not certify security.
+**Last consistency check:** 2026-10-18  
+**Release status:** **Production-1 local synthetic test value only / 0PSP-R target scope locked but incomplete / public testnet and Mainnet live value: NO-GO**  
+**Normative status:** the 0PSP-R scope decision is locked in a versioned profile; implementation and security gates remain incomplete. Documentation and regression tests do not certify security.
 
 This index is the entry point for maintainers. When a proposal, experiment or historical note conflicts with the current release decision, follow the current release register and the approved, versioned protocol specification. A research branch is not an approved protocol decision.
 
 ## Current source of truth
+
+1. [0PSP-R Production Profile v1](spec/0psp-r-production-profile-v1.md) — locked product boundary, classical-default PQ trade-off, channel state machine, settlement proof policy and release acceptance checklist.
 
 1. [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory production gates and change-control rules.
 2. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate, status, evidence, and condition for changing status; cross-referenced with the [27-Gate Production Verification Dossier](security/27-gate-verification-dossier.md).
