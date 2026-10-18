@@ -8,7 +8,7 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 
 ## Current source of truth
 
-1. [0PSP-R Production Profile v1](spec/0psp-r-production-profile-v1.md) — locked product boundary, classical-default PQ trade-off, channel state machine, settlement proof policy and release acceptance checklist.
+1. [0PSP-R Production Profile v1](spec/0psp-r-production-profile-v1.md) — locked product boundary and limitations; P0 implementation gate [#62](https://github.com/Patel5600/0PSp/issues/62); future sparse-PQ research [#63](https://github.com/Patel5600/0PSp/issues/63).
 
 2. [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory production gates and change-control rules.
 3. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate, status, evidence, and condition for changing status; cross-referenced with the [27-Gate Production Verification Dossier](security/27-gate-verification-dossier.md).
