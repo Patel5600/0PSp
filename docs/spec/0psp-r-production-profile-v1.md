@@ -193,7 +193,7 @@ Any change to the default trust model, channel authorization, state machine, set
 - **[Issue #62 — implement 0PSP-R ratchet sessions, funded channels and one-time settlement](https://github.com/Patel5600/0PSp/issues/62):** P0 implementation gate for the locked v1 profile. It covers the classical-default ratchet/session, channel state machine, settlement binding, conflict/rollback/offline/timeout behavior and one-close ledger rule.
 - **[Issue #63 — research optional sparse PQ session epoch after v1](https://github.com/Patel5600/0PSp/issues/63):** future/P2 track. Do not start it as a prerequisite to v1 and do not mix it with ZK settlement or OpenVM proof-per-spend work.
 
-Issue #62 and the existing gates in #33–#47/#42 must be evidenced on one exact release candidate before anyone describes the 0PSP-R product as production-ready.
+Issue #62 and every gate applicable to the selected 0PSP-R v1 funding, note/ledger, session, authorization, settlement and deployment profile must be evidenced on one exact release candidate before anyone describes the product as production-ready. Issue #36 applies to the optional OpenVM/Vault Max profile or any composed >=128-bit PQ proof claim; issue #63 is future optional PQ-session research, not a v1 gate.
 
 ## 10. Design references
 
