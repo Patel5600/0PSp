@@ -1,6 +1,8 @@
-# Production-1 limitations
+# 0PSP-R and Production-1 limitations
 
 **Current scope:** Production-1 verification is enabled only for the local synthetic test-value profile after `make production-check` passes. Public testnet value and Mainnet live value remain **NO-GO**; Mainnet verification is hard-disabled. This does not claim a public L2 deployment or authorize real-value transfers.
+
+**Locked target scope:** [0PSP-R Production Profile v1](spec/0psp-r-production-profile-v1.md) is the accepted product frame: private value notes + ratchet/AEAD sessions + funded bilateral channels + one-time settlement; classical-default, sparse/optional PQ later, and continuous OpenVM proof-per-spend excluded from the default. This is a scope decision only. The ratchet session and channel state machine are **not implemented in the current repository**, so 0PSP-R is **not yet a completed production product**. The existing Production-1 GO is limited to local synthetic test value. Track the P0 implementation in [issue #62](https://github.com/Patel5600/0PSp/issues/62); optional sparse PQ-session research is future-only in [issue #63](https://github.com/Patel5600/0PSp/issues/63).
 
 - **Proof backend and soundness:** OpenVM 2.0.2 at pinned git revision `59a69b8b0cbee7011ac978e4cc07707ee3681944` is the only active backend. The active constructor declares a 100-bit application RBR target; the pinned calculator reproduces 100.089831 app-RBR bits under documented upstream trace/AIR ceilings. This is not a composed post-quantum bound. Proposed profiles in `BENCH.md` calculate 102.63/100.98 bits but are not active. The active composed bound is unknown; **128-bit PQ security is NOT CLAIMED**, and composed ≥128-bit post-quantum security is **NOT CLAIMED**. The manifest pins exact resolved app/aggregation/FRI/STARK/transcript parameters and build inputs; release tests reject drift.
 - **Proof privacy:** Label: **proof of knowledge under the pinned OpenVM verifier assumptions; zero-knowledge / witness hiding NOT established**. Prover-trace masking and an independent Fiat–Shamir/QROM composition bound are not established. The client refuses this proof by default; explicit opt-in is accepted only under `PROFILE=production1_testnet`, and the worker response carries `proof_privacy=witness_hiding_not_established`. This is an accidental-misuse guard, not a cryptographic witness-hiding fix. Phase A worker operator access to plaintext witness is a separate issue.
@@ -16,3 +18,26 @@
 - **Primitive test boundary:** The pure `verify_production1_spend` API returns verified public fields without changing state; ledger application separately checks the allowed anchor and nullifier/output uniqueness. The production host-reference API enforces 1-in/1-out and depth-63 only. Its field-mutation tests and the Rust guest mutation tests establish predicate rejection for the fixed vector, not a universal soundness or zero-knowledge proof.
 - **Threat model:** [Production-1 trust boundaries and adversaries](../0psp-threat-model.md) describe honest-but-curious and malicious operator outcomes, client abuse, local database rollback, and artifact substitution.
 - **Separate stack:** MAMA40 is a separate content-AEAD stack and is not used by this spend or worker.
+
+
+## Accepted 0PSP-R v1 post-quantum trade-off (2026-10-18)
+
+The following six limitations are part of the locked product contract and must remain in user-facing security documentation:
+
+> **WE AGREE**
+>
+> 1. The default path optimizes mobile UX and production operability.
+> 2. Continuous post-quantum proof-per-spend is OUT of production scope.
+> 3. Ratchet + AEAD do NOT by themselves provide post-quantum confidentiality of past session keys against a future quantum adversary.
+> 4. Ledger nullifiers/commitments use hash-based objects where specified; settlement authorization uses classical signatures/proofs unless a versioned PQ suite is negotiated and pinned.
+> 5. “Harvest now, decrypt later” on classical session traffic remains a residual risk until a PQ session handshake + rekey policy is implemented and enabled.
+> 6. Optional PQ epoch / vault mode may be added later without changing the default production threat model above.
+
+### Interpretation that must not be lost
+
+- **Ratchet-PQ is not settlement ZK.** A future ML-KEM-based handshake/rekey or Sparse Post-Quantum Ratchet protects session key establishment under its specific assumptions. It does not prove note membership, value conservation, nullifier correctness or channel settlement.
+- **Settlement ZK is not a ratchet.** A settlement proof, if hidden amounts/notes require one, proves only its selected relation. It does not automatically provide message confidentiality or post-quantum session secrecy.
+- **OpenVM is not the default.** Current OpenVM Production-1 remains a local synthetic test-value relation with explicitly unestablished end-to-end witness hiding and composed >=128-bit post-quantum security. Continuous OpenVM/full-PQ proof-per-spend belongs to the separate research/Vault Max track.
+- **Classical-default means classical-default.** Do not label default sessions as PQ-secure. Do not claim that hash-based ledger objects make X25519, classical signatures, a classical light proof, or the full protocol quantum-resistant.
+- **Future PQ must be versioned and reviewed.** A PQ-required profile must authenticate suite negotiation and fail closed on downgrade. A future KEM/ratchet needs an exact pinned specification, library, hybrid combiner/KDF, epoch/recovery policy, replay and out-of-order tests, interoperability tests and current standard/errata review. Mentioning ML-KEM does not implement it.
+- **Current implementation gap:** this file records target semantics. No ratchet/channel/session implementation was found in the current `main` tree at the scope-lock baseline; the target remains incomplete until actual code and acceptance tests exist.
