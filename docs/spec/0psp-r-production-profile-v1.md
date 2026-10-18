@@ -188,7 +188,14 @@ The following are locked for 0PSP-R v1: classical-default ratcheted sessions; AE
 
 Any change to the default trust model, channel authorization, state machine, settlement privacy, session suite, PQ downgrade policy or proof backend requires a versioned decision, updated limitations, adversarial tests and a release-gate review. This scope decision does not close implementation blockers or enable Mainnet/public testnet value.
 
-## 9. Design references
+## 9. Implementation tracking
+
+- **[Issue #62 — implement 0PSP-R ratchet sessions, funded channels and one-time settlement](https://github.com/Patel5600/0PSp/issues/62):** P0 implementation gate for the locked v1 profile. It covers the classical-default ratchet/session, channel state machine, settlement binding, conflict/rollback/offline/timeout behavior and one-close ledger rule.
+- **[Issue #63 — research optional sparse PQ session epoch after v1](https://github.com/Patel5600/0PSp/issues/63):** future/P2 track. Do not start it as a prerequisite to v1 and do not mix it with ZK settlement or OpenVM proof-per-spend work.
+
+Issue #62 and the existing gates in #33–#47/#42 must be evidenced on one exact release candidate before anyone describes the 0PSP-R product as production-ready.
+
+## 10. Design references
 
 These upstream documents inform future implementation and are not proof that 0PSP-R currently inherits their security properties:
 
