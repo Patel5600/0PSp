@@ -1,11 +1,30 @@
 # 0PSP Production Gate Matrix
 
 **Historical baseline:** The old `v0.1.0-alpha` testnet candidate is not evidence of the current spend path. Public testnet value is **NO-GO**; Mainnet live value is **NO-GO**.
-**Current release status: Production-1 local test-value path is scoped GO after `make production-check` passes on the release SHA; Mainnet live-value transfers remain NO-GO.** An independent external audit is required before Mainnet and has not been performed. Production-1 does not provide public-chain finality or external reorg recovery. All Mainnet proof, authorization, custody, state, integration, and recovery gates remain mandatory.
+**Current release status: Production-1 local test-value path is scoped GO after `make production-check` passes on the release SHA; Mainnet live-value transfers remain NO-GO.**
+**0PSP-R target status:** production scope is locked in [0PSP-R Production Profile v1](../spec/0psp-r-production-profile-v1.md), but the full 0PSP-R release is **NOT IMPLEMENTED / NO-GO**. This does not widen Production-1's local synthetic test-value status. An independent external audit is required before Mainnet and has not been performed. Production-1 does not provide public-chain finality or external reorg recovery. All Mainnet proof, authorization, custody, state, integration, and recovery gates remain mandatory.
 **Mainnet Release Gate Structure:**
 - **Mainnet live-value transfers: NO-GO**, including guarded/TVL-capped operation. The local pinned verifier/profile does not establish Mainnet's complete security, authenticated-finality, issuance/custody, recovery, or end-to-end witness-hiding requirements.
 
 **External cryptographic audit:** NOT PERFORMED for Mainnet; DEFERRED for Testnet (zero financial risk, testnet assets only). That does not convert missing implementation or proof obligations into GO.
+
+## 0PSP-R Production Profile v1 — scope locked, implementation incomplete
+
+The accepted target is **private value notes + ratchet/AEAD sessions + funded bilateral channels + one-time settlement**. Classical-default settlement/session cryptography is an explicitly accepted trade-off; sparse/optional PQ is a later versioned extension. Continuous OpenVM/full-PQ proof-per-spend is not in the default release.
+
+| 0PSP-R target gate | Current implementation status | Release condition |
+|---|---|---|
+| Note, commitment, nullifier and tree rules | **PARTIAL — local synthetic Production-1 only** | Extend the exact selected note/nullifier/tree profile into the funded channel/settlement path; keep issuance/finality limitations explicit. |
+| Ratchet + AEAD session payloads | **NOT IMPLEMENTED** | Pin and integrate a reviewed ratchet/session suite; implement authenticated session establishment, message-key/nonce discipline, replay/out-of-order handling, bounded skipped keys, state persistence and no bypass of channel authorization. |
+| Funded bilateral channel state machine | **NOT IMPLEMENTED** | Implement open/fund, seq-monotonic dual-authorized updates, timeout, dispute/challenge, conflict/rollback/offline behavior and terminal close; adversarial tests required. |
+| Settlement bound to exact opening | **NOT IMPLEMENTED as a channel protocol** | Bind network/namespace, funding reference, participants, asset, open hash, state seq/hash, authorization policy and final ledger effects. |
+| One close per channel/opening | **NOT IMPLEMENTED as a channel protocol** | Atomic unique channel/opening close token, nullifier/output update, replay/concurrency protection and restart/recovery tests. |
+| Public-balance settlement authorization | **POLICY TARGET ONLY** | Dual signatures may authorize only canonical public state whose range/conservation rules the ledger independently enforces. Implement key/policy handling and verify both signatures before one-time close. |
+| Hidden-balance/note settlement | **PROOF BACKEND NOT SELECTED** | Select and review a light proof backend if hidden predicates must be verified; bind the same opening/state/authorization/ledger effects. Signature-only cannot prove a hidden arithmetic relation. |
+| Sparse PQ handshake/rekey epoch | **RESERVED — NOT IMPLEMENTED** | Separate, versioned PQ profile with authenticated negotiation, reviewed KEM/ratchet, hybrid combiner, downgrade/replay/epoch recovery tests and pinned interoperability. |
+| Continuous OpenVM full proof-per-spend | **OUT OF DEFAULT SCOPE; research/Vault Max** | Separate opt-in profile only. Must satisfy its own relation, witness-hiding, composed-security and resource gates. |
+
+Production-1's local synthetic test-value path and 0PSP-R's intended production architecture are separate statuses. Do not call the full 0PSP-R product production-ready until the NOT IMPLEMENTED gates above and the relevant existing gates in this matrix pass on one exact release candidate.
 
 ## Production-1 profile (test value only)
 
