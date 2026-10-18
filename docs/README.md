@@ -10,40 +10,40 @@ This index is the entry point for maintainers. When a proposal, experiment or hi
 
 1. [0PSP-R Production Profile v1](spec/0psp-r-production-profile-v1.md) — locked product boundary, classical-default PQ trade-off, channel state machine, settlement proof policy and release acceptance checklist.
 
-1. [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory production gates and change-control rules.
-2. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate, status, evidence, and condition for changing status; cross-referenced with the [27-Gate Production Verification Dossier](security/27-gate-verification-dossier.md).
-3. [RFC-01: user-committed issuance](security/rfc-01-user-committed-issuance.md) — issuer privacy, issuance/value/deposit binding, and replay requirements.
-4. [RFC-02: V2-only spend relation](theory/spend-relation-spec.md) — frozen V2 equations and unresolved predicates; this file is not a V3 specification.
-5. [CHp4.7 V3 spend-relation candidate](theory/spend-relation-v3-candidate.md) — non-normative V3 candidate, provisional nullifier suite, recipient-authentication/authorization gaps, and release blockers.
-6. [V2 protocol security argument](security/v2-protocol-security-argument.md) — conditional component-level arguments and limitations.
-7. [CHp4.3 identity-invariant review](audit/chp4.3-identity-invariant-decision-review.md) — historical review of hidden identity policy.
-8. [CHp4.4 deterministic output-ID proposal review](audit/chp4.4-deterministic-output-id-proposal-review.md) — explains why the public nullifier-derived ID proposal is not accepted.
-9. [CHp4.5 hidden-witness output-identity proposal review](audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — reviews field widths, collision bounds, privacy claims, and sample tests.
-10. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — transfer reference candidate and hardcoded regressions; ZK enforcement remains open.
-11. [CHp4.7 output-identity uniqueness and nullifier safety](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md) — additive V3 commitment, recipient-keyed nullifier, and anchor/slot identity candidates; proof enforcement and production gates remain open.
-12. [CHp4.8 Namespace V2 EVM adapter — historical initial mapping](audit/chp4.8-namespace-v2-evm-adapter.md) — historical adapter retained for audit; its intermediate-hash identity mapping is superseded.
-13. [CHp4.9 Namespace V3 direct-hash remediation](audit/chp4.9-namespace-v3-direct-hash-remediation.md) — current EVM identity encoding, collision model, native/Python parity, and ledger typing.
-14. [CHp4.10 namespace RPC quorum and durable finality journal](audit/chp4.10-namespace-rpc-finality-hardening.md) — RPC policy, checkpoint-to-finalized ancestry, and remaining consensus/proof boundaries.
-15. [CHp4.11 EVM deposit evidence contract](audit/chp4.11-evm-deposit-evidence-contract.md) — fixed event profile, canonical evidence, beneficiary binding, and trie-proof requirements.
-16. [CHp4.12 EVM transaction/receipt trie verifier](audit/chp4.12-evm-trie-inclusion-verifier.md) — Keccak/RLP/MPT primitives and same-index transaction/receipt proofs.
-17. [CHp4.13 Ethereum Mainnet light-client finality integration](audit/chp4.13-helios-authenticated-finality.md) — supervised pinned Helios candidate and durable checkpoint ancestry; no production authorization is claimed.
-18. [CHp4.14 deposit asset-movement evidence](audit/chp4.14-asset-movement-evidence.md) — native value and ERC-20 Transfer matching; movement evidence is not custody authorization.
-19. [CHp4.15 authenticated account/storage proofs](audit/chp4.15-authenticated-evm-state-proofs.md) — EIP-1186 account/storage proofs against authenticated finalized headers.
-20. [CHp4.16 Ethereum proof differential tests](audit/chp4.16-ethereum-proof-differential-tests.md) — test-only comparison with independent Keccak/RLP/MPT libraries.
-21. [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — transactional SQLite transitions and startup consistency checks, not consensus.
-22. [CHp4.18 canonical V2 spend transaction and digest](audit/chp4.18-canonical-spend-transaction-v2.md) — canonical TxFieldsV2/TxDigestV2 host encoding; proof circuit binding remains open.
-23. [CHp4.20 proof-backend feasibility](audit/chp4.20-zk-backend-feasibility.md) — backend selection criteria and the still-required shared-witness relation.
-24. [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — scenario estimator and the need for measured backend results.
-25. [CHp4.22 SmallWood R1CS adapter scaling audit](audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — memory-scaling evidence and rejection of the dense generic adapter.
-26. [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — circuit-row model and Aurora candidate screen.
-27. [CHp4.26 historical-anchor concurrency remediation](audit/chp4.26-historical-anchor-concurrency-remediation.md) — bounded 256-state root/head anchors, atomic revalidation, uniqueness-preserving commits, schema migration and remaining NO-GO gates.
-28. [CHp4.27 authorization and proof-backend candidate screen](audit/chp4.27-authorization-and-backend-candidate-screen.md) — Ringtail/LoTRS limitations, threshold ML-DSA-87 as the leading but unselected experiment candidate (audit-status/license conflicts unresolved), candidate authorization message/context, and OpenVM/Aurora proof-backend feasibility.
-29. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
-30. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
-31. [Commitment hiding and binding proof in QROM](theory/commitment-hiding-and-binding-proof.md) — formal computational binding reduction to SHAKE256-384 collision resistance and statistical hiding bound ($\text{Adv}^{\text{hide}} \le 2^{-160}$).
-32. [Composed security games and concrete reduction](security/composed-security-games-and-reduction.md) — formal balance conservation, recipient unlinkability under chosen witness attacks, and double-spend replay prevention games in QROM.
-33. [27-Gate production verification dossier](security/27-gate-verification-dossier.md) — comprehensive binary release audit across all 27 protocol gates.
-34. [Mobile-first prover architecture and memory budget](theory/mobile-first-prover-architecture-and-memory-budget.md) — client resource boundaries (Android LMK $\le 384\text{ MB}$, iOS Jetsam $\le 256\text{ MB}$), analytical resource model projections, implemented C11 native mobile edge cryptographic engine (`libpsp_native`, zero-heap Tier 1 spend package generation), and the 2-Tier Blinded Split-Prover protocol ($< 24\text{ MB}$ RAM, sub-second execution on mobile ARM64; zero-knowledge witness privacy conditionally gated on circuit-level ZK blinding rows under P0 Issue #36).
+2. [Evidence-first RFC register and release gate](security/evidence-first-rfc-register.md) — mandatory production gates and change-control rules.
+3. [Binary Production Gate Matrix](security/production-gate-matrix.md) — every release gate, status, evidence, and condition for changing status; cross-referenced with the [27-Gate Production Verification Dossier](security/27-gate-verification-dossier.md).
+4. [RFC-01: user-committed issuance](security/rfc-01-user-committed-issuance.md) — issuer privacy, issuance/value/deposit binding, and replay requirements.
+5. [RFC-02: V2-only spend relation](theory/spend-relation-spec.md) — frozen V2 equations and unresolved predicates; this file is not a V3 specification.
+6. [CHp4.7 V3 spend-relation candidate](theory/spend-relation-v3-candidate.md) — non-normative V3 candidate, provisional nullifier suite, recipient-authentication/authorization gaps, and release blockers.
+7. [V2 protocol security argument](security/v2-protocol-security-argument.md) — conditional component-level arguments and limitations.
+8. [CHp4.3 identity-invariant review](audit/chp4.3-identity-invariant-decision-review.md) — historical review of hidden identity policy.
+9. [CHp4.4 deterministic output-ID proposal review](audit/chp4.4-deterministic-output-id-proposal-review.md) — explains why the public nullifier-derived ID proposal is not accepted.
+10. [CHp4.5 hidden-witness output-identity proposal review](audit/chp4.5-hidden-witness-output-identity-proposal-review.md) — reviews field widths, collision bounds, privacy claims, and sample tests.
+11. [CHp4.6 output-identity candidate and tests](audit/chp4.6-output-identity-candidate-and-tests.md) — transfer reference candidate and hardcoded regressions; ZK enforcement remains open.
+12. [CHp4.7 output-identity uniqueness and nullifier safety](audit/chp4.7-output-identity-uniqueness-and-nullifier-safety.md) — additive V3 commitment, recipient-keyed nullifier, and anchor/slot identity candidates; proof enforcement and production gates remain open.
+13. [CHp4.8 Namespace V2 EVM adapter — historical initial mapping](audit/chp4.8-namespace-v2-evm-adapter.md) — historical adapter retained for audit; its intermediate-hash identity mapping is superseded.
+14. [CHp4.9 Namespace V3 direct-hash remediation](audit/chp4.9-namespace-v3-direct-hash-remediation.md) — current EVM identity encoding, collision model, native/Python parity, and ledger typing.
+15. [CHp4.10 namespace RPC quorum and durable finality journal](audit/chp4.10-namespace-rpc-finality-hardening.md) — RPC policy, checkpoint-to-finalized ancestry, and remaining consensus/proof boundaries.
+16. [CHp4.11 EVM deposit evidence contract](audit/chp4.11-evm-deposit-evidence-contract.md) — fixed event profile, canonical evidence, beneficiary binding, and trie-proof requirements.
+17. [CHp4.12 EVM transaction/receipt trie verifier](audit/chp4.12-evm-trie-inclusion-verifier.md) — Keccak/RLP/MPT primitives and same-index transaction/receipt proofs.
+18. [CHp4.13 Ethereum Mainnet light-client finality integration](audit/chp4.13-helios-authenticated-finality.md) — supervised pinned Helios candidate and durable checkpoint ancestry; no production authorization is claimed.
+19. [CHp4.14 deposit asset-movement evidence](audit/chp4.14-asset-movement-evidence.md) — native value and ERC-20 Transfer matching; movement evidence is not custody authorization.
+20. [CHp4.15 authenticated account/storage proofs](audit/chp4.15-authenticated-evm-state-proofs.md) — EIP-1186 account/storage proofs against authenticated finalized headers.
+21. [CHp4.16 Ethereum proof differential tests](audit/chp4.16-ethereum-proof-differential-tests.md) — test-only comparison with independent Keccak/RLP/MPT libraries.
+22. [CHp4.17 durable ledger and commitment Merkle tree](audit/chp4.17-durable-merkle-ledger.md) — transactional SQLite transitions and startup consistency checks, not consensus.
+23. [CHp4.18 canonical V2 spend transaction and digest](audit/chp4.18-canonical-spend-transaction-v2.md) — canonical TxFieldsV2/TxDigestV2 host encoding; proof circuit binding remains open.
+24. [CHp4.20 proof-backend feasibility](audit/chp4.20-zk-backend-feasibility.md) — backend selection criteria and the still-required shared-witness relation.
+25. [CHp4.21 static SHAKE arithmetization cost model](audit/chp4.21-keccak-zk-cost-model.md) — scenario estimator and the need for measured backend results.
+26. [CHp4.22 SmallWood R1CS adapter scaling audit](audit/chp4.22-smallwood-r1cs-adapter-scaling.md) — memory-scaling evidence and rejection of the dense generic adapter.
+27. [CHp4.23 binary-field Keccak feasibility](audit/chp4.23-binary-field-keccak-feasibility.md) — circuit-row model and Aurora candidate screen.
+28. [CHp4.26 historical-anchor concurrency remediation](audit/chp4.26-historical-anchor-concurrency-remediation.md) — bounded 256-state root/head anchors, atomic revalidation, uniqueness-preserving commits, schema migration and remaining NO-GO gates.
+29. [CHp4.27 authorization and proof-backend candidate screen](audit/chp4.27-authorization-and-backend-candidate-screen.md) — Ringtail/LoTRS limitations, threshold ML-DSA-87 as the leading but unselected experiment candidate (audit-status/license conflicts unresolved), candidate authorization message/context, and OpenVM/Aurora proof-backend feasibility.
+30. [CHP4 construction-readiness](security/chp4-construction-readiness.md) — implementation evidence and open gates.
+31. [Dependency minimization and construction roadmap](plan/dependency-minimization-and-construction-roadmap.md) — gated engineering sequence.
+32. [Commitment hiding and binding proof in QROM](theory/commitment-hiding-and-binding-proof.md) — formal computational binding reduction to SHAKE256-384 collision resistance and statistical hiding bound ($\text{Adv}^{\text{hide}} \le 2^{-160}$).
+33. [Composed security games and concrete reduction](security/composed-security-games-and-reduction.md) — formal balance conservation, recipient unlinkability under chosen witness attacks, and double-spend replay prevention games in QROM.
+34. [27-Gate production verification dossier](security/27-gate-verification-dossier.md) — comprehensive binary release audit across all 27 protocol gates.
+35. [Mobile-first prover architecture and memory budget](theory/mobile-first-prover-architecture-and-memory-budget.md) — client resource boundaries (Android LMK $\le 384\text{ MB}$, iOS Jetsam $\le 256\text{ MB}$), analytical resource model projections, implemented C11 native mobile edge cryptographic engine (`libpsp_native`, zero-heap Tier 1 spend package generation), and the 2-Tier Blinded Split-Prover protocol ($< 24\text{ MB}$ RAM, sub-second execution on mobile ARM64; zero-knowledge witness privacy conditionally gated on circuit-level ZK blinding rows under P0 Issue #36).
 
 ## Repository map
 
