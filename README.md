@@ -14,7 +14,7 @@ Threshold multi-party authorization, Monero ring signatures/RingCT, mobile provi
 
 This scope decision is **not** a claim that the product is already implemented. The current Production-1 path remains a local synthetic test-value milestone. The ratchet/session and channel state machine are not present in the current release path, and public testnet value plus Mainnet live value remain **NO-GO**.
 
-Normative scope: [0PSP-R Production Profile v1](docs/spec/0psp-r-production-profile-v1.md). Accepted PQ limitations and implementation gaps: [LIMITATIONS.md](docs/LIMITATIONS.md).
+Normative scope: [0PSP-R Production Profile v1](docs/spec/0psp-r-production-profile-v1.md). Accepted PQ limitations and implementation gaps: [LIMITATIONS.md](docs/LIMITATIONS.md). Implementation blocker: [issue #62](https://github.com/Patel5600/0PSp/issues/62). Deferred PQ-session research: [issue #63](https://github.com/Patel5600/0PSp/issues/63).
 
 ## Engineering Doctrine (The 5 Pillars)
 
