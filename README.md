@@ -1,3 +1,5 @@
+> **RESEARCH ARCHIVE — NOT THE ACTIVE 0PSP-R IMPLEMENTATION.** This repository preserves legacy 0PSP/OpenVM/V3 experiments and their audit history. Active Pocket Seal and Orchard-based 0PSP-R implementation work is in [Patel5600/0PSP-R](https://github.com/Patel5600/0PSP-R). Do not treat this repository's candidate code or CI as evidence that the new repository's protocol is complete or production-ready.
+
 # 0PSP / 0PSP-R — Private Spend Protocol
 
 > **Production-1 local synthetic test value: GO** | **Public testnet value: NO-GO** | **Mainnet live value: NO-GO**
